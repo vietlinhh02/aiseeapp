@@ -121,10 +121,10 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
             isScrollable: true,
             onTap: (i) => setState(() => _currentTab = i),
             tabs: const [
-              Tab(text: 'Suc khoe'),
-              Tab(text: 'Thuoc'),
-              Tab(text: 'Hoat dong'),
-              Tab(text: 'Vi tri'),
+              Tab(text: 'Sức khỏe'),
+              Tab(text: 'Thuốc'),
+              Tab(text: 'Hoạt động'),
+              Tab(text: 'Vị trí'),
             ],
           ),
         ),
@@ -154,27 +154,27 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     final h = _health;
-    if (h == null) return const Center(child: Text('Khong co du lieu'));
+    if (h == null) return const Center(child: Text('Không có dữ liệu'));
     return RefreshIndicator(
       onRefresh: _loadHealth,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _sectionTitle('Thuoc hom nay'),
+          _sectionTitle('Thuốc hôm nay'),
           if (h.medications.isEmpty)
-            _emptyCard('Chua co thuoc nao')
+            _emptyCard('Chưa có thuốc nào')
           else
             ...h.medications.map(_buildMedAdherenceCard),
           const SizedBox(height: 16),
-          _sectionTitle('Trieu chung gan day'),
+          _sectionTitle('Triệu chứng gần đây'),
           if (h.recentSymptoms.isEmpty)
-            _emptyCard('Khong co trieu chung')
+            _emptyCard('Không có triệu chứng')
           else
             ...h.recentSymptoms.map(_buildSymptomCard),
           const SizedBox(height: 16),
-          _sectionTitle('Chi so suc khoe'),
+          _sectionTitle('Chỉ số sức khỏe'),
           if (h.recentMetrics.isEmpty)
-            _emptyCard('Khong co chi so')
+            _emptyCard('Không có chỉ số')
           else
             ...h.recentMetrics.map(_buildMetricCard),
         ],
@@ -271,8 +271,8 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 onSelected: (action) =>
                     _onMedAction(action, m.medication),
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Sua')),
-                  PopupMenuItem(value: 'delete', child: Text('Xoa')),
+                  PopupMenuItem(value: 'edit', child: Text('Sửa')),
+                  PopupMenuItem(value: 'delete', child: Text('Xóa')),
                 ],
               ),
             ),

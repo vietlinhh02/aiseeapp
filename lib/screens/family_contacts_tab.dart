@@ -135,7 +135,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                   ? const SizedBox(width: 20, height: 20,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
-                  : const Text('Tham gia gia dinh',
+                  : const Text('Tham gia gia đình',
                       style: TextStyle(color: Colors.white,
                           fontWeight: FontWeight.w600)),
             ),
