@@ -10,7 +10,7 @@ abstract final class AppEnv {
     'LIVEKIT_URL',
     defaultValue: '',
   );
-  static const String _defaultBackendUrl = 'http://192.168.2.196:8080';
+  static const String _defaultBackendUrl = 'http://192.168.1.10:8081';
 
   /// OAuth Web Client ID — dùng cho web, `serverClientId` Android/iOS (aud `id_token` khớp backend).
   static const String googleWebClientId = String.fromEnvironment(
