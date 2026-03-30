@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
 import '../services/aisee_call_service.dart';
 import '../services/aisee_chat_service.dart';
+import '../services/aisee_chat_socket.dart';
 import '../services/aisee_family_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import '../utils/app_toast.dart';
 import 'call_screen.dart';
 import 'chat_detail_screen.dart';
 
+/// DiceBear seed avatar URL — generates unique avatar from any string seed.
+String _avatarUrl(String seed) =>
+    'https://api.dicebear.com/9.x/notionists/png?seed=${Uri.encodeComponent(seed)}&size=96&backgroundColor=e8e8e8';
+
 class ContactsTab extends StatefulWidget {
-  const ContactsTab({super.key, this.aiseeProfile});
+  const ContactsTab({super.key, this.aiseeProfile, this.chatSocket});
 
   final AiseeUserProfile? aiseeProfile;
+  final AiseeChatSocket? chatSocket;
 
   @override
   State<ContactsTab> createState() => _ContactsTabState();
@@ -30,6 +38,7 @@ class _ContactsTabState extends State<ContactsTab> {
   String? _error;
   List<AiseeFamilyMember> _contacts = <AiseeFamilyMember>[];
   int _unreadCount = 0;
+  bool _callingInProgress = false;
 
   @override
   void initState() {
@@ -68,9 +77,7 @@ class _ContactsTabState extends State<ContactsTab> {
       try {
         unread =
             await _chatService.fetchUnreadCount(tokens.accessToken);
-      } catch (_) {
-        // Non-critical — ignore unread count errors.
-      }
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _contacts = family;
@@ -89,14 +96,32 @@ class _ContactsTabState extends State<ContactsTab> {
     }
   }
 
+  Future<void> _refreshUnreadCount() async {
+    final AiseeAuthTokens? tokens =
+        await AiseeSessionStore.instance.read();
+    if (tokens == null || !mounted) return;
+    try {
+      final int count =
+          await _chatService.fetchUnreadCount(tokens.accessToken);
+      if (!mounted) return;
+      setState(() => _unreadCount = count);
+    } catch (_) {}
+  }
+
   Future<void> _startCall(
     AiseeFamilyMember contact,
     String callType,
   ) async {
+    if (_callingInProgress) return;
+    _callingInProgress = true;
     HapticFeedback.lightImpact();
+
     final AiseeAuthTokens? tokens =
         await AiseeSessionStore.instance.read();
-    if (tokens == null) return;
+    if (tokens == null) {
+      _callingInProgress = false;
+      return;
+    }
 
     try {
       final result = await AiseeCallService().createRoom(
@@ -104,10 +129,14 @@ class _ContactsTabState extends State<ContactsTab> {
         contact.id,
         callType,
       );
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => CallScreen(
+      if (!mounted) {
+        _callingInProgress = false;
+        return;
+      }
+      await Navigator.of(context).push(
+        PageRouteBuilder<void>(
+          pageBuilder: (BuildContext c, Animation<double> a, Animation<double> s) =>
+              CallScreen(
             callInfo: AiseeCallInfo(
               roomName: result.roomName,
               token: result.token,
@@ -115,6 +144,15 @@ class _ContactsTabState extends State<ContactsTab> {
               contact: contact,
             ),
           ),
+          transitionsBuilder: (BuildContext c, Animation<double> a,
+              Animation<double> s, Widget child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
         ),
       );
     } catch (e) {
@@ -122,14 +160,16 @@ class _ContactsTabState extends State<ContactsTab> {
       final String msg = e is AiseeApiException
           ? e.message
           : 'Không tạo được cuộc gọi';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      AppToast.snack(context, msg, isError: true);
+    } finally {
+      _callingInProgress = false;
     }
   }
 
+  // ─── Invite flow ───────────────────────────────────────────
+
   Future<void> _showInviteFlow() async {
-    final String? relationship = await _showRelationshipDialog();
+    final String? relationship = await _showRelationshipSheet();
     if (relationship == null || relationship.trim().isEmpty) return;
 
     final AiseeAuthTokens? tokens =
@@ -142,78 +182,307 @@ class _ContactsTabState extends State<ContactsTab> {
         relationship.trim(),
       );
       if (!mounted) return;
-      await _showInviteCodeDialog(code);
+      await _showInviteCodeSheet(code);
+      // Reload contacts in case someone joined while sheet was open.
+      _loadData();
     } catch (e) {
       if (!mounted) return;
       final String msg = e is AiseeApiException
           ? e.message
           : 'Không tạo được mã mời.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      AppToast.snack(context, msg, isError: true);
     }
   }
 
-  Future<String?> _showRelationshipDialog() {
+  Future<String?> _showRelationshipSheet() {
     final TextEditingController ctrl = TextEditingController();
-    return showDialog<String>(
+    return showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
-        return AlertDialog(
-          title: const Text('Mời người thân'),
-          content: TextField(
-            controller: ctrl,
-            decoration: const InputDecoration(
-              hintText: 'Mối quan hệ (VD: Con, Bố, Mẹ...)',
-            ),
-            autofocus: true,
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
           ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Huỷ'),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            decoration: BoxDecoration(
+              color: StyleTokens.surfaceCard,
+              borderRadius: BorderRadius.circular(24),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text),
-              child: const Text('Tạo mã'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: StyleTokens.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  'Mời người thân',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: StyleTokens.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Nhập mối quan hệ để tạo mã mời',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: StyleTokens.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Input
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: StyleTokens.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'VD: Con, Bố, Mẹ, Anh, Chị...',
+                    hintStyle: StyleTokens.inputHint(),
+                    filled: true,
+                    fillColor: StyleTokens.background,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: StyleTokens.cardBorder,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: StyleTokens.cardBorder,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: StyleTokens.buttonPrimary,
+                      ),
+                    ),
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (String v) =>
+                      Navigator.pop(ctx, v),
+                ),
+                const SizedBox(height: 16),
+                // Buttons row
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Material(
+                        color: StyleTokens.background,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => Navigator.pop(ctx),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Huỷ',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: StyleTokens.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Material(
+                        color: StyleTokens.buttonPrimary,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () =>
+                              Navigator.pop(ctx, ctrl.text),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Tạo mã mời',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: StyleTokens.buttonOnPrimary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
   }
 
-  Future<void> _showInviteCodeDialog(String code) {
-    return showDialog<void>(
+  Future<void> _showInviteCodeSheet(String code) {
+    return showModalBottomSheet<void>(
       context: context,
+      isDismissible: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
-        return AlertDialog(
-          title: const Text('Mã mời'),
-          content: SelectableText(
-            code,
-            style: StyleTokens.titleScreen().copyWith(fontSize: 20),
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+          decoration: BoxDecoration(
+            color: StyleTokens.surfaceCard,
+            borderRadius: BorderRadius.circular(24),
           ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: code));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Đã sao chép mã mời'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: StyleTokens.cardBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Mã mời đã tạo',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: StyleTokens.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Gửi mã này cho người thân để kết nối',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  color: StyleTokens.textMuted,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Code display
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 18,
+                ),
+                decoration: BoxDecoration(
+                  color: StyleTokens.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: StyleTokens.cardBorder,
                   ),
-                );
-              },
-              child: const Text('Sao chép'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Đóng'),
-            ),
-          ],
+                ),
+                child: Center(
+                  child: SelectableText(
+                    code,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: StyleTokens.buttonPrimary,
+                      letterSpacing: 4,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Copy button
+              SizedBox(
+                width: double.infinity,
+                child: Material(
+                  color: StyleTokens.buttonPrimary,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Clipboard.setData(ClipboardData(text: code));
+                      AppToast.snack(context, 'Đã sao chép mã mời');
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          const Icon(
+                            Icons.copy_rounded,
+                            size: 18,
+                            color: StyleTokens.buttonOnPrimary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Sao chép mã',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: StyleTokens.buttonOnPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Close text
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  'Đóng',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: StyleTokens.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
+
+  // ─── Build ─────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -232,46 +501,32 @@ class _ContactsTabState extends State<ContactsTab> {
   }
 
   Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                'Liên lạc',
-                style: StyleTokens.titleScreen().copyWith(
-                  fontSize: 18,
-                ),
-              ),
+        Expanded(
+          child: Text(
+            'Nhắn tin và gọi điện người thân.',
+            style: StyleTokens.bodySmall().copyWith(
+              fontSize: 12,
+              height: 1.4,
             ),
-            if (_unreadCount > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: StyleTokens.error,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '$_unreadCount',
-                  style: StyleTokens.socialLabel().copyWith(
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Nhắn tin và gọi điện người thân.',
-          style: StyleTokens.bodySmall().copyWith(
-            fontSize: 12,
-            height: 1.4,
           ),
         ),
+        if (_unreadCount > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: StyleTokens.error,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$_unreadCount',
+              style: StyleTokens.socialLabel().copyWith(fontSize: 11),
+            ),
+          ),
       ],
     );
   }
@@ -287,15 +542,8 @@ class _ContactsTabState extends State<ContactsTab> {
         ),
       );
     }
-
-    if (_error != null) {
-      return _buildErrorState();
-    }
-
-    if (_contacts.isEmpty) {
-      return _buildEmptyState();
-    }
-
+    if (_error != null) return _buildErrorState();
+    if (_contacts.isEmpty) return _buildEmptyState();
     return _buildContactsList();
   }
 
@@ -332,9 +580,7 @@ class _ContactsTabState extends State<ContactsTab> {
                   ),
                   child: Text(
                     'Thử lại',
-                    style: StyleTokens.socialLabel().copyWith(
-                      fontSize: 14,
-                    ),
+                    style: StyleTokens.socialLabel().copyWith(fontSize: 14),
                   ),
                 ),
               ),
@@ -367,8 +613,7 @@ class _ContactsTabState extends State<ContactsTab> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Chưa có người thân.\n'
-                  'Mời qua mã mời bên dưới.',
+                  'Chưa có người thân.\nMời qua mã mời bên dưới.',
                   style: StyleTokens.bodySmall().copyWith(
                     fontSize: 13,
                     height: 1.5,
@@ -392,22 +637,40 @@ class _ContactsTabState extends State<ContactsTab> {
           if (i > 0) const SizedBox(height: 10),
           _ContactCard(
             member: _contacts[i],
-            onTap: () {
+            onTap: () async {
               HapticFeedback.lightImpact();
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ChatDetailScreen(
+              await Navigator.of(context).push(
+                PageRouteBuilder<void>(
+                  pageBuilder: (BuildContext c, Animation<double> a,
+                          Animation<double> s) =>
+                      ChatDetailScreen(
                     contact: _contacts[i],
-                    currentUserId:
-                        widget.aiseeProfile?.id ?? '',
+                    currentUserId: widget.aiseeProfile?.id ?? '',
+                    chatSocket: widget.chatSocket,
                   ),
+                  transitionsBuilder: (BuildContext c,
+                      Animation<double> a, Animation<double> s,
+                      Widget child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(1, 0),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: a,
+                        curve: Curves.easeOutCubic,
+                      )),
+                      child: child,
+                    );
+                  },
+                  transitionDuration: const Duration(milliseconds: 250),
+                  reverseTransitionDuration:
+                      const Duration(milliseconds: 200),
                 ),
               );
+              _refreshUnreadCount();
             },
-            onVoiceCall: () =>
-                _startCall(_contacts[i], 'voice'),
-            onVideoCall: () =>
-                _startCall(_contacts[i], 'video'),
+            onVoiceCall: () => _startCall(_contacts[i], 'voice'),
+            onVideoCall: () => _startCall(_contacts[i], 'video'),
           ),
         ],
         const SizedBox(height: 16),
@@ -434,9 +697,7 @@ class _ContactsTabState extends State<ContactsTab> {
             child: Center(
               child: Text(
                 'Mời người thân',
-                style: StyleTokens.socialLabel().copyWith(
-                  fontSize: 14,
-                ),
+                style: StyleTokens.socialLabel().copyWith(fontSize: 14),
               ),
             ),
           ),
@@ -445,6 +706,8 @@ class _ContactsTabState extends State<ContactsTab> {
     );
   }
 }
+
+// ─── Contact card ──────────────────────────────────────────────
 
 class _ContactCard extends StatelessWidget {
   const _ContactCard({
@@ -458,12 +721,6 @@ class _ContactCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onVoiceCall;
   final VoidCallback onVideoCall;
-
-  String get _initial {
-    final String name = member.label;
-    if (name.isEmpty) return '?';
-    return name[0].toUpperCase();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -480,16 +737,14 @@ class _ContactCard extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Row(
               children: <Widget>[
+                // Seed avatar from DiceBear
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: StyleTokens.buttonPrimary,
-                  child: Text(
-                    _initial,
-                    style: StyleTokens.socialLabel().copyWith(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  backgroundColor: const Color(0xFFE8E8E8),
+                  backgroundImage: NetworkImage(
+                    _avatarUrl(member.id),
                   ),
+                  onBackgroundImageError: (Object e, StackTrace? st) {},
                 ),
                 const SizedBox(width: 12),
                 Expanded(

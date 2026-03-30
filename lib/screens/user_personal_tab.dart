@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-import '../models/aisee_reminder.dart';
-import '../services/aisee_reminder_service.dart';
+import '../models/aisee_api_models.dart';
+import '../services/aisee_health_service.dart';
+import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import 'reminders_screen.dart';
 
 class UserPersonalTab extends StatefulWidget {
   const UserPersonalTab({super.key, required this.onSignOut});
 
   final VoidCallback onSignOut;
 
-  /// Gọi từ parent để refresh danh sách nhắc nhở (VD khi chuyển tab).
   static final GlobalKey<UserPersonalTabState> tabKey =
       GlobalKey<UserPersonalTabState>();
 
@@ -20,50 +22,56 @@ class UserPersonalTab extends StatefulWidget {
 }
 
 class UserPersonalTabState extends State<UserPersonalTab> {
-  List<AiseeReminder> _reminders = <AiseeReminder>[];
+  int _medCount = 0;
+  int _apptCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadReminders();
+    _loadCounts();
   }
 
-  /// Reload reminders — gọi được từ bên ngoài qua [UserPersonalTab.tabKey].
-  void refreshReminders() => _loadReminders();
+  void refreshReminders() => _loadCounts();
 
-  Future<void> _loadReminders() async {
-    final List<AiseeReminder> loaded =
-        await AiseeReminderService.instance.loadAll();
-    if (!mounted) return;
-    setState(() => _reminders = loaded);
+  Future<void> _loadCounts() async {
+    final AiseeAuthTokens? tokens =
+        await AiseeSessionStore.instance.read();
+    if (tokens == null || !mounted) return;
+    final AiseeHealthService svc = AiseeHealthService();
+    try {
+      final List<Map<String, dynamic>> meds =
+          await svc.fetchMedications(tokens.accessToken);
+      final List<Map<String, dynamic>> appts =
+          await svc.fetchAppointments(tokens.accessToken);
+      if (!mounted) return;
+      setState(() {
+        _medCount = meds.length;
+        _apptCount = appts.length;
+      });
+    } catch (_) {}
+    svc.close();
   }
 
-  Future<void> _deleteReminder(int id) async {
-    await AiseeReminderService.instance.cancelReminder(id);
-    await _loadReminders();
+  void _openScreen(ReminderFilter filter) {
+    HapticFeedback.lightImpact();
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                RemindersScreen(initialFilter: filter),
+          ),
+        )
+        .then((_) => _loadCounts());
   }
-
-  List<AiseeReminder> get _medications => _reminders
-      .where((AiseeReminder r) => r.type == AiseeReminderType.medication)
-      .toList();
-
-  List<AiseeReminder> get _appointments => _reminders
-      .where((AiseeReminder r) => r.type == AiseeReminderType.appointment)
-      .toList();
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
-      label: 'Cá nhân. Lịch uống thuốc và tin nhắn của bạn.',
+      label: 'Cá nhân. Lịch uống thuốc và nhắc nhở của bạn.',
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
-          Text(
-            'Cá nhân',
-            style: StyleTokens.titleScreen().copyWith(fontSize: 18),
-          ),
-          const SizedBox(height: 6),
           Text(
             'Thông tin cá nhân và lịch nhắc nhở của bạn.',
             style: StyleTokens.bodySmall().copyWith(
@@ -72,68 +80,35 @@ class UserPersonalTabState extends State<UserPersonalTab> {
             ),
           ),
           const SizedBox(height: 20),
-          _buildMedicationSection(),
-          const SizedBox(height: 16),
-          _buildAppointmentSection(),
-          const SizedBox(height: 16),
-          _InfoSection(
+          _MenuCard(
+            iconAsset: 'assets/icons/nav/ic_heart.svg',
+            title: 'Lịch uống thuốc',
+            subtitle: _medCount > 0
+                ? '$_medCount nhắc nhở'
+                : 'Chưa có lịch',
+            onTap: () => _openScreen(ReminderFilter.medication),
+          ),
+          const SizedBox(height: 10),
+          _MenuCard(
+            iconAsset: 'assets/icons/nav/ic_calendar.svg',
+            title: 'Lịch hẹn',
+            subtitle: _apptCount > 0
+                ? '$_apptCount lịch hẹn'
+                : 'Chưa có lịch hẹn',
+            onTap: () => _openScreen(ReminderFilter.appointment),
+          ),
+          const SizedBox(height: 10),
+          _MenuCard(
             iconAsset: 'assets/icons/nav/ic_activity.svg',
-            title: 'Nhật ký sức khỏe gần đây',
-            body: 'Tóm tắt sẽ hiển thị khi có dữ liệu.',
+            title: 'Nhật ký sức khỏe',
+            subtitle: 'Xem chi tiết',
+            onTap: () => _openScreen(ReminderFilter.health),
           ),
           const SizedBox(height: 32),
           _buildSignOutButton(),
         ],
       ),
     );
-  }
-
-  Widget _buildMedicationSection() {
-    final List<AiseeReminder> meds = _medications;
-    if (meds.isEmpty) {
-      return _InfoSection(
-        iconAsset: 'assets/icons/nav/ic_heart.svg',
-        title: 'Lịch uống thuốc hôm nay',
-        body: 'Chưa có lịch — thêm từ cài đặt hoặc giọng nói.',
-      );
-    }
-    return _ReminderSection(
-      title: 'Lich uong thuoc hom nay',
-      items: meds,
-      iconAsset: 'assets/icons/nav/ic_heart.svg',
-      subtitleBuilder: _medicationSubtitle,
-      onDelete: _deleteReminder,
-    );
-  }
-
-  Widget _buildAppointmentSection() {
-    final List<AiseeReminder> appts = _appointments;
-    if (appts.isEmpty) {
-      return _InfoSection(
-        iconAsset: 'assets/icons/nav/ic_calendar.svg',
-        title: 'Lịch hẹn',
-        body: 'Chưa có lịch hẹn nào.',
-      );
-    }
-    return _ReminderSection(
-      title: 'Lich hen',
-      items: appts,
-      iconAsset: 'assets/icons/nav/ic_calendar.svg',
-      subtitleBuilder: _appointmentSubtitle,
-      onDelete: _deleteReminder,
-    );
-  }
-
-  String _medicationSubtitle(AiseeReminder r) {
-    final List<String> times = r.times ?? <String>[];
-    if (times.isEmpty) return r.frequency ?? '';
-    final String joined = times.join(', ');
-    if (r.frequency != null) return '$joined (${r.frequency})';
-    return joined;
-  }
-
-  String _appointmentSubtitle(AiseeReminder r) {
-    return r.datetime ?? '';
   }
 
   Widget _buildSignOutButton() {
@@ -166,187 +141,91 @@ class UserPersonalTabState extends State<UserPersonalTab> {
   }
 }
 
-class _ReminderSection extends StatelessWidget {
-  const _ReminderSection({
+class _MenuCard extends StatelessWidget {
+  const _MenuCard({
+    required this.iconAsset,
     required this.title,
-    required this.items,
-    required this.iconAsset,
-    required this.subtitleBuilder,
-    required this.onDelete,
-  });
-
-  final String title;
-  final List<AiseeReminder> items;
-  final String iconAsset;
-  final String Function(AiseeReminder) subtitleBuilder;
-  final Future<void> Function(int id) onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: StyleTokens.surfaceCard,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              title,
-              style: StyleTokens.titleScreen().copyWith(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 10),
-            for (int i = 0; i < items.length; i++) ...<Widget>[
-              if (i > 0) const SizedBox(height: 8),
-              _ReminderRow(
-                iconAsset: iconAsset,
-                reminder: items[i],
-                subtitle: subtitleBuilder(items[i]),
-                onDelete: onDelete,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReminderRow extends StatelessWidget {
-  const _ReminderRow({
-    required this.iconAsset,
-    required this.reminder,
     required this.subtitle,
-    required this.onDelete,
+    required this.onTap,
   });
 
   final String iconAsset;
-  final AiseeReminder reminder;
+  final String title;
   final String subtitle;
-  final Future<void> Function(int id) onDelete;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: <Widget>[
-        SizedBox(
-          width: 18,
-          height: 18,
-          child: SvgPicture.asset(
-            iconAsset,
-            fit: BoxFit.contain,
-            colorFilter: const ColorFilter.mode(
-              StyleTokens.textPrimary,
-              BlendMode.srcIn,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                reminder.title,
-                style: StyleTokens.titleScreen().copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle. Chạm để mở.',
+      child: Material(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: StyleTokens.background,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: SvgPicture.asset(
+                      iconAsset,
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        StyleTokens.buttonPrimary,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              if (subtitle.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: StyleTokens.bodySmall().copyWith(
-                    fontSize: 11,
-                    height: 1.4,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: StyleTokens.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: StyleTokens.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SvgPicture.asset(
+                  'assets/icons/nav/ic_arrow_right.svg',
+                  width: 8,
+                  height: 8,
+                  colorFilter: const ColorFilter.mode(
+                    StyleTokens.textMuted,
+                    BlendMode.srcIn,
                   ),
                 ),
               ],
-            ],
-          ),
-        ),
-        IconButton(
-          icon: SvgPicture.asset(
-            'assets/icons/nav/ic_delete.svg',
-            width: 16,
-            height: 16,
-            colorFilter: const ColorFilter.mode(
-              Color(0xFFFF6B6B),
-              BlendMode.srcIn,
             ),
           ),
-          tooltip: 'Xoá nhắc nhở',
-          onPressed: () => onDelete(reminder.id),
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoSection extends StatelessWidget {
-  const _InfoSection({
-    required this.iconAsset,
-    required this.title,
-    required this.body,
-  });
-
-  final String iconAsset;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: StyleTokens.surfaceCard,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: SvgPicture.asset(
-                iconAsset,
-                fit: BoxFit.contain,
-                colorFilter: const ColorFilter.mode(
-                  StyleTokens.textPrimary,
-                  BlendMode.srcIn,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    title,
-                    style: StyleTokens.titleScreen().copyWith(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    body,
-                    style: StyleTokens.bodySmall().copyWith(
-                      fontSize: 11,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );

@@ -14,6 +14,7 @@ import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import '../utils/app_toast.dart';
 import 'call_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -21,10 +22,14 @@ class ChatDetailScreen extends StatefulWidget {
     super.key,
     required this.contact,
     required this.currentUserId,
+    this.chatSocket,
   });
 
   final AiseeFamilyMember contact;
   final String currentUserId;
+
+  /// Reuse parent socket if available — avoids duplicate connections.
+  final AiseeChatSocket? chatSocket;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -32,29 +37,37 @@ class ChatDetailScreen extends StatefulWidget {
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final AiseeChatService _chatService = AiseeChatService();
-  final AiseeChatSocket _chatSocket = AiseeChatSocket();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   List<AiseeMessage> _messages = <AiseeMessage>[];
-  bool _loading = true;
+  bool _loading = false;
   bool _loadingMore = false;
   bool _hasMore = true;
+  String? _error;
   StreamSubscription<AiseeMessage>? _socketSub;
+  bool _sending = false;
+  bool _callingInProgress = false;
+
+  // Only create own socket if parent didn't provide one.
+  AiseeChatSocket? _ownSocket;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialMessages();
-    _connectSocket();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadInitialMessages();
+      _listenSocket();
+    });
   }
 
   @override
   void dispose() {
     _socketSub?.cancel();
-    _chatSocket.disconnect();
-    _chatSocket.dispose();
+    _ownSocket?.disconnect();
+    _ownSocket?.dispose();
     _chatService.close();
     _textController.dispose();
     _scrollController.dispose();
@@ -62,6 +75,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _loadInitialMessages() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
     final AiseeAuthTokens? tokens =
         await AiseeSessionStore.instance.read();
     if (tokens == null || !mounted) return;
@@ -79,16 +97,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e is AiseeApiException
-                ? e.message
-                : 'Không tải được tin nhắn.',
-          ),
-        ),
-      );
+      setState(() {
+        _loading = false;
+        _error = e is AiseeApiException
+            ? e.message
+            : 'Không tải được tin nhắn.';
+      });
     }
   }
 
@@ -99,7 +113,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final AiseeAuthTokens? tokens =
         await AiseeSessionStore.instance.read();
     if (tokens == null || !mounted) {
-      setState(() => _loadingMore = false);
+      if (mounted) setState(() => _loadingMore = false);
       return;
     }
 
@@ -129,22 +143,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  Future<void> _connectSocket() async {
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
-    if (tokens == null) return;
-
-    await _chatSocket.connect(tokens.accessToken);
-    _socketSub = _chatSocket.onMessage.listen(_onNewMessage);
+  /// Listen to parent socket or create a lightweight one.
+  void _listenSocket() {
+    final AiseeChatSocket? parentSocket = widget.chatSocket;
+    if (parentSocket != null) {
+      _socketSub = parentSocket.onMessage.listen(_onNewMessage);
+      return;
+    }
+    // Fallback: create own socket, but don't await connect.
+    final AiseeChatSocket sock = AiseeChatSocket();
+    _ownSocket = sock;
+    _socketSub = sock.onMessage.listen(_onNewMessage);
+    AiseeSessionStore.instance.read().then((AiseeAuthTokens? tokens) {
+      if (tokens != null && mounted) {
+        sock.connect(tokens.accessToken);
+      }
+    });
   }
 
   void _onNewMessage(AiseeMessage msg) {
     if (msg.senderId != widget.contact.id) return;
     if (!mounted) return;
     setState(() => _messages.insert(0, msg));
+    // Fire-and-forget mark read.
     AiseeSessionStore.instance.read().then((AiseeAuthTokens? tokens) {
       if (tokens != null) {
-        _chatService.markRead(tokens.accessToken, msg.id);
+        unawaited(_chatService.markRead(tokens.accessToken, msg.id));
       }
     });
   }
@@ -153,10 +177,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     AiseeFamilyMember contact,
     String callType,
   ) async {
+    if (_callingInProgress) return;
+    _callingInProgress = true;
     HapticFeedback.lightImpact();
+
     final AiseeAuthTokens? tokens =
         await AiseeSessionStore.instance.read();
-    if (tokens == null) return;
+    if (tokens == null) {
+      _callingInProgress = false;
+      return;
+    }
 
     try {
       final result = await AiseeCallService().createRoom(
@@ -164,10 +194,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         contact.id,
         callType,
       );
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => CallScreen(
+      if (!mounted) {
+        _callingInProgress = false;
+        return;
+      }
+      await Navigator.of(context).push(
+        PageRouteBuilder<void>(
+          pageBuilder: (BuildContext c, Animation<double> anim, Animation<double> s) => CallScreen(
             callInfo: AiseeCallInfo(
               roomName: result.roomName,
               token: result.token,
@@ -175,6 +208,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               contact: contact,
             ),
           ),
+          transitionsBuilder: (BuildContext c, Animation<double> anim, Animation<double> s, Widget child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                parent: anim,
+                curve: Curves.easeOut,
+              ),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
         ),
       );
     } catch (e) {
@@ -182,20 +226,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final String msg = e is AiseeApiException
           ? e.message
           : 'Không tạo được cuộc gọi';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      AppToast.snack(context, msg, isError: true);
+    } finally {
+      _callingInProgress = false;
     }
   }
 
   Future<void> _sendMessage() async {
     final String text = _textController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _sending) return;
     _textController.clear();
+    _sending = true;
 
     final AiseeAuthTokens? tokens =
         await AiseeSessionStore.instance.read();
-    if (tokens == null) return;
+    if (tokens == null) {
+      _sending = false;
+      return;
+    }
 
     try {
       final AiseeMessage msg = await _chatService.sendMessage(
@@ -207,15 +255,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       setState(() => _messages.insert(0, msg));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e is AiseeApiException
-                ? e.message
-                : 'Không gửi được tin nhắn.',
-          ),
-        ),
+      AppToast.snack(
+        context,
+        e is AiseeApiException ? e.message : 'Không gửi được tin nhắn.',
+        isError: true,
       );
+    } finally {
+      _sending = false;
     }
   }
 
@@ -252,8 +298,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
             tooltip: 'Gọi thoại',
-            onPressed: () =>
-                _startCall(widget.contact, 'voice'),
+            onPressed: () => _startCall(widget.contact, 'voice'),
           ),
           IconButton(
             icon: SvgPicture.asset(
@@ -266,8 +311,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
             tooltip: 'Gọi video',
-            onPressed: () =>
-                _startCall(widget.contact, 'video'),
+            onPressed: () => _startCall(widget.contact, 'video'),
           ),
         ],
       ),
@@ -285,6 +329,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return const Center(
         child: CircularProgressIndicator(
           color: StyleTokens.buttonPrimary,
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              _error!,
+              style: StyleTokens.bodySmall().copyWith(
+                fontSize: 13,
+                color: StyleTokens.error,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _loadInitialMessages,
+              child: const Text('Thử lại'),
+            ),
+          ],
         ),
       );
     }
@@ -334,7 +401,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget _buildBubble(AiseeMessage msg) {
     final bool isSent = msg.senderId == widget.currentUserId;
     final double maxBubbleWidth =
-        MediaQuery.of(context).size.width * 0.75;
+        MediaQuery.sizeOf(context).width * 0.75;
 
     return Column(
       crossAxisAlignment:
@@ -435,18 +502,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _sendMessage,
-              child: CircleAvatar(
-                radius: 22,
-                backgroundColor: StyleTokens.buttonPrimary,
-                child: SvgPicture.asset(
-                  'assets/icons/nav/ic_arrow_right.svg',
-                  width: 20,
-                  height: 20,
-                  colorFilter: const ColorFilter.mode(
-                    StyleTokens.buttonOnPrimary,
-                    BlendMode.srcIn,
+            Semantics(
+              button: true,
+              label: 'Gửi tin nhắn',
+              child: Material(
+                color: StyleTokens.buttonPrimary,
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: _sendMessage,
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'assets/icons/nav/ic_paper.svg',
+                        width: 16,
+                        height: 16,
+                        colorFilter: const ColorFilter.mode(
+                          StyleTokens.buttonOnPrimary,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

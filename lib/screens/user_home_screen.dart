@@ -7,7 +7,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
+import '../models/aisee_family_member.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/aisee_family_service.dart';
 import '../services/aisee_livekit_voice_session.dart';
 import '../services/aisee_push_service.dart';
 import '../services/aisee_session_store.dart';
@@ -92,6 +94,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     debugPrint('[AiSee:UI] aiseeLoading=${widget.aiseeLoading} aiseeError=${widget.aiseeError}');
     WidgetsBinding.instance.addObserver(this);
     _liveKitVoice.onMusicUiChanged = _onMusicUiChanged;
+    _liveKitVoice.onAgentStartCall = _onAgentStartCall;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_startLiveKitVoice());
     });
@@ -125,6 +128,34 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     setState(() {});
   }
 
+  Future<void> _onAgentStartCall(AiseeCallInfo callInfo) async {
+    if (!mounted) return;
+    debugPrint('[AiSee:UI] Agent initiated call: ${callInfo.callType} → ${callInfo.contact.label}');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        PageRouteBuilder<void>(
+          pageBuilder: (BuildContext c, Animation<double> a,
+                  Animation<double> s) =>
+              CallScreen(callInfo: callInfo),
+          transitionsBuilder: (BuildContext c, Animation<double> a,
+              Animation<double> s, Widget child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                parent: a,
+                curve: Curves.easeOut,
+              ),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration:
+              const Duration(milliseconds: 200),
+        ),
+      );
+    });
+  }
+
   Future<void> _connectChatSocket() async {
     final tokens = await AiseeSessionStore.instance.read();
     if (tokens != null) {
@@ -153,6 +184,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     _tabFade.dispose();
     debugPrint('[AiSee:UI] UserHomeScreen dispose — ngat LiveKit');
     _liveKitVoice.onMusicUiChanged = null;
+    _liveKitVoice.onAgentStartCall = null;
     unawaited(_liveKitVoice.disconnect());
     _liveKitVoice.disposeHttp();
     super.dispose();
@@ -171,10 +203,25 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     });
     debugPrint('[AiSee:UI] State: connecting=true connected=false error=null');
     try {
+      bool hasFamilyLink = false;
+      final AiseeAuthTokens? tokens =
+          await AiseeSessionStore.instance.read();
+      if (tokens != null) {
+        try {
+          final List<AiseeFamilyMember> family =
+              await AiseeFamilyService().fetchFamily(
+            tokens.accessToken,
+          );
+          hasFamilyLink = family.isNotEmpty;
+        } catch (_) {}
+      }
+      debugPrint(
+        '[AiSee:UI] hasFamilyLink=$hasFamilyLink',
+      );
       await _liveKitVoice.connect(
         userName: _displayName,
         userId: widget.aiseeProfile?.id ?? '',
-        hasFamilyLink: false,
+        hasFamilyLink: hasFamilyLink,
       );
       if (!mounted) return;
       setState(() {
@@ -209,35 +256,33 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     }
   }
 
+  static const List<String?> _tabTitles = <String?>[
+    null, // tab 0: dùng "Xin chào, ..."
+    'Liên lạc',
+    'Cá nhân',
+  ];
+
   Widget _buildAppBarTitle() {
-    if (_tabIndex == 0) {
-      return Row(
-        children: [
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Xin chào, $_displayName',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  height: 1,
-                  letterSpacing: -0.5,
-                  color: StyleTokens.textPrimary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+    final String? tabTitle = _tabTitles[_tabIndex];
+    final String leftText = tabTitle ?? 'Xin chào, $_displayName';
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            leftText,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              height: 1,
+              letterSpacing: -0.5,
+              color: StyleTokens.textPrimary,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const AppWordmark(fontSize: 15),
-        ],
-      );
-    }
-    return const Align(
-      alignment: Alignment.centerLeft,
-      widthFactor: 1,
-      child: AppWordmark(fontSize: 15),
+        ),
+        const AppWordmark(fontSize: 15),
+      ],
     );
   }
 
@@ -283,7 +328,10 @@ class _UserHomeScreenState extends State<UserHomeScreen>
                       _liveKitVoice.localCameraPreviewTrack,
                   onRetryLiveKit: _startLiveKitVoice,
                 ),
-                ContactsTab(aiseeProfile: widget.aiseeProfile),
+                ContactsTab(
+                  aiseeProfile: widget.aiseeProfile,
+                  chatSocket: _chatSocket,
+                ),
                 UserPersonalTab(
                   key: UserPersonalTab.tabKey,
                   onSignOut: widget.onSignOut,

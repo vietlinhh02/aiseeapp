@@ -29,21 +29,17 @@ class _CallScreenState extends State<CallScreen> {
   bool _micEnabled = true;
   bool _speakerEnabled = true;
   bool _cameraEnabled = true;
-  Duration _duration = Duration.zero;
+  bool _toggling = false; // Guard against rapid taps on buttons.
+  final ValueNotifier<Duration> _duration =
+      ValueNotifier<Duration>(Duration.zero);
   Timer? _durationTimer;
   RemoteParticipant? _remoteParticipant;
 
   bool get _isVideo => widget.callInfo.callType == 'video';
 
-  String get _contactInitial {
-    final String name = widget.callInfo.contact.label;
-    if (name.isEmpty) return '?';
-    return name[0].toUpperCase();
-  }
-
-  String get _durationText {
-    final int min = _duration.inMinutes;
-    final int sec = _duration.inSeconds % 60;
+  static String _formatDuration(Duration d) {
+    final int min = d.inMinutes;
+    final int sec = d.inSeconds % 60;
     return '${min.toString().padLeft(2, '0')}:'
         '${sec.toString().padLeft(2, '0')}';
   }
@@ -53,7 +49,7 @@ class _CallScreenState extends State<CallScreen> {
       case _CallState.ringing:
         return 'Đang gọi...';
       case _CallState.connected:
-        return _durationText;
+        return _formatDuration(_duration.value);
       case _CallState.ended:
         return 'Đã kết thúc';
     }
@@ -62,11 +58,25 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
-    _connectToRoom();
+    // Render UI first (show "Đang gọi..."), then connect.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _connectToRoom();
+    });
   }
 
   Future<void> _connectToRoom() async {
-    final Room room = Room();
+    final Room room = Room(
+      roomOptions: const RoomOptions(
+        adaptiveStream: true,
+        dynacast: true,
+        defaultAudioPublishOptions: AudioPublishOptions(
+          dtx: true,
+        ),
+        defaultVideoPublishOptions: VideoPublishOptions(
+          simulcast: true,
+        ),
+      ),
+    );
     _room = room;
 
     final EventsListener<RoomEvent> listener = room.createListener();
@@ -132,30 +142,54 @@ class _CallScreenState extends State<CallScreen> {
       const Duration(seconds: 1),
       (_) {
         if (!mounted) return;
-        setState(() => _duration += const Duration(seconds: 1));
+        _duration.value += const Duration(seconds: 1);
       },
     );
   }
 
   Future<void> _toggleMic() async {
-    final bool next = !_micEnabled;
-    await _room?.localParticipant?.setMicrophoneEnabled(next);
-    if (!mounted) return;
-    setState(() => _micEnabled = next);
+    if (_toggling || _state == _CallState.ended) return;
+    _toggling = true;
+    try {
+      final bool next = !_micEnabled;
+      await _room?.localParticipant?.setMicrophoneEnabled(next);
+      if (!mounted) return;
+      setState(() => _micEnabled = next);
+    } catch (e) {
+      debugPrint('[AiSee:Call] toggleMic error: $e');
+    } finally {
+      _toggling = false;
+    }
   }
 
   Future<void> _toggleSpeaker() async {
-    final bool next = !_speakerEnabled;
-    await _room?.setSpeakerOn(next);
-    if (!mounted) return;
-    setState(() => _speakerEnabled = next);
+    if (_toggling || _state == _CallState.ended) return;
+    _toggling = true;
+    try {
+      final bool next = !_speakerEnabled;
+      await _room?.setSpeakerOn(next);
+      if (!mounted) return;
+      setState(() => _speakerEnabled = next);
+    } catch (e) {
+      debugPrint('[AiSee:Call] toggleSpeaker error: $e');
+    } finally {
+      _toggling = false;
+    }
   }
 
   Future<void> _toggleCamera() async {
-    final bool next = !_cameraEnabled;
-    await _room?.localParticipant?.setCameraEnabled(next);
-    if (!mounted) return;
-    setState(() => _cameraEnabled = next);
+    if (_toggling || _state == _CallState.ended) return;
+    _toggling = true;
+    try {
+      final bool next = !_cameraEnabled;
+      await _room?.localParticipant?.setCameraEnabled(next);
+      if (!mounted) return;
+      setState(() => _cameraEnabled = next);
+    } catch (e) {
+      debugPrint('[AiSee:Call] toggleCamera error: $e');
+    } finally {
+      _toggling = false;
+    }
   }
 
   Future<void> _endCall() async {
@@ -163,6 +197,17 @@ class _CallScreenState extends State<CallScreen> {
     setState(() => _state = _CallState.ended);
     _durationTimer?.cancel();
 
+    // Fire-and-forget: backend cleanup + LiveKit disconnect run in background.
+    unawaited(_cleanupRoom());
+
+    // Pop immediately — no delay.
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _cleanupRoom() async {
+    // Backend end-room (best-effort).
     final tokens = await AiseeSessionStore.instance.read();
     if (tokens != null) {
       try {
@@ -170,26 +215,25 @@ class _CallScreenState extends State<CallScreen> {
           tokens.accessToken,
           widget.callInfo.roomName,
         );
-      } catch (_) {
-        // Best-effort backend cleanup.
-      }
+      } catch (_) {}
     }
 
+    // LiveKit cleanup.
     await _roomListener?.dispose();
     _roomListener = null;
-    await _room?.disconnect();
-    await _room?.dispose();
+    try {
+      await _room?.disconnect();
+    } catch (_) {}
+    try {
+      await _room?.dispose();
+    } catch (_) {}
     _room = null;
-
-    if (mounted) {
-      await Future<void>.delayed(const Duration(seconds: 1));
-      if (mounted) Navigator.of(context).pop();
-    }
   }
 
   @override
   void dispose() {
     _durationTimer?.cancel();
+    _duration.dispose();
     _roomListener?.dispose();
     _room?.disconnect();
     _room?.dispose();
@@ -230,15 +274,13 @@ class _CallScreenState extends State<CallScreen> {
   Widget _buildContactAvatar() {
     return CircleAvatar(
       radius: 40,
-      backgroundColor: StyleTokens.surfaceCard,
-      child: Text(
-        _contactInitial,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 28,
-          fontWeight: FontWeight.w700,
-          color: StyleTokens.buttonPrimary,
-        ),
+      backgroundColor: const Color(0xFFE8E8E8),
+      backgroundImage: NetworkImage(
+        'https://api.dicebear.com/9.x/notionists/png'
+        '?seed=${Uri.encodeComponent(widget.callInfo.contact.id)}'
+        '&size=160&backgroundColor=e8e8e8',
       ),
+      onBackgroundImageError: (Object e, StackTrace? st) {},
     );
   }
 
@@ -254,19 +296,29 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Widget _buildStatusLabel() {
-    return Text(
-      _statusText,
-      style: GoogleFonts.plusJakartaSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w400,
-        color: Colors.white70,
-      ),
+    return ValueListenableBuilder<Duration>(
+      valueListenable: _duration,
+      builder: (BuildContext context, Duration d, _) {
+        final String text = _state == _CallState.ringing
+            ? 'Đang gọi...'
+            : _state == _CallState.ended
+                ? 'Đã kết thúc'
+                : _formatDuration(d);
+        return Text(
+          text,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: Colors.white70,
+          ),
+        );
+      },
     );
   }
 
   Widget _buildVoiceButtons() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
         _buildCircleButton(
           onTap: _toggleMic,
@@ -284,6 +336,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
           label: _micEnabled ? 'Tắt mic' : 'Bật mic',
         ),
+        const SizedBox(width: 32),
         _buildCircleButton(
           onTap: _toggleSpeaker,
           color: Colors.white,
@@ -298,6 +351,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
           label: _speakerEnabled ? 'Tắt loa' : 'Bật loa',
         ),
+        const SizedBox(width: 32),
         _buildCircleButton(
           onTap: _endCall,
           color: const Color(0xFFFF3B30),
@@ -425,7 +479,7 @@ class _CallScreenState extends State<CallScreen> {
 
   Widget _buildVideoButtons() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
         _buildCircleButton(
           onTap: _toggleMic,
@@ -443,6 +497,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
           label: _micEnabled ? 'Tắt mic' : 'Bật mic',
         ),
+        const SizedBox(width: 32),
         _buildCircleButton(
           onTap: _toggleCamera,
           color: Colors.white,
@@ -459,6 +514,7 @@ class _CallScreenState extends State<CallScreen> {
           ),
           label: _cameraEnabled ? 'Tắt camera' : 'Bật camera',
         ),
+        const SizedBox(width: 32),
         _buildCircleButton(
           onTap: _endCall,
           color: const Color(0xFFFF3B30),
@@ -484,16 +540,17 @@ class _CallScreenState extends State<CallScreen> {
     return Semantics(
       button: true,
       label: label,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
+      child: Material(
+        color: color,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: 60,
+            height: 60,
+            child: Center(child: child),
           ),
-          child: Center(child: child),
         ),
       ),
     );
