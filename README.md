@@ -1,22 +1,22 @@
 # AiSee App
 
-Ung dung ho tro nguoi khiem thi, xay dung bang Flutter.
+Ứng dụng hỗ trợ người khiếm thị, xây dựng bằng Flutter.
 
-## Tinh nang chinh
+## Tính năng chính
 
-- Tro ly giong noi (LiveKit)
-- Goi dien / nhan tin voi nguoi than
-- Quan ly danh ba gia dinh
-- Nhac nho uong thuoc, lich hen
-- Thong bao day (FCM)
+- Trợ lý giọng nói (LiveKit)
+- Gọi điện / nhắn tin với người thân
+- Quản lý danh bạ gia đình
+- Nhắc nhở uống thuốc, lịch hẹn
+- Thông báo đẩy (FCM)
 
-## Cai dat
+## Cài đặt
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-## Cau hinh
+## Cấu hình
 
-Chinh sua `assets/app_config.env` de thay doi backend URL va cac thong so khac.
+Chỉnh sửa `assets/app_config.env` để thay đổi backend URL và các thông số khác.
