@@ -792,20 +792,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              color: StyleTokens.navBarBackground,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: _isRecording
-                ? _buildRecordingBar()
-                : _uploadingMedia
-                    ? _buildUploadingBar()
-                    : _buildNormalInputBar(),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
           ),
+          decoration: BoxDecoration(
+            color: StyleTokens.navBarBackground,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: _uploadingMedia
+              ? _buildUploadingBar()
+              : _buildNormalInputBar(),
         ),
       ),
     );
@@ -814,65 +811,74 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget _buildNormalInputBar() {
     return Row(
       children: <Widget>[
-        Semantics(
-          button: true,
-          label: 'Đính kèm ảnh',
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: _showAttachmentSheet,
-              child: SizedBox(
-                width: 36,
-                height: 36,
-                child: Center(
-                  child: SvgPicture.asset(
-                    'assets/icons/nav/ic_plus.svg',
-                    width: 20,
-                    height: 20,
-                    colorFilter: const ColorFilter.mode(
-                      StyleTokens.textMuted,
-                      BlendMode.srcIn,
+        if (!_isRecording) ...<Widget>[
+          Semantics(
+            button: true,
+            label: 'Đính kèm ảnh',
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _showAttachmentSheet,
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Center(
+                    child: SvgPicture.asset(
+                      'assets/icons/nav/ic_plus.svg',
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        StyleTokens.textMuted,
+                        BlendMode.srcIn,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 4),
+          const SizedBox(width: 4),
+        ],
         Expanded(
-          child: TextField(
-            controller: _textController,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: StyleTokens.textPrimary,
-            ),
-            decoration: InputDecoration(
-              filled: false,
-              hintText: 'Nhắn tin...',
-              hintStyle: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: StyleTokens.navUnselectedIcon,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              isDense: true,
-            ),
-            textInputAction: TextInputAction.send,
-            onSubmitted: (_) => _sendMessage(),
-          ),
+          child: _isRecording
+              ? _buildRecordingInfo()
+              : TextField(
+                  controller: _textController,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: StyleTokens.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    filled: false,
+                    hintText: 'Nhắn tin...',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: StyleTokens.navUnselectedIcon,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
+                  ),
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendMessage(),
+                ),
         ),
         const SizedBox(width: 8),
-        _hasText ? _buildSendButton() : _buildMicButton(),
+        if (_isRecording)
+          _buildStopButton()
+        else if (_hasText)
+          _buildSendButton()
+        else
+          _buildMicButton(),
       ],
     );
   }
@@ -907,11 +913,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
+  double _micPointerStartX = 0;
+
   Widget _buildMicButton() {
-    return GestureDetector(
-      onLongPressStart: (_) => _startRecording(),
-      onLongPressEnd: (LongPressEndDetails details) {
-        if (details.localPosition.dx < -100) {
+    return Listener(
+      onPointerDown: (PointerDownEvent event) {
+        _micPointerStartX = event.position.dx;
+        _startRecording();
+      },
+      onPointerUp: (PointerUpEvent event) {
+        if (!_isRecording) return;
+        final double dx = event.position.dx - _micPointerStartX;
+        if (dx < -100) {
           _cancelRecording();
         } else {
           _stopRecording();
@@ -944,13 +957,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildRecordingBar() {
+  Widget _buildRecordingInfo() {
     final String mins = _recordDuration.inMinutes.toString();
     final String secs = (_recordDuration.inSeconds.remainder(60))
         .toString()
         .padLeft(2, '0');
     return Row(
       children: <Widget>[
+        const SizedBox(width: 4),
         const _RecordingDot(),
         const SizedBox(width: 8),
         Text(
@@ -961,18 +975,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             color: StyleTokens.textPrimary,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Expanded(child: _buildWaveform()),
-        const SizedBox(width: 12),
-        Text(
-          '< Vuốt để huỷ',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-            color: StyleTokens.textMuted,
+      ],
+    );
+  }
+
+  Widget _buildStopButton() {
+    return GestureDetector(
+      onTap: _stopRecording,
+      onLongPress: _cancelRecording,
+      child: Semantics(
+        button: true,
+        label: 'Dừng ghi âm và gửi. Giữ để huỷ.',
+        child: Material(
+          color: StyleTokens.error,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Center(
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: StyleTokens.buttonOnPrimary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
