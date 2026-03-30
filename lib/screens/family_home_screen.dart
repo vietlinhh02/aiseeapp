@@ -1,23 +1,29 @@
-// lib/screens/family_home_screen.dart
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 import '../models/aisee_api_models.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import '../widgets/app_wordmark.dart';
+import '../widgets/user_low_vision_bottom_nav.dart';
 import 'family_contacts_tab.dart';
 import 'family_messages_tab.dart';
 import 'family_personal_tab.dart';
 
+/// Home thành viên gia đình — 3 tab + pill nav nổi, khớp layout UserHomeScreen.
 class FamilyHomeScreen extends StatefulWidget {
   const FamilyHomeScreen({
+    super.key,
     this.googleUser,
     this.aiseeProfile,
     this.aiseeLoading = false,
     this.aiseeError,
     required this.onSignOut,
-    super.key,
   });
 
   final GoogleSignInAccount? googleUser;
@@ -30,13 +36,22 @@ class FamilyHomeScreen extends StatefulWidget {
   State<FamilyHomeScreen> createState() => _FamilyHomeScreenState();
 }
 
-class _FamilyHomeScreenState extends State<FamilyHomeScreen> {
+class _FamilyHomeScreenState extends State<FamilyHomeScreen>
+    with SingleTickerProviderStateMixin {
   int _tabIndex = 0;
+  late final AnimationController _tabFade;
   AiseeChatSocket? _chatSocket;
+
+  static const List<String> _tabTitles = ['Gia đình', 'Tin nhắn', 'Cá nhân'];
 
   @override
   void initState() {
     super.initState();
+    _tabFade = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+      value: 1.0,
+    );
     _initSocket();
   }
 
@@ -48,60 +63,114 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen> {
     if (mounted) setState(() {});
   }
 
+  void _onTabChanged(int index) {
+    if (index == _tabIndex) return;
+    HapticFeedback.mediumImpact();
+    SystemSound.play(SystemSoundType.click);
+    _tabFade.reverse().then((_) {
+      if (!mounted) return;
+      setState(() => _tabIndex = index);
+      _tabFade.forward();
+    });
+  }
+
   @override
   void dispose() {
+    _tabFade.dispose();
     _chatSocket?.dispose();
     super.dispose();
+  }
+
+  Widget _buildAppBarTitle() {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            _tabTitles[_tabIndex],
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              height: 1,
+              letterSpacing: -0.5,
+              color: StyleTokens.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const AppWordmark(fontSize: 15),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.aiseeLoading) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+
     final profile = widget.aiseeProfile;
     if (profile == null) {
       return Scaffold(
         body: Center(
-          child: Text(widget.aiseeError ?? 'Khong tai duoc thong tin',
-              style: StyleTokens.bodySmall()),
+          child: Text(
+            widget.aiseeError ?? 'Không tải được thông tin',
+            style: StyleTokens.bodySmall(),
+          ),
         ),
       );
     }
 
+    final double bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return Scaffold(
       backgroundColor: StyleTokens.background,
-      body: SafeArea(
-        child: IndexedStack(
-          index: _tabIndex,
-          children: [
-            const FamilyContactsTab(),
-            FamilyMessagesTab(
-              currentUserId: profile.id,
-              chatSocket: _chatSocket ?? AiseeChatSocket(),
-            ),
-            FamilyPersonalTab(
-              profile: profile,
-              onSignOut: widget.onSignOut,
-            ),
-          ],
-        ),
+      extendBody: true,
+      appBar: AppBar(
+        centerTitle: false,
+        titleSpacing: 20,
+        toolbarHeight: 48,
+        scrolledUnderElevation: 0,
+        title: _buildAppBarTitle(),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _tabIndex,
-        onTap: (i) => setState(() => _tabIndex = i),
-        selectedItemColor: StyleTokens.buttonPrimary,
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.family_restroom),
-              label: 'Gia dinh'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat),
-              label: 'Tin nhan'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Ca nhan'),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 8,
+              bottom: 112 + bottomInset,
+            ),
+            child: FadeTransition(
+              opacity: _tabFade,
+              child: IndexedStack(
+                index: _tabIndex,
+                children: [
+                  const FamilyContactsTab(),
+                  FamilyMessagesTab(
+                    currentUserId: profile.id,
+                    chatSocket: _chatSocket ?? AiseeChatSocket(),
+                  ),
+                  FamilyPersonalTab(
+                    profile: profile,
+                    onSignOut: widget.onSignOut,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16 + bottomInset,
+            child: UserLowVisionBottomNav(
+              currentIndex: _tabIndex,
+              onChanged: _onTabChanged,
+              items: UserLowVisionBottomNav.familyItems,
+            ),
+          ),
         ],
       ),
     );
