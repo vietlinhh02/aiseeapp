@@ -6,10 +6,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/aisee_api_models.dart';
+import '../models/aisee_call_info.dart';
+import '../services/aisee_chat_socket.dart';
 import '../services/aisee_livekit_voice_session.dart';
+import '../services/aisee_push_service.dart';
+import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
 import '../widgets/user_low_vision_bottom_nav.dart';
+import 'call_screen.dart';
 import 'user_assistant_tab.dart';
 import 'user_personal_tab.dart';
 import 'contacts_tab.dart';
@@ -36,9 +41,12 @@ class UserHomeScreen extends StatefulWidget {
 }
 
 class _UserHomeScreenState extends State<UserHomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _tabIndex = 0;
   late final AnimationController _tabFade;
+
+  final AiseeChatSocket _chatSocket = AiseeChatSocket();
+  StreamSubscription<AiseeCallInfo>? _incomingCallSub;
 
   final AiseeLiveKitVoiceSession _liveKitVoice = AiseeLiveKitVoiceSession();
   bool _liveKitConnecting = true;
@@ -82,10 +90,33 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     debugPrint('[AiSee:UI] UserHomeScreen initState');
     debugPrint('[AiSee:UI] User: $_displayName');
     debugPrint('[AiSee:UI] aiseeLoading=${widget.aiseeLoading} aiseeError=${widget.aiseeError}');
+    WidgetsBinding.instance.addObserver(this);
     _liveKitVoice.onMusicUiChanged = _onMusicUiChanged;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_startLiveKitVoice());
     });
+    _connectChatSocket();
+    _incomingCallSub =
+        AiseePushService.instance.onAcceptedCall.listen((callInfo) {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CallScreen(callInfo: callInfo),
+        ),
+      );
+    });
+    final AiseeCallInfo? pending =
+        AiseePushService.instance.consumePendingCall();
+    if (pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => CallScreen(callInfo: pending),
+          ),
+        );
+      });
+    }
   }
 
   void _onMusicUiChanged() {
@@ -94,8 +125,31 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     setState(() {});
   }
 
+  Future<void> _connectChatSocket() async {
+    final tokens = await AiseeSessionStore.instance.read();
+    if (tokens != null) {
+      await _chatSocket.connect(tokens.accessToken);
+      debugPrint('[AiSee:UI] Chat WebSocket connected');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _connectChatSocket();
+    } else if (state == AppLifecycleState.paused) {
+      _chatSocket.disconnect();
+      debugPrint(
+        '[AiSee:UI] Chat WebSocket disconnected (app paused)',
+      );
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _incomingCallSub?.cancel();
+    _chatSocket.dispose();
     _tabFade.dispose();
     debugPrint('[AiSee:UI] UserHomeScreen dispose — ngat LiveKit');
     _liveKitVoice.onMusicUiChanged = null;
