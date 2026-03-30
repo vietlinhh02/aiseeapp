@@ -1,5 +1,6 @@
 // lib/screens/family_dashboard_screen.dart
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/aisee_dashboard_models.dart';
 import '../models/aisee_family_member.dart';
@@ -116,10 +117,44 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       child: Scaffold(
         backgroundColor: StyleTokens.background,
         appBar: AppBar(
-          title: Text(widget.member.label),
+          backgroundColor: StyleTokens.background,
+          elevation: 0,
+          centerTitle: false,
+          title: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: NetworkImage(
+                  'https://api.dicebear.com/9.x/notionists/png'
+                  '?seed=${Uri.encodeComponent(widget.member.id)}'
+                  '&size=96&backgroundColor=e8e8e8',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget.member.label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: StyleTokens.textPrimary,
+                ),
+              ),
+            ],
+          ),
           bottom: TabBar(
             isScrollable: true,
             onTap: (i) => setState(() => _currentTab = i),
+            labelColor: StyleTokens.buttonPrimary,
+            unselectedLabelColor: StyleTokens.textMuted,
+            indicatorColor: StyleTokens.buttonPrimary,
+            labelStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             tabs: const [
               Tab(text: 'Sức khỏe'),
               Tab(text: 'Thuốc'),
@@ -183,42 +218,110 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   }
 
   Widget _buildMedAdherenceCard(MedWithAdherence m) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(
-          m.takenToday ? Icons.check_circle : Icons.circle_outlined,
-          color: m.takenToday ? Colors.green : Colors.orange,
-        ),
-        title: Text(m.medication.name),
-        subtitle: Text(
-          '${m.medication.dosage} - ${m.medication.times.join(", ")}',
-        ),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            m.takenToday ? Icons.check_circle : Icons.circle_outlined,
+            color: m.takenToday ? Colors.green : Colors.orange,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  m.medication.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: StyleTokens.textPrimary,
+                  ),
+                ),
+                Text(
+                  '${m.medication.dosage} - ${m.medication.times.join(", ")}',
+                  style: StyleTokens.bodySmall(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSymptomCard(HealthSymptom s) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: const Icon(Icons.healing, color: Colors.orange),
-        title: Text(s.symptom),
-        subtitle: Text([
-          if (s.severity != null) s.severity!,
-          _formatTime(s.loggedAt),
-        ].join(' - ')),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.healing, color: Colors.orange),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.symptom,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: StyleTokens.textPrimary,
+                  ),
+                ),
+                Text(
+                  [if (s.severity != null) s.severity!, _formatTime(s.loggedAt)]
+                      .join(' - '),
+                  style: StyleTokens.bodySmall(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildMetricCard(HealthMetric m) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: const Icon(Icons.monitor_heart, color: Colors.blue),
-        title: Text('${m.metricType}: ${m.value} ${m.unit ?? ""}'),
-        subtitle: Text(_formatTime(m.loggedAt)),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.monitor_heart, color: Colors.blue),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${m.metricType}: ${m.value} ${m.unit ?? ""}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: StyleTokens.textPrimary,
+                  ),
+                ),
+                Text(_formatTime(m.loggedAt), style: StyleTokens.bodySmall()),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -233,9 +336,14 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       return RefreshIndicator(
         onRefresh: _loadMeds,
         child: ListView(
-          children: const [
-            SizedBox(height: 200),
-            Center(child: Text('Chua co thuoc nao')),
+          children: [
+            const SizedBox(height: 200),
+            Center(
+              child: Text(
+                'Chưa có thuốc nào',
+                style: StyleTokens.bodySmall(),
+              ),
+            ),
           ],
         ),
       );
@@ -247,34 +355,56 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
         itemCount: _meds.length,
         itemBuilder: (context, index) {
           final m = _meds[index];
-          return Card(
+          return Container(
             margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: Icon(
-                m.taken
-                    ? Icons.check_circle
-                    : m.skipped
-                        ? Icons.cancel
-                        : Icons.circle_outlined,
-                color: m.taken
-                    ? Colors.green
-                    : m.skipped
-                        ? Colors.red
-                        : Colors.grey,
-              ),
-              title: Text(m.medication.name),
-              subtitle: Text(
-                '${m.medication.dosage} - '
-                '${m.medication.times.join(", ")}',
-              ),
-              trailing: PopupMenuButton<String>(
-                onSelected: (action) =>
-                    _onMedAction(action, m.medication),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Sửa')),
-                  PopupMenuItem(value: 'delete', child: Text('Xóa')),
-                ],
-              ),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: StyleTokens.surfaceCard,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  m.taken
+                      ? Icons.check_circle
+                      : m.skipped
+                          ? Icons.cancel
+                          : Icons.circle_outlined,
+                  color: m.taken
+                      ? Colors.green
+                      : m.skipped
+                          ? Colors.red
+                          : Colors.grey,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        m.medication.name,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: StyleTokens.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        '${m.medication.dosage} - '
+                        '${m.medication.times.join(", ")}',
+                        style: StyleTokens.bodySmall(),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (action) => _onMedAction(action, m.medication),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Sửa')),
+                    PopupMenuItem(value: 'delete', child: Text('Xóa')),
+                  ],
+                ),
+              ],
             ),
           );
         },
@@ -289,8 +419,14 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Xóa thuốc'),
-          content: Text('Bạn có chắc muốn xóa ${med.name}?'),
+          title: Text(
+            'Xóa thuốc',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'Bạn có chắc muốn xóa ${med.name}?',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -298,8 +434,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Xóa',
-                  style: TextStyle(color: Colors.red)),
+              child: const Text('Xóa', style: TextStyle(color: Colors.red)),
             ),
           ],
         ),
@@ -363,54 +498,140 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   Future<Map<String, String>?> _showMedForm({
     String name = '', String dosage = '',
     String times = '', String frequency = 'daily',
-  }) async {
+  }) {
     final nameC = TextEditingController(text: name);
     final dosageC = TextEditingController(text: dosage);
     final timesC = TextEditingController(text: times);
     final freqC = TextEditingController(text: frequency);
 
-    final result = await showDialog<Map<String, String>>(
+    return showModalBottomSheet<Map<String, String>>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(name.isEmpty ? 'Thêm thuốc' : 'Sửa thuốc'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameC,
-                  decoration: const InputDecoration(labelText: 'Tên thuốc')),
-              TextField(controller: dosageC,
-                  decoration: const InputDecoration(labelText: 'Liều lượng')),
-              TextField(controller: timesC,
-                  decoration: const InputDecoration(
-                      labelText: 'Giờ uống (VD: 07:00, 21:00)')),
-              TextField(controller: freqC,
-                  decoration: const InputDecoration(
-                      labelText: 'Tần suất (daily)')),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
-              child: const Text('Hủy')),
-          TextButton(
-            onPressed: () {
-              if (nameC.text.trim().isEmpty) return;
-              Navigator.pop(context, {
-                'name': nameC.text.trim(),
-                'dosage': dosageC.text.trim(),
-                'times': timesC.text.trim(),
-                'frequency': freqC.text.trim(),
-              });
-            },
-            child: const Text('Lưu'),
-          ),
-        ],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-    );
-    nameC.dispose(); dosageC.dispose();
-    timesC.dispose(); freqC.dispose();
-    return result;
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: StyleTokens.textMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              name.isEmpty ? 'Thêm thuốc' : 'Sửa thuốc',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: StyleTokens.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: nameC,
+              style: GoogleFonts.plusJakartaSans(),
+              decoration: InputDecoration(
+                labelText: 'Tên thuốc',
+                labelStyle: GoogleFonts.plusJakartaSans(
+                  color: StyleTokens.textMuted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: dosageC,
+              style: GoogleFonts.plusJakartaSans(),
+              decoration: InputDecoration(
+                labelText: 'Liều lượng',
+                labelStyle: GoogleFonts.plusJakartaSans(
+                  color: StyleTokens.textMuted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: timesC,
+              style: GoogleFonts.plusJakartaSans(),
+              decoration: InputDecoration(
+                labelText: 'Giờ uống (VD: 07:00, 21:00)',
+                labelStyle: GoogleFonts.plusJakartaSans(
+                  color: StyleTokens.textMuted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: freqC,
+              style: GoogleFonts.plusJakartaSans(),
+              decoration: InputDecoration(
+                labelText: 'Tần suất (daily)',
+                labelStyle: GoogleFonts.plusJakartaSans(
+                  color: StyleTokens.textMuted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(
+                      'Hủy',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: StyleTokens.buttonPrimary,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      if (nameC.text.trim().isEmpty) return;
+                      Navigator.pop(ctx, {
+                        'name': nameC.text.trim(),
+                        'dosage': dosageC.text.trim(),
+                        'times': timesC.text.trim(),
+                        'frequency': freqC.text.trim(),
+                      });
+                    },
+                    child: Text(
+                      'Lưu',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ).then((result) {
+      nameC.dispose();
+      dosageC.dispose();
+      timesC.dispose();
+      freqC.dispose();
+      return result;
+    });
   }
 
   // --- Audit log tab ---
@@ -429,13 +650,44 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
         itemCount: _logs.length,
         itemBuilder: (context, index) {
           final log = _logs[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: _auditIcon(log.toolName),
-              title: Text(log.toolLabel),
-              subtitle: Text(_formatTime(log.createdAt)),
-              onTap: () => _showLogDetail(log),
+          return GestureDetector(
+            onTap: () => _showLogDetail(log),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: StyleTokens.surfaceCard,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  _auditIcon(log.toolName),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          log.toolLabel,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: StyleTokens.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          _formatTime(log.createdAt),
+                          style: StyleTokens.bodySmall(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: StyleTokens.textMuted,
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -460,31 +712,86 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   }
 
   void _showLogDetail(AuditLogEntry log) {
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(log.toolLabel),
-        content: Column(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Thời gian: ${_formatTime(log.createdAt)}'),
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: StyleTokens.textMuted,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              log.toolLabel,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: StyleTokens.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Thời gian: ${_formatTime(log.createdAt)}',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: StyleTokens.textSecondary,
+              ),
+            ),
             if (log.params.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('Chi tiết: ${log.params.entries.map(
-                    (e) => '${e.key}: ${e.value}',
-                  ).join(', ')}'),
+              Text(
+                'Chi tiết: ${log.params.entries.map(
+                      (e) => '${e.key}: ${e.value}',
+                    ).join(', ')}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: StyleTokens.textSecondary,
+                ),
+              ),
             ],
             if (log.result != null) ...[
               const SizedBox(height: 8),
-              Text('Kết quả: ${log.result}'),
+              Text(
+                'Kết quả: ${log.result}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: StyleTokens.textSecondary,
+                ),
+              ),
             ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: StyleTokens.buttonPrimary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  'Đóng',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
-              child: const Text('Đóng')),
-        ],
       ),
     );
   }
@@ -504,21 +811,31 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: StyleTokens.surfaceCard,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
                 const Icon(Icons.location_on, size: 48, color: Colors.red),
                 const SizedBox(height: 12),
                 Text(
                   '${loc.lat!.toStringAsFixed(6)}, '
                   '${loc.lng!.toStringAsFixed(6)}',
-                  style: StyleTokens.titleScreen().copyWith(fontSize: 16),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: StyleTokens.textPrimary,
+                  ),
                 ),
                 if (loc.updatedAt != null) ...[
                   const SizedBox(height: 8),
-                  Text('Cập nhật: ${_formatTime(loc.updatedAt!)}',
-                      style: StyleTokens.bodySmall()),
+                  Text(
+                    'Cập nhật: ${_formatTime(loc.updatedAt!)}',
+                    style: StyleTokens.bodySmall(),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
@@ -530,7 +847,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                     foregroundColor: Colors.white,
                   ),
                 ),
-              ]),
+              ],
             ),
           ),
         ],
@@ -551,15 +868,23 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
 
   Widget _sectionTitle(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text,
-            style: StyleTokens.titleScreen().copyWith(fontSize: 16)),
+        child: Text(
+          text,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: StyleTokens.textPrimary,
+          ),
+        ),
       );
 
-  Widget _emptyCard(String text) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Center(child: Text(text, style: StyleTokens.bodySmall())),
+  Widget _emptyCard(String text) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: StyleTokens.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
         ),
+        child: Center(child: Text(text, style: StyleTokens.bodySmall())),
       );
 
   String _formatTime(DateTime dt) {
