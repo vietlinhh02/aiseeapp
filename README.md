@@ -1,17 +1,22 @@
-# aiseeapp
+# AiSee App
 
-A new Flutter project.
+Ung dung ho tro nguoi khiem thi, xay dung bang Flutter.
 
-## Getting Started
+## Tinh nang chinh
 
-This project is a starting point for a Flutter application.
+- Tro ly giong noi (LiveKit)
+- Goi dien / nhan tin voi nguoi than
+- Quan ly danh ba gia dinh
+- Nhac nho uong thuoc, lich hen
+- Thong bao day (FCM)
 
-A few resources to get you started if this is your first Flutter project:
+## Cai dat
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Cau hinh
+
+Chinh sua `assets/app_config.env` de thay doi backend URL va cac thong so khac.
