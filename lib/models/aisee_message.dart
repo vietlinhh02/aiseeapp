@@ -25,7 +25,7 @@ class AiseeMessage {
       contentText: j['content_text'] as String? ?? '',
       voiceUrl: j['voice_url'] as String?,
       isRead: j['is_read'] as bool? ?? false,
-      createdAt: DateTime.parse(j['created_at'] as String),
+      createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
     );
   }
 }

@@ -36,7 +36,16 @@ class AiseePushService {
   }
 
   /// Initialize FCM, request permission, upload token.
+  /// Silently skips if Firebase is not configured.
   Future<void> initAndUploadToken(String accessToken) async {
+    try {
+      return await _initAndUploadTokenUnsafe(accessToken);
+    } catch (e) {
+      _log('Push init skipped (Firebase not configured?): $e');
+    }
+  }
+
+  Future<void> _initAndUploadTokenUnsafe(String accessToken) async {
     if (_initialized) {
       await _uploadFcmToken(accessToken);
       return;

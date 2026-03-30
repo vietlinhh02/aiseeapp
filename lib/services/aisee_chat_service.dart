@@ -36,13 +36,23 @@ class AiseeChatService {
     if (res.statusCode != 200) {
       throw _error(res, 'Không tải được tin nhắn');
     }
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-    final List<dynamic> list = map['messages'] as List<dynamic>;
-    return list
-        .cast<Map<String, dynamic>>()
-        .map(AiseeMessage.fromJson)
-        .toList();
+    final Object? decoded = _decodeJson(res, 'Không tải được tin nhắn');
+    if (decoded is Map<String, dynamic>) {
+      final Object? msgs = decoded['messages'];
+      if (msgs is List) {
+        return msgs
+            .cast<Map<String, dynamic>>()
+            .map(AiseeMessage.fromJson)
+            .toList();
+      }
+    }
+    if (decoded is List) {
+      return decoded
+          .cast<Map<String, dynamic>>()
+          .map(AiseeMessage.fromJson)
+          .toList();
+    }
+    return <AiseeMessage>[];
   }
 
   Future<AiseeMessage> sendMessage(
@@ -62,9 +72,11 @@ class AiseeChatService {
     if (res.statusCode != 200) {
       throw _error(res, 'Không gửi được tin nhắn');
     }
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-    return AiseeMessage.fromJson(map);
+    final Object? decoded = _decodeJson(res, 'Không gửi được tin nhắn');
+    if (decoded is! Map<String, dynamic>) {
+      throw AiseeApiException('Phản hồi không hợp lệ');
+    }
+    return AiseeMessage.fromJson(decoded);
   }
 
   Future<void> markRead(String accessToken, String messageId) async {
@@ -85,9 +97,30 @@ class AiseeChatService {
     if (res.statusCode != 200) {
       throw _error(res, 'Không lấy được số tin chưa đọc');
     }
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-    return map['count'] as int;
+    final Object? decoded = _decodeJson(
+      res,
+      'Không lấy được số tin chưa đọc',
+    );
+    if (decoded is Map<String, dynamic>) {
+      return decoded['count'] as int? ?? 0;
+    }
+    return 0;
+  }
+
+  Object? _decodeJson(http.Response res, String fallback) {
+    final String raw = utf8.decode(res.bodyBytes).trim();
+    if (raw.isEmpty) {
+      throw AiseeApiException('$fallback (phản hồi trống)');
+    }
+    try {
+      return jsonDecode(raw);
+    } on FormatException {
+      final String preview =
+          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException(
+        '$fallback (HTTP ${res.statusCode}): $preview',
+      );
+    }
   }
 
   AiseeApiException _error(http.Response res, String fallback) {

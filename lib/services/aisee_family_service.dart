@@ -28,9 +28,14 @@ class AiseeFamilyService {
     if (res.statusCode != 200) {
       throw _error(res, 'Không tải được danh sách người thân');
     }
-    final List<dynamic> list =
-        jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
-    return list
+    final Object? decoded = _decodeJson(
+      res,
+      'Không tải được danh sách người thân',
+    );
+    if (decoded is! List) {
+      throw AiseeApiException('Phản hồi không hợp lệ (không phải danh sách)');
+    }
+    return decoded
         .cast<Map<String, dynamic>>()
         .map(AiseeFamilyMember.fromJson)
         .toList();
@@ -48,9 +53,11 @@ class AiseeFamilyService {
     if (res.statusCode != 200) {
       throw _error(res, 'Không tạo được mã mời');
     }
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-    return map['invite_code'] as String;
+    final Object? decoded = _decodeJson(res, 'Không tạo được mã mời');
+    if (decoded is! Map<String, dynamic>) {
+      throw AiseeApiException('Phản hồi không hợp lệ');
+    }
+    return decoded['invite_code'] as String;
   }
 
   Future<void> joinFamily(String accessToken, String inviteCode) async {
@@ -85,6 +92,22 @@ class AiseeFamilyService {
     );
     if (res.statusCode != 200) {
       throw _error(res, 'Không cập nhật được hồ sơ');
+    }
+  }
+
+  Object? _decodeJson(http.Response res, String fallback) {
+    final String raw = utf8.decode(res.bodyBytes).trim();
+    if (raw.isEmpty) {
+      throw AiseeApiException('$fallback (phản hồi trống)');
+    }
+    try {
+      return jsonDecode(raw);
+    } on FormatException {
+      final String preview =
+          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException(
+        '$fallback (HTTP ${res.statusCode}): $preview',
+      );
     }
   }
 

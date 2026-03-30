@@ -41,8 +41,10 @@ class AiseeAuthService {
       headers: {'Content-Type': 'application/json; charset=utf-8'},
       body: jsonEncode({'id_token': idToken, 'role': role}),
     );
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final Map<String, dynamic> map = _parseJsonBody(
+      res,
+      fallback: 'Đăng nhập máy chủ thất bại',
+    );
     if (res.statusCode != 200) {
       throw _errorFromBody(map, fallback: 'Đăng nhập máy chủ thất bại');
     }
@@ -63,8 +65,10 @@ class AiseeAuthService {
         'Accept': 'application/json',
       },
     );
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final Map<String, dynamic> map = _parseJsonBody(
+      res,
+      fallback: 'Không tải được hồ sơ',
+    );
     if (res.statusCode != 200) {
       throw _errorFromBody(map, fallback: 'Không tải được hồ sơ');
     }
@@ -77,8 +81,10 @@ class AiseeAuthService {
       headers: {'Content-Type': 'application/json; charset=utf-8'},
       body: jsonEncode({'refresh_token': refreshToken}),
     );
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final Map<String, dynamic> map = _parseJsonBody(
+      res,
+      fallback: 'Phiên hết hạn, vui lòng đăng nhập lại',
+    );
     if (res.statusCode != 200) {
       throw _errorFromBody(
         map,
@@ -120,8 +126,12 @@ class AiseeAuthService {
     if (res.statusCode != 200) {
       return null;
     }
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    Map<String, dynamic> map;
+    try {
+      map = _parseJsonBody(res, fallback: 'Không tải được hồ sơ');
+    } catch (_) {
+      return null;
+    }
     final AiseeUserProfile profile = AiseeUserProfile.fromJson(
       _unwrapPayload(map),
     );
@@ -129,6 +139,33 @@ class AiseeAuthService {
       profile: profile,
       tokens: AiseeAuthTokens(accessToken: access, refreshToken: refresh),
     );
+  }
+
+  /// Parse response body as JSON map. Throws [AiseeApiException] with
+  /// [fallback] if body is empty or not valid JSON (e.g. `404 page not found`).
+  Map<String, dynamic> _parseJsonBody(
+    http.Response res, {
+    required String fallback,
+  }) {
+    final String raw = utf8.decode(res.bodyBytes).trim();
+    if (raw.isEmpty) {
+      throw AiseeApiException(
+        '$fallback (HTTP ${res.statusCode}, phản hồi trống)',
+      );
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+      throw AiseeApiException(
+        '$fallback (HTTP ${res.statusCode}, phản hồi không phải JSON object)',
+      );
+    } on FormatException {
+      final String preview =
+          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException(
+        '$fallback (HTTP ${res.statusCode}): $preview',
+      );
+    }
   }
 
   AiseeApiException _errorFromBody(
@@ -140,6 +177,12 @@ class AiseeAuthService {
       final String? msg = errObj['message'] as String?;
       final String? code = errObj['code'] as String?;
       return AiseeApiException(msg ?? fallback, code: code);
+    }
+    // New error format: {"error": "code", "message": "..."}
+    final String? msg = map['message'] as String?;
+    final String? code = errObj is String ? errObj : null;
+    if (msg != null && msg.isNotEmpty) {
+      return AiseeApiException(msg, code: code);
     }
     return AiseeApiException(fallback);
   }

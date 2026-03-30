@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:livekit_client/livekit_client.dart' hide AgentState;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:volume_controller/volume_controller.dart';
 
 import '../config/app_env.dart';
 import '../debug/aisee_performance_debug.dart';
@@ -19,8 +20,13 @@ import '../services/aisee_session_store.dart';
 import '../services/aisee_voice_foreground.dart';
 import '../models/agent_state.dart';
 import '../models/aisee_reminder.dart';
+import '../services/aisee_chat_service.dart';
+import '../services/aisee_health_service.dart';
 import '../services/aisee_location_service.dart';
 import '../services/aisee_reminder_service.dart';
+import '../models/aisee_call_info.dart';
+import '../models/aisee_family_member.dart';
+import '../models/aisee_message.dart';
 
 class AiseeCallsTokenUnauthorized implements Exception {
   @override
@@ -75,6 +81,9 @@ class AiseeLiveKitVoiceSession {
 
   /// Gọi sau khi đổi trạng thái phát nhạc (tiêu đề / dừng) để UI rebuild.
   VoidCallback? onMusicUiChanged;
+
+  /// Called when agent initiates a voice/video call via RPC.
+  Future<void> Function(AiseeCallInfo callInfo)? onAgentStartCall;
 
   String? get nowPlayingTitle => _nowPlayingTitle;
 
@@ -371,6 +380,49 @@ class AiseeLiveKitVoiceSession {
     }
   }
 
+  Future<String> _handleMakeCall(
+    RpcInvocationData data,
+    String callType,
+  ) async {
+    final Map<String, dynamic> params =
+        jsonDecode(data.payload) as Map<String, dynamic>;
+    final String roomName =
+        _paramString(params, const ['room_name']);
+    final String token =
+        _paramString(params, const ['token']);
+    final String calleeId =
+        _paramString(params, const ['callee_id', 'contact_id']);
+    final String calleeName = _paramString(
+      params,
+      const ['callee_name', 'contact_name', 'name'],
+    );
+    _log(
+      'RPC',
+      'make_${callType}_call room=$roomName callee=$calleeName',
+    );
+    if (roomName.isEmpty || token.isEmpty) {
+      throw RpcError(code: 2010, message: 'Missing room_name or token');
+    }
+    final Future<void> Function(AiseeCallInfo)? callback =
+        onAgentStartCall;
+    if (callback == null) {
+      throw RpcError(code: 2011, message: 'App not ready for calls');
+    }
+    final AiseeCallInfo callInfo = AiseeCallInfo(
+      roomName: roomName,
+      token: token,
+      callType: callType,
+      contact: AiseeFamilyMember(
+        id: calleeId,
+        email: '',
+        displayName: calleeName.isEmpty ? null : calleeName,
+        role: 'family',
+      ),
+    );
+    unawaited(callback(callInfo));
+    return jsonEncode({'status': 'ok'});
+  }
+
   void _registerRpcMethods() {
     final Room? room = _room;
     if (room == null) return;
@@ -445,6 +497,25 @@ class AiseeLiveKitVoiceSession {
           const ['command', 'action', 'op'],
         ).toLowerCase();
         _log('RPC', 'control_audio cmd=$cmd');
+
+        // Volume commands: system media volume, works without music.
+        if (cmd == 'volume_up' || cmd == 'volume_down') {
+          final VolumeController vc = VolumeController.instance;
+          vc.showSystemUI = true;
+          final double cur = await vc.getVolume();
+          const double step = 0.1;
+          final double next = cmd == 'volume_up'
+              ? (cur + step).clamp(0.0, 1.0)
+              : (cur - step).clamp(0.0, 1.0);
+          await vc.setVolume(next);
+          _log('RPC', 'system volume $cur → $next');
+          return jsonEncode({
+            'status': 'ok',
+            'volume': next,
+          });
+        }
+
+        // Music player commands: require active player.
         final AudioPlayer? p = _musicPlayer;
         if (p == null) return jsonEncode({'status': 'ok'});
         switch (cmd) {
@@ -453,6 +524,9 @@ class AiseeLiveKitVoiceSession {
           case 'resume' || 'play':
             await p.play();
           case 'stop':
+            await p.stop();
+            _setNowPlayingTitle(null);
+          case 'next' || 'previous':
             await p.stop();
             _setNowPlayingTitle(null);
           default:
@@ -584,7 +658,386 @@ class AiseeLiveKitVoiceSession {
       },
     );
 
-    _log('RPC', '7 methods registered');
+    room.registerRpcMethod(
+      'make_voice_call',
+      (RpcInvocationData data) async => _handleMakeCall(data, 'voice'),
+    );
+
+    room.registerRpcMethod(
+      'make_video_call',
+      (RpcInvocationData data) async => _handleMakeCall(data, 'video'),
+    );
+
+    room.registerRpcMethod(
+      'send_chat_message',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        final String receiverId = _paramString(
+          params,
+          const ['receiver_id', 'contact_id'],
+        );
+        final String text = _paramString(
+          params,
+          const ['text', 'content', 'message'],
+        );
+        _log('RPC', 'send_chat_message to=$receiverId');
+        if (receiverId.isEmpty || text.isEmpty) {
+          throw RpcError(
+            code: 2020,
+            message: 'Missing receiver_id or text',
+          );
+        }
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final AiseeChatService svc = AiseeChatService();
+        try {
+          final AiseeMessage msg = await svc.sendMessage(
+            tokens.accessToken,
+            receiverId,
+            text,
+          );
+          return jsonEncode({
+            'status': 'ok',
+            'message_id': msg.id,
+            'created_at': msg.createdAt.toIso8601String(),
+          });
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    room.registerRpcMethod(
+      'read_unread_messages',
+      (RpcInvocationData data) async {
+        _log('RPC', 'read_unread_messages called');
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final Map<String, dynamic> params = data.payload.isNotEmpty
+            ? jsonDecode(data.payload) as Map<String, dynamic>
+            : <String, dynamic>{};
+        final String contactId = _paramString(
+          params,
+          const ['contact_id', 'receiver_id'],
+        );
+        final AiseeChatService svc = AiseeChatService();
+        try {
+          if (contactId.isNotEmpty) {
+            final List<AiseeMessage> messages =
+                await svc.fetchMessages(
+              tokens.accessToken,
+              contactId,
+            );
+            final List<AiseeMessage> unread = messages
+                .where((AiseeMessage m) =>
+                    !m.isRead && m.senderId == contactId)
+                .toList();
+            for (final AiseeMessage m in unread) {
+              await svc.markRead(tokens.accessToken, m.id);
+            }
+            return jsonEncode({
+              'status': 'ok',
+              'contact_id': contactId,
+              'messages': unread
+                  .map((AiseeMessage m) => {
+                        'id': m.id,
+                        'sender_id': m.senderId,
+                        'content_text': m.contentText,
+                        'created_at':
+                            m.createdAt.toIso8601String(),
+                      })
+                  .toList(),
+            });
+          }
+          final int count = await svc.fetchUnreadCount(
+            tokens.accessToken,
+          );
+          return jsonEncode({
+            'status': 'ok',
+            'unread_count': count,
+          });
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    // ── Tool 12: set_medication_reminder ──
+    room.registerRpcMethod(
+      'set_medication_reminder',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        final String name = _paramString(
+          params,
+          const ['name', 'title', 'medication_name'],
+        );
+        final List<String> times =
+            (params['times'] as List<dynamic>?)?.cast<String>() ??
+                <String>[];
+        final String freq =
+            _paramString(params, const ['frequency', 'freq']);
+        _log('RPC', 'set_medication_reminder name=$name');
+        if (name.isEmpty) {
+          throw RpcError(
+            code: 2030,
+            message: 'Missing medication name',
+          );
+        }
+        final int baseId =
+            DateTime.now().millisecondsSinceEpoch % 100000;
+        final AiseeReminder reminder = AiseeReminder(
+          id: baseId,
+          type: AiseeReminderType.medication,
+          title: name,
+          times: times,
+          frequency: freq.isEmpty ? 'daily' : freq,
+          createdAt: DateTime.now(),
+        );
+        await AiseeReminderService.instance
+            .scheduleReminder(reminder);
+        return jsonEncode({
+          'status': 'ok',
+          'reminder_id': baseId,
+        });
+      },
+    );
+
+    // ── Tool 13: list_medication_reminders ──
+    room.registerRpcMethod(
+      'list_medication_reminders',
+      (RpcInvocationData data) async {
+        _log('RPC', 'list_medication_reminders called');
+        final List<AiseeReminder> all =
+            await AiseeReminderService.instance.loadAll();
+        final List<AiseeReminder> meds = all
+            .where((AiseeReminder r) =>
+                r.type == AiseeReminderType.medication)
+            .toList();
+        return jsonEncode({
+          'status': 'ok',
+          'reminders':
+              meds.map((AiseeReminder r) => r.toJson()).toList(),
+        });
+      },
+    );
+
+    // ── Tool 14: mark_medication_taken ──
+    room.registerRpcMethod(
+      'mark_medication_taken',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        _log('RPC', 'mark_medication_taken');
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final AiseeHealthService svc = AiseeHealthService();
+        try {
+          await svc.markMedicationTaken(
+            tokens.accessToken,
+            params,
+          );
+          return jsonEncode({'status': 'ok'});
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    // ── Tool 15: mark_medication_skipped ──
+    room.registerRpcMethod(
+      'mark_medication_skipped',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        _log('RPC', 'mark_medication_skipped');
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final AiseeHealthService svc = AiseeHealthService();
+        try {
+          await svc.markMedicationSkipped(
+            tokens.accessToken,
+            params,
+          );
+          return jsonEncode({'status': 'ok'});
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    // ── Tool 16: log_health_symptom ──
+    room.registerRpcMethod(
+      'log_health_symptom',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        _log('RPC', 'log_health_symptom');
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final AiseeHealthService svc = AiseeHealthService();
+        try {
+          await svc.logSymptom(tokens.accessToken, params);
+          return jsonEncode({'status': 'ok'});
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    // ── Tool 17: log_health_metric ──
+    room.registerRpcMethod(
+      'log_health_metric',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        _log('RPC', 'log_health_metric');
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final AiseeHealthService svc = AiseeHealthService();
+        try {
+          await svc.logMetric(tokens.accessToken, params);
+          return jsonEncode({'status': 'ok'});
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    // ── Tool 18: set_appointment_reminder ──
+    room.registerRpcMethod(
+      'set_appointment_reminder',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        final String name =
+            _paramString(params, const ['name', 'title']);
+        final String dt = _paramString(
+          params,
+          const ['datetime', 'date_time', 'time'],
+        );
+        _log('RPC', 'set_appointment_reminder name=$name dt=$dt');
+        if (name.isEmpty) {
+          throw RpcError(
+            code: 2030,
+            message: 'Missing appointment name',
+          );
+        }
+        final int baseId =
+            DateTime.now().millisecondsSinceEpoch % 100000;
+        final AiseeReminder reminder = AiseeReminder(
+          id: baseId,
+          type: AiseeReminderType.appointment,
+          title: name,
+          datetime: dt,
+          createdAt: DateTime.now(),
+        );
+        await AiseeReminderService.instance
+            .scheduleReminder(reminder);
+        return jsonEncode({
+          'status': 'ok',
+          'reminder_id': baseId,
+        });
+      },
+    );
+
+    // ── Tool 19: emergency_alert — SOS ──
+    room.registerRpcMethod(
+      'emergency_alert',
+      (RpcInvocationData data) async {
+        _log('RPC', 'emergency_alert — SOS!');
+        final Map<String, dynamic> params = data.payload.isNotEmpty
+            ? jsonDecode(data.payload) as Map<String, dynamic>
+            : <String, dynamic>{};
+        final String message =
+            _paramString(params, const ['message', 'reason']);
+        final AiseeLocationResult loc =
+            await AiseeLocationService.getCurrentLocation();
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final AiseeHealthService svc = AiseeHealthService();
+        try {
+          final Map<String, dynamic> result =
+              await svc.sendEmergencyAlert(tokens.accessToken, {
+            'message': message,
+            'location_lat': loc.lat,
+            'location_lng': loc.lng,
+            'location_address': loc.address,
+          });
+          return jsonEncode({
+            'status': 'ok',
+            'location': loc.address,
+            ...result,
+          });
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    // ── Tool 20: escalate_to_family ──
+    room.registerRpcMethod(
+      'escalate_to_family',
+      (RpcInvocationData data) async {
+        _log('RPC', 'escalate_to_family');
+        return _handleMakeCall(data, 'voice');
+      },
+    );
+
+    // ── Tool 21: escalate_to_volunteer ──
+    room.registerRpcMethod(
+      'escalate_to_volunteer',
+      (RpcInvocationData data) async {
+        _log('RPC', 'escalate_to_volunteer');
+        return _handleMakeCall(data, 'voice');
+      },
+    );
+
+    // ── Tool 22: rate_volunteer ──
+    room.registerRpcMethod(
+      'rate_volunteer',
+      (RpcInvocationData data) async {
+        final Map<String, dynamic> params =
+            jsonDecode(data.payload) as Map<String, dynamic>;
+        _log('RPC', 'rate_volunteer');
+        final AiseeAuthTokens? tokens =
+            await AiseeSessionStore.instance.read();
+        if (tokens == null) {
+          throw RpcError(code: 2021, message: 'Not authenticated');
+        }
+        final AiseeHealthService svc = AiseeHealthService();
+        try {
+          await svc.rateVolunteer(tokens.accessToken, params);
+          return jsonEncode({'status': 'ok'});
+        } finally {
+          svc.close();
+        }
+      },
+    );
+
+    _log('RPC', '22 methods registered');
   }
 
   Future<void> connect({

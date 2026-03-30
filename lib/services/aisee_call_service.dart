@@ -35,11 +35,13 @@ class AiseeCallService {
     if (res.statusCode != 200) {
       throw _error(res, 'Không tạo được cuộc gọi');
     }
-    final Map<String, dynamic> map =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final Object? decoded = _decodeJson(res, 'Không tạo được cuộc gọi');
+    if (decoded is! Map<String, dynamic>) {
+      throw AiseeApiException('Phản hồi không hợp lệ');
+    }
     return (
-      roomName: map['room_name'] as String,
-      token: map['token'] as String,
+      roomName: decoded['room_name'] as String,
+      token: decoded['token'] as String,
     );
   }
 
@@ -51,6 +53,22 @@ class AiseeCallService {
     );
     if (res.statusCode != 200) {
       throw _error(res, 'Không kết thúc được cuộc gọi');
+    }
+  }
+
+  Object? _decodeJson(http.Response res, String fallback) {
+    final String raw = utf8.decode(res.bodyBytes).trim();
+    if (raw.isEmpty) {
+      throw AiseeApiException('$fallback (phản hồi trống)');
+    }
+    try {
+      return jsonDecode(raw);
+    } on FormatException {
+      final String preview =
+          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException(
+        '$fallback (HTTP ${res.statusCode}): $preview',
+      );
     }
   }
 
