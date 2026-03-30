@@ -1,0 +1,421 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+
+import 'package:animations/animations.dart';
+import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+import '../config/google_auth_config.dart';
+import '../models/aisee_api_models.dart';
+import '../theme/style_tokens.dart';
+import '../screens/family_home_screen.dart';
+import '../screens/login_screen.dart';
+import '../screens/role_selection_screen.dart';
+import '../screens/user_home_screen.dart';
+import '../services/aisee_auth_service.dart';
+import 'auth_bootstrapping.dart';
+import '../services/aisee_profile_cache.dart';
+import '../services/aisee_session_store.dart';
+import '../utils/app_toast.dart';
+
+void _authLog(String message) {
+  debugPrint('[AiSeeAuth] $message');
+  developer.log(message, name: 'AiSeeAuth');
+}
+
+class AuthShell extends StatefulWidget {
+  const AuthShell({super.key});
+
+  @override
+  State<AuthShell> createState() => _AuthShellState();
+}
+
+class _AuthShellState extends State<AuthShell> {
+  bool _initializing = true;
+  String? _bootstrapError;
+  GoogleSignInAccount? _user;
+  bool _toastAfterSignIn = false;
+  bool _toastAfterSignOut = false;
+  String? _bootstrapDetail;
+
+  final AiseeAuthService _aiseeAuth = AiseeAuthService();
+  AiseeUserProfile? _aiseeProfile;
+  bool _profileLoading = false;
+  String? _profileError;
+
+  StreamSubscription<GoogleSignInAuthenticationEvent>? _authSub;
+  String? _lastUiRouteLog;
+  String? _lastHomeForRoleLog;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    try {
+      await GoogleAuthConfig.initializeGoogleSignIn();
+      _authSub = GoogleSignIn.instance.authenticationEvents.listen(
+        _onAuthEvent,
+        onError: _onAuthError,
+      );
+      final AiseeUserProfile? cachedProfile = await AiseeProfileCache.instance
+          .read();
+      if (mounted) {
+        setState(() {
+          _bootstrapDetail = _bootstrapHintFromProfile(cachedProfile);
+        });
+      }
+      await _restoreStoredSession();
+      final Future<GoogleSignInAccount?>? lightweightFut = GoogleSignIn.instance
+          .attemptLightweightAuthentication();
+      if (lightweightFut != null) {
+        await lightweightFut;
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _bootstrapError = e.toString();
+          _initializing = false;
+        });
+      }
+      return;
+    }
+    if (mounted) {
+      setState(() => _initializing = false);
+    }
+  }
+
+  Future<void> _restoreStoredSession() async {
+    final AiseeAuthTokens? stored = await AiseeSessionStore.instance.read();
+    if (stored == null) return;
+    final ({AiseeUserProfile profile, AiseeAuthTokens tokens})? resumed =
+        await _aiseeAuth.resumeSession(stored);
+    if (!mounted) return;
+    if (resumed == null) {
+      _authLog('restoreSession: không hợp lệ, đã xóa cache');
+      await AiseeSessionStore.instance.clear();
+      await AiseeProfileCache.instance.clear();
+      return;
+    }
+    await AiseeSessionStore.instance.write(resumed.tokens);
+    await AiseeProfileCache.instance.write(resumed.profile);
+    _authLog(
+      'restoreSession: ok userId=${resumed.profile.id} '
+      'role=${resumed.profile.role ?? "null"}',
+    );
+    setState(() {
+      _aiseeProfile = resumed.profile;
+      _profileLoading = false;
+      _profileError = null;
+    });
+  }
+
+  void _onAuthEvent(GoogleSignInAuthenticationEvent event) {
+    if (!mounted) return;
+    switch (event) {
+      case GoogleSignInAuthenticationEventSignIn(:final user):
+        if (_aiseeProfile != null) {
+          _authLog(
+            'googleSignIn: đã có phiên backend, gắn Google user=${user.id} '
+            'giữ role=${_aiseeProfile!.role ?? "null"}',
+          );
+          setState(() => _user = user);
+          if (_toastAfterSignIn) {
+            _toastAfterSignIn = false;
+            unawaited(AppToast.show('Đăng nhập thành công', isError: false));
+          }
+          return;
+        }
+        _authLog(
+          'googleSignIn: chờ chọn role user=${user.id} email=${user.email}',
+        );
+        setState(() {
+          _user = user;
+          _profileLoading = false;
+          _profileError = null;
+          _aiseeProfile = null;
+        });
+        if (_toastAfterSignIn) {
+          _toastAfterSignIn = false;
+          unawaited(AppToast.show('Đã kết nối Google', isError: false));
+        }
+      case GoogleSignInAuthenticationEventSignOut():
+        _authLog('googleSignOut');
+        final bool showOutToast = _toastAfterSignOut;
+        _toastAfterSignOut = false;
+        unawaited(AiseeSessionStore.instance.clear());
+        unawaited(AiseeProfileCache.instance.clear());
+        setState(() {
+          _aiseeProfile = null;
+          _profileLoading = false;
+          _profileError = null;
+          _user = null;
+        });
+        if (showOutToast) {
+          unawaited(AppToast.show('Đã đăng xuất', isError: false));
+        }
+    }
+  }
+
+  Future<void> _completeSignInWithRole(String role) async {
+    final GoogleSignInAccount? account = _user;
+    if (account == null) return;
+    final String accountId = account.id;
+    _authLog('completeSignIn: POST /auth/google role="$role"');
+    setState(() {
+      _profileLoading = true;
+      _profileError = null;
+    });
+    final String? idToken = account.authentication.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      if (!mounted) return;
+      const String err = 'Không lấy được mã xác thực từ Google.';
+      setState(() {
+        _profileLoading = false;
+        _profileError = err;
+      });
+      unawaited(AppToast.show(err, isError: true));
+      return;
+    }
+
+    try {
+      final AiseeAuthTokens tokens = await _aiseeAuth.signInWithGoogle(
+        idToken,
+        role: role,
+      );
+      if (!mounted || _user?.id != accountId) return;
+      final AiseeUserProfile profile = await _aiseeAuth.fetchCurrentUser(
+        tokens.accessToken,
+      );
+      if (!mounted || _user?.id != accountId) return;
+      await AiseeSessionStore.instance.write(tokens);
+      await AiseeProfileCache.instance.write(profile);
+      _authLog(
+        'completeSignIn: GET /users/me xong — gửi role="$role" '
+        '→ API profile.role="${profile.role ?? "null"}" '
+        '→ home=${profile.role == "user" ? "UserHomeScreen" : "FamilyHomeScreen"}',
+      );
+      setState(() {
+        _aiseeProfile = profile;
+        _profileLoading = false;
+        _profileError = null;
+      });
+      unawaited(AppToast.show('Đăng nhập thành công', isError: false));
+    } catch (e) {
+      if (!mounted || _user?.id != accountId) return;
+      final String msg = e is AiseeApiException ? e.message : e.toString();
+      _authLog('completeSignIn: lỗi role="$role" → $msg');
+      setState(() {
+        _profileLoading = false;
+        _profileError = msg;
+        _aiseeProfile = null;
+      });
+      unawaited(AppToast.show(msg, isError: true));
+    }
+  }
+
+  void _onAuthError(Object error, StackTrace stackTrace) {
+    if (!mounted) return;
+    unawaited(AiseeSessionStore.instance.clear());
+    unawaited(AiseeProfileCache.instance.clear());
+    setState(() {
+      _toastAfterSignIn = false;
+      _aiseeProfile = null;
+      _profileLoading = false;
+      _profileError = null;
+      _user = null;
+    });
+    if (error is GoogleSignInException &&
+        error.code == GoogleSignInExceptionCode.canceled) {
+      return;
+    }
+    final String msg = error is GoogleSignInException
+        ? _messageFromGoogleSignInException(error)
+        : error.toString();
+    unawaited(AppToast.show(msg, isError: true));
+  }
+
+  void _onSignInWillStart() {
+    _toastAfterSignIn = true;
+  }
+
+  Future<void> _signInWithGoogle() async {
+    try {
+      await GoogleSignIn.instance.authenticate();
+    } on GoogleSignInException catch (e) {
+      _toastAfterSignIn = false;
+      if (e.code == GoogleSignInExceptionCode.canceled) return;
+      unawaited(
+        AppToast.show(_messageFromGoogleSignInException(e), isError: true),
+      );
+    }
+  }
+
+  Future<void> _signOut() async {
+    _toastAfterSignOut = true;
+    await AiseeSessionStore.instance.clear();
+    await AiseeProfileCache.instance.clear();
+    await GoogleSignIn.instance.signOut();
+  }
+
+  Widget _homeForRole({
+    required GoogleSignInAccount? googleUser,
+    required AiseeUserProfile? aiseeProfile,
+    required bool aiseeLoading,
+    required String? aiseeError,
+  }) {
+    final String? role = aiseeProfile?.role;
+    final String homeKey = '${aiseeProfile?.id}|$role';
+    if (homeKey != _lastHomeForRoleLog) {
+      _lastHomeForRoleLog = homeKey;
+      _authLog(
+        '_homeForRole: raw role=${role ?? "null"} '
+        '(== "user" → ${role == "user"})',
+      );
+    }
+    if (role == 'user') {
+      return UserHomeScreen(
+        googleUser: googleUser,
+        aiseeProfile: aiseeProfile,
+        aiseeLoading: aiseeLoading,
+        aiseeError: aiseeError,
+        onSignOut: _signOut,
+      );
+    }
+    return FamilyHomeScreen(
+      googleUser: googleUser,
+      aiseeProfile: aiseeProfile,
+      aiseeLoading: aiseeLoading,
+      aiseeError: aiseeError,
+      onSignOut: _signOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_authSub?.cancel());
+    _aiseeAuth.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_bootstrapError != null) {
+      return Scaffold(
+        backgroundColor: StyleTokens.background,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Không khởi tạo được Google Sign-In:\n$_bootstrapError',
+              style: StyleTokens.bodySmall().copyWith(
+                color: StyleTokens.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_initializing) {
+      return AuthBootstrapping(detail: _bootstrapDetail);
+    }
+
+    final bool hasBackendSession = _aiseeProfile != null;
+    final bool showLogin =
+        _user == null && !hasBackendSession && !_profileLoading;
+    final bool showBackendLoading =
+        _user != null && !hasBackendSession && _profileLoading;
+    final bool showRolePicker =
+        _user != null && !hasBackendSession && !_profileLoading;
+
+    final String routeSnap =
+        'login=$showLogin rolePicker=$showRolePicker '
+        'backendLoading=$showBackendLoading '
+        'hasProfile=$hasBackendSession profile.role=${_aiseeProfile?.role ?? "—"}';
+    if (routeSnap != _lastUiRouteLog) {
+      _lastUiRouteLog = routeSnap;
+      _authLog('uiRoute: $routeSnap');
+    }
+
+    final Widget child = showLogin
+        ? LoginScreen(
+            onSignInWillStart: _onSignInWillStart,
+            onSignInWithGoogle: _signInWithGoogle,
+          )
+        : showBackendLoading
+        ? const AuthBootstrapping(
+            title: 'Đang đăng nhập AiSee…',
+            detail: 'Đang xác thực với máy chủ',
+          )
+        : showRolePicker
+        ? RoleSelectionScreen(
+            googleUser: _user!,
+            onSelectRole: (String role) {
+              unawaited(_completeSignInWithRole(role));
+            },
+            onSignOut: _signOut,
+          )
+        : _homeForRole(
+            googleUser: _user,
+            aiseeProfile: _aiseeProfile,
+            aiseeLoading: _profileLoading,
+            aiseeError: _profileError,
+          );
+
+    final bool loggedIn = !showLogin;
+
+    return SizedBox.expand(
+      child: ClipRect(
+        child: PageTransitionSwitcher(
+          duration: const Duration(milliseconds: 520),
+          reverse: !loggedIn,
+          transitionBuilder:
+              (
+                Widget child,
+                Animation<double> primaryAnimation,
+                Animation<double> secondaryAnimation,
+              ) {
+                return SharedAxisTransition(
+                  animation: primaryAnimation,
+                  secondaryAnimation: secondaryAnimation,
+                  transitionType: SharedAxisTransitionType.horizontal,
+                  fillColor: StyleTokens.background,
+                  child: child,
+                );
+              },
+          child: KeyedSubtree(
+            key: ValueKey<String>(
+              showLogin
+                  ? 'login'
+                  : showRolePicker
+                  ? 'role'
+                  : showBackendLoading
+                  ? 'loading'
+                  : 'home_${_aiseeProfile?.role ?? _aiseeProfile?.id}',
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String? _bootstrapHintFromProfile(AiseeUserProfile? profile) {
+  if (profile == null) return null;
+  final String name = profile.displayName?.trim() ?? '';
+  if (name.isNotEmpty) return name;
+  final String email = profile.email.trim();
+  return email.isEmpty ? null : email;
+}
+
+String _messageFromGoogleSignInException(GoogleSignInException e) {
+  return switch (e.code) {
+    GoogleSignInExceptionCode.canceled => 'Đã hủy đăng nhập',
+    _ => 'Lỗi Google: ${e.description ?? e.code.name}',
+  };
+}
