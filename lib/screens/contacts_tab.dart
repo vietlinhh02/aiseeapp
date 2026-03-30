@@ -8,6 +8,7 @@ import '../services/aisee_chat_service.dart';
 import '../services/aisee_family_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import 'chat_detail_screen.dart';
 
 class ContactsTab extends StatefulWidget {
   const ContactsTab({super.key, this.aiseeProfile});
@@ -196,7 +197,7 @@ class _ContactsTabState extends State<ContactsTab> {
           children: <Widget>[
             Expanded(
               child: Text(
-                'Lien lac',
+                'Liên lạc',
                 style: StyleTokens.titleScreen().copyWith(
                   fontSize: 18,
                 ),
@@ -223,7 +224,7 @@ class _ContactsTabState extends State<ContactsTab> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Nhan tin va goi dien nguoi than.',
+          'Nhắn tin và gọi điện người thân.',
           style: StyleTokens.bodySmall().copyWith(
             fontSize: 12,
             height: 1.4,
@@ -272,7 +273,7 @@ class _ContactsTabState extends State<ContactsTab> {
           const SizedBox(height: 16),
           Semantics(
             button: true,
-            label: 'Thu lai tai danh sach lien lac',
+            label: 'Thử lại tải danh sách liên lạc',
             child: Material(
               color: StyleTokens.buttonPrimary,
               borderRadius: BorderRadius.circular(31),
@@ -288,7 +289,7 @@ class _ContactsTabState extends State<ContactsTab> {
                     vertical: 12,
                   ),
                   child: Text(
-                    'Thu lai',
+                    'Thử lại',
                     style: StyleTokens.socialLabel().copyWith(
                       fontSize: 14,
                     ),
@@ -324,8 +325,8 @@ class _ContactsTabState extends State<ContactsTab> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Chua co nguoi than.\n'
-                  'Moi qua ma moi ben duoi.',
+                  'Chưa có người thân.\n'
+                  'Mời qua mã mời bên dưới.',
                   style: StyleTokens.bodySmall().copyWith(
                     fontSize: 13,
                     height: 1.5,
@@ -351,8 +352,14 @@ class _ContactsTabState extends State<ContactsTab> {
             member: _contacts[i],
             onTap: () {
               HapticFeedback.lightImpact();
-              debugPrint(
-                '[AiSee:UI] Open chat with ${_contacts[i].label}',
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ChatDetailScreen(
+                    contact: _contacts[i],
+                    currentUserId:
+                        widget.aiseeProfile?.id ?? '',
+                  ),
+                ),
               );
             },
             onVoiceCall: () {
@@ -378,7 +385,7 @@ class _ContactsTabState extends State<ContactsTab> {
   Widget _buildInviteButton() {
     return Semantics(
       button: true,
-      label: 'Moi nguoi than vao danh sach lien lac',
+      label: 'Mời người thân vào danh sách liên lạc',
       child: Material(
         color: StyleTokens.buttonPrimary,
         borderRadius: BorderRadius.circular(31),
@@ -392,7 +399,7 @@ class _ContactsTabState extends State<ContactsTab> {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Center(
               child: Text(
-                'Moi nguoi than',
+                'Mời người thân',
                 style: StyleTokens.socialLabel().copyWith(
                   fontSize: 14,
                 ),
@@ -428,7 +435,7 @@ class _ContactCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '${member.label}. Cham de nhan tin.',
+      label: '${member.label}. Chạm để nhắn tin.',
       child: Material(
         color: StyleTokens.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -466,7 +473,7 @@ class _ContactCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Cham de nhan tin',
+                        'Chạm để nhắn tin',
                         style: StyleTokens.bodySmall().copyWith(
                           fontSize: 11,
                           color: StyleTokens.textMuted,
@@ -477,7 +484,7 @@ class _ContactCard extends StatelessWidget {
                 ),
                 Semantics(
                   button: true,
-                  label: 'Goi thoai ${member.label}',
+                  label: 'Gọi thoại ${member.label}',
                   child: IconButton(
                     icon: SvgPicture.asset(
                       'assets/icons/nav/ic_voice.svg',
@@ -488,13 +495,13 @@ class _ContactCard extends StatelessWidget {
                         BlendMode.srcIn,
                       ),
                     ),
-                    tooltip: 'Goi thoai',
+                    tooltip: 'Gọi thoại',
                     onPressed: onVoiceCall,
                   ),
                 ),
                 Semantics(
                   button: true,
-                  label: 'Goi video ${member.label}',
+                  label: 'Gọi video ${member.label}',
                   child: IconButton(
                     icon: SvgPicture.asset(
                       'assets/icons/nav/ic_camera.svg',
@@ -505,7 +512,7 @@ class _ContactCard extends StatelessWidget {
                         BlendMode.srcIn,
                       ),
                     ),
-                    tooltip: 'Goi video',
+                    tooltip: 'Gọi video',
                     onPressed: onVideoCall,
                   ),
                 ),
