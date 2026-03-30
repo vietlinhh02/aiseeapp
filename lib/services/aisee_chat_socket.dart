@@ -1,0 +1,115 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+
+import '../config/app_env.dart';
+import '../models/aisee_message.dart';
+
+class AiseeChatSocket {
+  WebSocket? _socket;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  String? _accessToken;
+  bool _disposed = false;
+
+  final StreamController<AiseeMessage> _controller =
+      StreamController<AiseeMessage>.broadcast();
+
+  Stream<AiseeMessage> get onMessage => _controller.stream;
+
+  bool get isConnected => _socket != null;
+
+  Future<void> connect(String accessToken) async {
+    _accessToken = accessToken;
+    _disposed = false;
+    await _doConnect();
+  }
+
+  Future<void> _doConnect() async {
+    if (_disposed) return;
+    final String token = _accessToken ?? '';
+    if (token.isEmpty) return;
+
+    final String baseUrl = AppEnv.apiBaseUrl;
+    final String wsUrl = baseUrl
+        .replaceFirst('https://', 'wss://')
+        .replaceFirst('http://', 'ws://');
+    final String url = '$wsUrl/api/v1/ws/chat?token=$token';
+
+    try {
+      debugPrint('[AiSee:WS] Connecting to $wsUrl/api/v1/ws/chat');
+      final WebSocket ws = await WebSocket.connect(url);
+      if (_disposed) {
+        await ws.close();
+        return;
+      }
+      _socket = ws;
+      _reconnectAttempts = 0;
+      debugPrint('[AiSee:WS] Connected');
+
+      ws.listen(
+        _onData,
+        onError: (Object error) {
+          debugPrint('[AiSee:WS] Error: $error');
+          _scheduleReconnect();
+        },
+        onDone: () {
+          debugPrint('[AiSee:WS] Closed');
+          _socket = null;
+          _scheduleReconnect();
+        },
+      );
+    } catch (e) {
+      debugPrint('[AiSee:WS] Connect failed: $e');
+      _scheduleReconnect();
+    }
+  }
+
+  void _onData(dynamic raw) {
+    if (raw is! String) return;
+    try {
+      final Map<String, dynamic> map =
+          jsonDecode(raw) as Map<String, dynamic>;
+      if (map['type'] == 'new_message') {
+        final Map<String, dynamic> msgMap =
+            map['message'] as Map<String, dynamic>;
+        _controller.add(AiseeMessage.fromJson(msgMap));
+      }
+    } catch (e) {
+      debugPrint('[AiSee:WS] Parse error: $e');
+    }
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed) return;
+    _reconnectTimer?.cancel();
+    final int delaySec = min(30, pow(2, _reconnectAttempts).toInt());
+    _reconnectAttempts++;
+    debugPrint(
+      '[AiSee:WS] Reconnect in ${delaySec}s '
+      '(attempt $_reconnectAttempts)',
+    );
+    _reconnectTimer = Timer(Duration(seconds: delaySec), _doConnect);
+  }
+
+  Future<void> disconnect() async {
+    _disposed = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    final WebSocket? ws = _socket;
+    _socket = null;
+    if (ws != null) {
+      try {
+        await ws.close();
+      } catch (_) {}
+    }
+  }
+
+  void dispose() {
+    disconnect();
+    _controller.close();
+  }
+}
