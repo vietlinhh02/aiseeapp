@@ -71,14 +71,14 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
             Text(_error!, style: StyleTokens.bodySmall()),
             const SizedBox(height: 12),
             TextButton(onPressed: _load,
-                child: const Text('Thu lai')),
+                child: const Text('Thử lại')),
           ],
         ),
       );
     }
     if (_members.isEmpty) {
       return Center(
-        child: Text('Chua co nguoi than de nhan tin',
+        child: Text('Chưa có người thân để nhắn tin',
             style: StyleTokens.bodySmall()),
       );
     }

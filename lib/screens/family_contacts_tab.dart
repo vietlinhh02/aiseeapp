@@ -65,7 +65,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
       await _familyService.joinFamily(token, code);
       _codeController.clear();
       if (!mounted) return;
-      AppToast.show('Da tham gia gia dinh');
+      AppToast.show('Đã tham gia gia đình');
       await _loadMembers();
     } catch (e) {
       if (!mounted) return;
@@ -88,7 +88,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
             Text(_error!, style: StyleTokens.bodySmall()),
             const SizedBox(height: 12),
             TextButton(onPressed: _loadMembers,
-                child: const Text('Thu lai')),
+                child: const Text('Thử lại')),
           ],
         ),
       );
@@ -106,17 +106,17 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
           Icon(Icons.family_restroom, size: 64,
               color: StyleTokens.textPrimary.withAlpha(77)),
           const SizedBox(height: 16),
-          Text('Chua co nguoi than nao',
+          Text('Chưa có người thân nào',
               style: StyleTokens.titleScreen().copyWith(fontSize: 18)),
           const SizedBox(height: 8),
-          Text('Nhap ma moi de tham gia gia dinh',
+          Text('Nhập mã mời để tham gia gia đình',
               style: StyleTokens.bodySmall()),
           const SizedBox(height: 24),
           TextField(
             controller: _codeController,
             textAlign: TextAlign.center,
             decoration: InputDecoration(
-              hintText: 'Nhap ma moi',
+              hintText: 'Nhập mã mời',
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),

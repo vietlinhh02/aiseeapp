@@ -5,38 +5,58 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/style_tokens.dart';
 
-/// Thanh điều hướng nổi — nền đen, pill shape, 3 tab, active trắng + label.
+/// Thanh điều hướng nổi — nền đen, pill shape, active trắng + label.
 class UserLowVisionBottomNav extends StatelessWidget {
   const UserLowVisionBottomNav({
     super.key,
     required this.currentIndex,
     required this.onChanged,
-  });
+    List<NavItemData>? items,
+  }) : _items = items ?? _defaultItems;
 
   final int currentIndex;
   final ValueChanged<int> onChanged;
+  final List<NavItemData> _items;
 
-  static const List<_NavItemData> _items = [
-    _NavItemData(
+  static const List<NavItemData> _defaultItems = [
+    NavItemData(
       iconAsset: 'assets/icons/nav/ic_wave.svg',
       label: 'Trợ lý',
       semanticsLabel:
           'Mục 1 trên 3: Trợ lý. '
           'Trang chủ. Trợ lý AiSee đang sẵn sàng nghe.',
     ),
-    _NavItemData(
+    NavItemData(
       iconAsset: 'assets/icons/nav/ic_3user.svg',
       label: 'Liên lạc',
       semanticsLabel:
           'Mục 2 trên 3: Liên lạc. '
           'Nhắn tin và gọi điện người thân.',
     ),
-    _NavItemData(
+    NavItemData(
       iconAsset: 'assets/icons/nav/ic_profile.svg',
       label: 'Cá nhân',
       semanticsLabel:
           'Mục 3 trên 3: Cá nhân. '
           'Cá nhân. Lịch uống thuốc và tin nhắn của bạn.',
+    ),
+  ];
+
+  static const List<NavItemData> familyItems = [
+    NavItemData(
+      iconAsset: 'assets/icons/nav/ic_3user.svg',
+      label: 'Gia đình',
+      semanticsLabel: 'Mục 1 trên 3: Gia đình. Danh sách liên lạc gia đình.',
+    ),
+    NavItemData(
+      iconAsset: 'assets/icons/nav/ic_paper.svg',
+      label: 'Tin nhắn',
+      semanticsLabel: 'Mục 2 trên 3: Tin nhắn. Hộp thư đến.',
+    ),
+    NavItemData(
+      iconAsset: 'assets/icons/nav/ic_profile.svg',
+      label: 'Cá nhân',
+      semanticsLabel: 'Mục 3 trên 3: Cá nhân. Hồ sơ và cài đặt.',
     ),
   ];
 
@@ -79,8 +99,8 @@ class UserLowVisionBottomNav extends StatelessWidget {
   }
 }
 
-class _NavItemData {
-  const _NavItemData({
+class NavItemData {
+  const NavItemData({
     required this.iconAsset,
     required this.label,
     required this.semanticsLabel,

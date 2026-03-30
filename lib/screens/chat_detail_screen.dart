@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
@@ -13,6 +17,8 @@ import '../services/aisee_call_service.dart';
 import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_session_store.dart';
+import '../services/aisee_upload_service.dart';
+import '../services/aisee_voice_recorder.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import 'call_screen.dart';
@@ -49,6 +55,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _sending = false;
   bool _callingInProgress = false;
 
+  // Media sending state.
+  bool _uploadingMedia = false;
+  bool _isRecording = false;
+  final AiseeUploadService _uploadService = AiseeUploadService();
+  final AiseeVoiceRecorder _voiceRecorder = AiseeVoiceRecorder();
+  Duration _recordDuration = Duration.zero;
+  double _recordDecibels = 0.0;
+  StreamSubscription<RecordProgress>? _recorderSub;
+  bool _hasText = false;
+  Completer<void>? _recordStartCompleter;
+
   // Only create own socket if parent didn't provide one.
   AiseeChatSocket? _ownSocket;
 
@@ -56,6 +73,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _textController.addListener(() {
+      final bool nowHasText = _textController.text.trim().isNotEmpty;
+      if (nowHasText != _hasText) {
+        setState(() => _hasText = nowHasText);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _loadInitialMessages();
@@ -68,6 +91,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _socketSub?.cancel();
     _ownSocket?.disconnect();
     _ownSocket?.dispose();
+    _recorderSub?.cancel();
+    _voiceRecorder.dispose();
+    _uploadService.close();
     _chatService.close();
     _textController.dispose();
     _scrollController.dispose();
@@ -265,6 +291,240 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  void _showAttachmentSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+          decoration: BoxDecoration(
+            color: StyleTokens.surfaceCard,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: StyleTokens.cardBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              _attachOption(
+                ctx,
+                icon: 'assets/icons/nav/ic_camera.svg',
+                label: 'Chụp ảnh',
+                semanticsLabel: 'Chụp ảnh bằng camera',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              const SizedBox(height: 8),
+              _attachOption(
+                ctx,
+                icon: 'assets/icons/nav/ic_category.svg',
+                label: 'Chọn từ thư viện',
+                semanticsLabel: 'Chọn ảnh từ thư viện',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _attachOption(
+    BuildContext ctx, {
+    required String icon,
+    required String label,
+    required String semanticsLabel,
+    required VoidCallback onTap,
+  }) {
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: Material(
+        color: StyleTokens.background,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            child: Row(
+              children: <Widget>[
+                SvgPicture.asset(
+                  icon,
+                  width: 20,
+                  height: 20,
+                  colorFilter: const ColorFilter.mode(
+                    StyleTokens.textPrimary,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: StyleTokens.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final PermissionStatus status = await Permission.camera.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          AppToast.snack(
+            context,
+            'Cần quyền camera để chụp ảnh.',
+            isError: true,
+          );
+        }
+        return;
+      }
+    }
+    final ImagePicker picker = ImagePicker();
+    final XFile? picked = await picker.pickImage(
+      source: source,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 80,
+    );
+    if (picked == null || !mounted) return;
+    await _uploadAndSend(File(picked.path), isImage: true);
+  }
+
+  Future<void> _uploadAndSend(
+    File file, {
+    required bool isImage,
+  }) async {
+    if (_uploadingMedia) return;
+    setState(() => _uploadingMedia = true);
+    final AiseeAuthTokens? tokens =
+        await AiseeSessionStore.instance.read();
+    if (tokens == null) {
+      if (mounted) setState(() => _uploadingMedia = false);
+      return;
+    }
+    try {
+      final String url = await _uploadService.uploadFile(
+        tokens.accessToken,
+        file,
+      );
+      final AiseeMessage msg = await _chatService.sendMessage(
+        tokens.accessToken,
+        widget.contact.id,
+        '',
+        voiceUrl: isImage ? null : url,
+        imageUrl: isImage ? url : null,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.insert(0, msg);
+        _uploadingMedia = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _uploadingMedia = false);
+      AppToast.snack(
+        context,
+        e is AiseeApiException
+            ? e.message
+            : 'Gửi không thành công.',
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _startRecording() async {
+    _recordStartCompleter = Completer<void>();
+    final PermissionStatus micStatus =
+        await Permission.microphone.request();
+    if (!micStatus.isGranted) {
+      _recordStartCompleter?.complete();
+      if (mounted) {
+        AppToast.snack(
+          context,
+          'Cần quyền microphone để ghi âm.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    try {
+      _voiceRecorder.onAutoStop = (File file) {
+        if (mounted) {
+          setState(() => _isRecording = false);
+          _uploadAndSend(file, isImage: false);
+        }
+      };
+      _recorderSub?.cancel();
+      _recorderSub =
+          _voiceRecorder.onProgress.listen((RecordProgress p) {
+        if (!mounted) return;
+        setState(() {
+          _recordDuration = p.duration;
+          _recordDecibels = p.decibels;
+        });
+      });
+      await _voiceRecorder.start();
+      if (mounted) setState(() => _isRecording = true);
+    } catch (e) {
+      if (mounted) {
+        AppToast.snack(context, 'Không thể ghi âm.', isError: true);
+      }
+    } finally {
+      _recordStartCompleter?.complete();
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    // Wait for start to finish to avoid race condition.
+    await _recordStartCompleter?.future;
+    _recorderSub?.cancel();
+    final File? file = await _voiceRecorder.stop();
+    if (!mounted) return;
+    setState(() => _isRecording = false);
+    if (file != null) await _uploadAndSend(file, isImage: false);
+  }
+
+  Future<void> _cancelRecording() async {
+    await _recordStartCompleter?.future;
+    _recorderSub?.cancel();
+    await _voiceRecorder.cancel();
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        _recordDuration = Duration.zero;
+        _recordDecibels = 0.0;
+      });
+    }
+  }
+
   String _formatTime(DateTime dt) {
     final String h = dt.hour.toString().padLeft(2, '0');
     final String m = dt.minute.toString().padLeft(2, '0');
@@ -403,15 +663,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final double maxBubbleWidth =
         MediaQuery.sizeOf(context).width * 0.75;
 
+    Widget content;
+    if (msg.imageUrl != null && msg.imageUrl!.isNotEmpty) {
+      content = _buildImageContent(msg.imageUrl!, maxBubbleWidth);
+    } else if (msg.voiceUrl != null && msg.voiceUrl!.isNotEmpty) {
+      content = _VoiceBubbleContent(
+        voiceUrl: msg.voiceUrl!,
+        isSent: isSent,
+      );
+    } else {
+      content = Text(
+        msg.contentText,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: isSent
+              ? StyleTokens.buttonOnPrimary
+              : StyleTokens.textPrimary,
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment:
           isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: <Widget>[
         Container(
           constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 10,
+          padding: EdgeInsets.symmetric(
+            horizontal: msg.imageUrl != null ? 4 : 14,
+            vertical: msg.imageUrl != null ? 4 : 10,
           ),
           decoration: BoxDecoration(
             color: isSent
@@ -424,16 +705,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               bottomRight: Radius.circular(isSent ? 4 : 16),
             ),
           ),
-          child: Text(
-            msg.contentText,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: isSent
-                  ? StyleTokens.buttonOnPrimary
-                  : StyleTokens.textPrimary,
-            ),
-          ),
+          child: content,
         ),
         const SizedBox(height: 4),
         Text(
@@ -448,90 +720,476 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
+  Widget _buildImageContent(String imageUrl, double maxWidth) {
+    return GestureDetector(
+      onTap: () => _showFullImage(imageUrl),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          imageUrl,
+          width: maxWidth - 8,
+          fit: BoxFit.cover,
+          loadingBuilder: (
+            BuildContext context,
+            Widget child,
+            ImageChunkEvent? loadingProgress,
+          ) {
+            if (loadingProgress == null) return child;
+            return SizedBox(
+              width: maxWidth - 8,
+              height: 150,
+              child: const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: StyleTokens.buttonPrimary,
+                ),
+              ),
+            );
+          },
+          errorBuilder:
+              (BuildContext context, Object e, StackTrace? st) {
+            return SizedBox(
+              width: maxWidth - 8,
+              height: 100,
+              child: Center(
+                child: Text(
+                  'Không tải được ảnh',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: StyleTokens.textMuted,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showFullImage(String imageUrl) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return GestureDetector(
+          onTap: () => Navigator.pop(ctx),
+          child: Scaffold(
+            backgroundColor: Colors.black87,
+            body: Center(
+              child: InteractiveViewer(
+                child: Image.network(imageUrl),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildInputBar() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: StyleTokens.surfaceCard,
-        border: Border(
-          top: BorderSide(color: StyleTokens.cardBorder),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: StyleTokens.navBarBackground,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: _isRecording
+                ? _buildRecordingBar()
+                : _uploadingMedia
+                    ? _buildUploadingBar()
+                    : _buildNormalInputBar(),
+          ),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: TextField(
-                controller: _textController,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: StyleTokens.textPrimary,
-                ),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: StyleTokens.surfaceCard,
-                  hintText: 'Nhắn tin...',
-                  hintStyle: StyleTokens.inputHint(),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(
-                      color: StyleTokens.cardBorder,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(
-                      color: StyleTokens.cardBorder,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(
-                      color: StyleTokens.buttonPrimary,
-                    ),
-                  ),
-                ),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Semantics(
-              button: true,
-              label: 'Gửi tin nhắn',
-              child: Material(
-                color: StyleTokens.buttonPrimary,
-                shape: const CircleBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: _sendMessage,
-                  child: SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/icons/nav/ic_paper.svg',
-                        width: 16,
-                        height: 16,
-                        colorFilter: const ColorFilter.mode(
-                          StyleTokens.buttonOnPrimary,
-                          BlendMode.srcIn,
-                        ),
-                      ),
+    );
+  }
+
+  Widget _buildNormalInputBar() {
+    return Row(
+      children: <Widget>[
+        Semantics(
+          button: true,
+          label: 'Đính kèm ảnh',
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: _showAttachmentSheet,
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icons/nav/ic_plus.svg',
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      StyleTokens.textMuted,
+                      BlendMode.srcIn,
                     ),
                   ),
                 ),
               ),
             ),
-          ],
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: TextField(
+            controller: _textController,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: StyleTokens.textPrimary,
+            ),
+            decoration: InputDecoration(
+              filled: false,
+              hintText: 'Nhắn tin...',
+              hintStyle: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: StyleTokens.navUnselectedIcon,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              isDense: true,
+            ),
+            textInputAction: TextInputAction.send,
+            onSubmitted: (_) => _sendMessage(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _hasText ? _buildSendButton() : _buildMicButton(),
+      ],
+    );
+  }
+
+  Widget _buildSendButton() {
+    return Semantics(
+      button: true,
+      label: 'Gửi tin nhắn',
+      child: Material(
+        color: StyleTokens.buttonPrimary,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _sendMessage,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/nav/ic_paper.svg',
+                width: 16,
+                height: 16,
+                colorFilter: const ColorFilter.mode(
+                  StyleTokens.buttonOnPrimary,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMicButton() {
+    return GestureDetector(
+      onLongPressStart: (_) => _startRecording(),
+      onLongPressEnd: (LongPressEndDetails details) {
+        if (details.localPosition.dx < -100) {
+          _cancelRecording();
+        } else {
+          _stopRecording();
+        }
+      },
+      child: Semantics(
+        button: true,
+        label: 'Giữ để ghi âm',
+        child: Material(
+          color: StyleTokens.buttonPrimary,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/nav/ic_voice.svg',
+                width: 16,
+                height: 16,
+                colorFilter: const ColorFilter.mode(
+                  StyleTokens.buttonOnPrimary,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecordingBar() {
+    final String mins = _recordDuration.inMinutes.toString();
+    final String secs = (_recordDuration.inSeconds.remainder(60))
+        .toString()
+        .padLeft(2, '0');
+    return Row(
+      children: <Widget>[
+        const _RecordingDot(),
+        const SizedBox(width: 8),
+        Text(
+          '$mins:$secs',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: StyleTokens.textPrimary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: _buildWaveform()),
+        const SizedBox(width: 12),
+        Text(
+          '< Vuốt để huỷ',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: StyleTokens.textMuted,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaveform() {
+    final double normalizedDb =
+        ((_recordDecibels + 40) / 60).clamp(0.0, 1.0);
+    return SizedBox(
+      height: 24,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List<Widget>.generate(20, (int i) {
+          final double height =
+              4 + (normalizedDb * 20 * ((i % 3 + 1) / 3));
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 80),
+            width: 3,
+            height: height,
+            decoration: BoxDecoration(
+              color: StyleTokens.buttonPrimary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildUploadingBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: StyleTokens.buttonPrimary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          'Đang gửi...',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: StyleTokens.textMuted,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecordingDot extends StatefulWidget {
+  const _RecordingDot();
+
+  @override
+  State<_RecordingDot> createState() => _RecordingDotState();
+}
+
+class _RecordingDotState extends State<_RecordingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.3, end: 1.0).animate(_ctrl),
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: const BoxDecoration(
+          color: StyleTokens.error,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+class _VoiceBubbleContent extends StatefulWidget {
+  const _VoiceBubbleContent({
+    required this.voiceUrl,
+    required this.isSent,
+  });
+
+  final String voiceUrl;
+  final bool isSent;
+
+  @override
+  State<_VoiceBubbleContent> createState() => _VoiceBubbleContentState();
+}
+
+class _VoiceBubbleContentState extends State<_VoiceBubbleContent> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _isPlaying = false;
+  Duration _duration = Duration.zero;
+  Duration _position = Duration.zero;
+  StreamSubscription<Duration>? _posSub;
+  StreamSubscription<PlayerState>? _stateSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  Future<void> _initPlayer() async {
+    try {
+      final Duration? d = await _player.setUrl(widget.voiceUrl);
+      if (d != null && mounted) {
+        setState(() => _duration = d);
+      }
+    } catch (e) {
+      debugPrint('[AiSee:VoiceBubble] Error loading audio: $e');
+    }
+
+    _posSub = _player.positionStream.listen((Duration pos) {
+      if (!mounted) return;
+      setState(() => _position = pos);
+    });
+
+    _stateSub = _player.playerStateStream.listen((PlayerState state) {
+      if (!mounted) return;
+      setState(() => _isPlaying = state.playing);
+      if (state.processingState == ProcessingState.completed) {
+        _player.seek(Duration.zero);
+        _player.pause();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    _stateSub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  String _formatDuration(Duration d) {
+    final int mins = d.inMinutes;
+    final int secs = d.inSeconds.remainder(60);
+    return '$mins:${secs.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color iconColor = widget.isSent
+        ? StyleTokens.buttonOnPrimary
+        : StyleTokens.textPrimary;
+    final Color mutedColor = widget.isSent
+        ? StyleTokens.buttonOnPrimary.withValues(alpha: 0.7)
+        : StyleTokens.textMuted;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        GestureDetector(
+          onTap: () {
+            if (_isPlaying) {
+              _player.pause();
+            } else {
+              _player.play();
+            }
+          },
+          child: SvgPicture.asset(
+            _isPlaying
+                ? 'assets/icons/nav/ic_pause.svg'
+                : 'assets/icons/nav/ic_play.svg',
+            width: 24,
+            height: 24,
+            colorFilter:
+                ColorFilter.mode(iconColor, BlendMode.srcIn),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 100,
+          height: 4,
+          child: LinearProgressIndicator(
+            value: _duration.inMilliseconds > 0
+                ? _position.inMilliseconds /
+                    _duration.inMilliseconds
+                : 0,
+            backgroundColor: mutedColor.withValues(alpha: 0.3),
+            valueColor:
+                AlwaysStoppedAnimation<Color>(iconColor),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          _formatDuration(
+            _isPlaying ? _position : _duration,
+          ),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: mutedColor,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -58,15 +58,18 @@ class AiseeChatService {
   Future<AiseeMessage> sendMessage(
     String accessToken,
     String receiverId,
-    String text,
-  ) async {
+    String text, {
+    String? voiceUrl,
+    String? imageUrl,
+  }) async {
     final http.Response res = await _http.post(
       _uri('/api/v1/messages/send'),
       headers: _authHeaders(accessToken),
       body: jsonEncode({
         'receiver_id': receiverId,
         'content_text': text,
-        'voice_url': '',
+        'voice_url': voiceUrl ?? '',
+        'image_url': imageUrl ?? '',
       }),
     );
     if (res.statusCode != 200) {

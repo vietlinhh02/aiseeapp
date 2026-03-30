@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'debug/aisee_debug_hud.dart';
 import 'debug/aisee_performance_debug.dart';
+import 'services/aisee_reminder_announcer.dart';
 import 'services/aisee_reminder_service.dart';
 import 'services/aisee_voice_foreground.dart';
 import 'theme/style_tokens.dart';
@@ -31,6 +32,7 @@ Future<void> main() async {
   }
   await dotenv.load(fileName: 'assets/app_config.env');
   await AiseeReminderService.instance.init();
+  await AiseeReminderAnnouncer.instance.start();
   assert(() {
     final String? lk = dotenv.env['LIVEKIT_URL'];
     if (lk == null || lk.trim().isEmpty) {

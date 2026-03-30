@@ -47,7 +47,10 @@ class AiseeReminderService {
       android: android,
       iOS: ios,
     );
-    await _notif.initialize(settings: settings);
+    await _notif.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: _onNotificationTap,
+    );
 
     // Android 13+: request POST_NOTIFICATIONS permission
     if (!kIsWeb && Platform.isAndroid) {
@@ -56,6 +59,13 @@ class AiseeReminderService {
 
     _initialized = true;
     debugPrint('[AiSee:Reminder] Service initialized');
+  }
+
+  static void _onNotificationTap(NotificationResponse response) {
+    debugPrint(
+      '[AiSee:Reminder] Notification tapped: '
+      'id=${response.id} payload=${response.payload}',
+    );
   }
 
   Future<void> _requestNotificationPermission() async {
@@ -160,7 +170,7 @@ class AiseeReminderService {
         body: '${reminder.title} - ${times[i]}',
         scheduledDate: scheduled,
         notificationDetails: _notificationDetails(),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.time,
       );
       debugPrint(
@@ -191,7 +201,7 @@ class AiseeReminderService {
       body: '${reminder.title} lúc $dt',
       scheduledDate: scheduled,
       notificationDetails: _notificationDetails(),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
     debugPrint(
       '[AiSee:Reminder] Scheduled appointment notif #${reminder.id}'
@@ -240,7 +250,11 @@ class AiseeReminderService {
         importance: Importance.high,
         priority: Priority.high,
       ),
-      iOS: DarwinNotificationDetails(),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     );
   }
 }

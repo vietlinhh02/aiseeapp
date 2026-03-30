@@ -58,6 +58,10 @@ dependencies:
   firebase_messaging: ^15.2.6
   flutter_callkit_incoming: ^2.0.4+1
   volume_controller: ^3.4.4
+  flutter_tts: ^4.2.0
+  image_picker: 1.1.2
+  path_provider: 2.1.5
+  record: ^6.2.0
 
 dev_dependencies:
   flutter_test:
