@@ -77,12 +77,6 @@ class UserPersonalTabState extends State<UserPersonalTab> {
           _buildAppointmentSection(),
           const SizedBox(height: 16),
           _InfoSection(
-            iconAsset: 'assets/icons/nav/ic_voice.svg',
-            title: 'Tin nhắn thoại chưa đọc',
-            body: 'Không có tin mới từ người thân.',
-          ),
-          const SizedBox(height: 16),
-          _InfoSection(
             iconAsset: 'assets/icons/nav/ic_activity.svg',
             title: 'Nhật ký sức khỏe gần đây',
             body: 'Tóm tắt sẽ hiển thị khi có dữ liệu.',

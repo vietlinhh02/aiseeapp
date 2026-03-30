@@ -12,7 +12,7 @@ import '../widgets/app_wordmark.dart';
 import '../widgets/user_low_vision_bottom_nav.dart';
 import 'user_assistant_tab.dart';
 import 'user_personal_tab.dart';
-import 'user_tools_tab.dart';
+import 'contacts_tab.dart';
 
 /// Home người dùng chính — 3 tab cố định + nav nổi pill, ưu tiên thị lực thấp / a11y.
 class UserHomeScreen extends StatefulWidget {
@@ -53,7 +53,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     return widget.aiseeProfile?.email ?? '—';
   }
 
-  static const List<String> _tabNames = ['Tro ly', 'Cong cu', 'Ca nhan'];
+  static const List<String> _tabNames = ['Tro ly', 'Lien lac', 'Ca nhan'];
 
   void _onTabChanged(int index) {
     if (index == _tabIndex) return;
@@ -229,7 +229,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
                       _liveKitVoice.localCameraPreviewTrack,
                   onRetryLiveKit: _startLiveKitVoice,
                 ),
-                const UserToolsTab(),
+                ContactsTab(aiseeProfile: widget.aiseeProfile),
                 UserPersonalTab(
                   key: UserPersonalTab.tabKey,
                   onSignOut: widget.onSignOut,

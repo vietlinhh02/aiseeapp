@@ -25,11 +25,11 @@ class UserLowVisionBottomNav extends StatelessWidget {
           'Trang chủ. Trợ lý AiSee đang sẵn sàng nghe.',
     ),
     _NavItemData(
-      iconAsset: 'assets/icons/nav/ic_category.svg',
-      label: 'Công cụ',
+      iconAsset: 'assets/icons/nav/ic_3user.svg',
+      label: 'Liên lạc',
       semanticsLabel:
-          'Mục 2 trên 3: Công cụ. '
-          'Công cụ. Camera và Danh bạ gọi điện.',
+          'Mục 2 trên 3: Liên lạc. '
+          'Nhắn tin và gọi điện người thân.',
     ),
     _NavItemData(
       iconAsset: 'assets/icons/nav/ic_profile.svg',
