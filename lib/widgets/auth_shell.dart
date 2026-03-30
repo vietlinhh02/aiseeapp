@@ -13,6 +13,7 @@ import '../screens/login_screen.dart';
 import '../screens/role_selection_screen.dart';
 import '../screens/user_home_screen.dart';
 import '../services/aisee_auth_service.dart';
+import '../services/aisee_push_service.dart';
 import 'auth_bootstrapping.dart';
 import '../services/aisee_profile_cache.dart';
 import '../services/aisee_session_store.dart';
@@ -101,6 +102,8 @@ class _AuthShellState extends State<AuthShell> {
     }
     await AiseeSessionStore.instance.write(resumed.tokens);
     await AiseeProfileCache.instance.write(resumed.profile);
+    await AiseePushService.instance
+        .initAndUploadToken(resumed.tokens.accessToken);
     _authLog(
       'restoreSession: ok userId=${resumed.profile.id} '
       'role=${resumed.profile.role ?? "null"}',
@@ -192,6 +195,8 @@ class _AuthShellState extends State<AuthShell> {
       if (!mounted || _user?.id != accountId) return;
       await AiseeSessionStore.instance.write(tokens);
       await AiseeProfileCache.instance.write(profile);
+      await AiseePushService.instance
+          .initAndUploadToken(tokens.accessToken);
       _authLog(
         'completeSignIn: GET /users/me xong — gửi role="$role" '
         '→ API profile.role="${profile.role ?? "null"}" '

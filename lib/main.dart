@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -8,9 +10,21 @@ import 'services/aisee_voice_foreground.dart';
 import 'theme/style_tokens.dart';
 import 'widgets/app_bootstrap.dart';
 
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(
+  RemoteMessage message,
+) async {
+  await Firebase.initializeApp();
+  debugPrint('[AiSee:Push] Background message: ${message.data}');
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   AiseeVoiceAssistantForeground.initCommunicationPort();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(
+    _firebaseMessagingBackgroundHandler,
+  );
   await dotenv.load(fileName: 'assets/app_config.env');
   await AiseeReminderService.instance.init();
   assert(() {
