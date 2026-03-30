@@ -6,12 +6,15 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/aisee_api_models.dart';
+import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
 import '../models/aisee_message.dart';
+import '../services/aisee_call_service.dart';
 import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import 'call_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   const ChatDetailScreen({
@@ -146,6 +149,45 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     });
   }
 
+  Future<void> _startCall(
+    AiseeFamilyMember contact,
+    String callType,
+  ) async {
+    HapticFeedback.lightImpact();
+    final AiseeAuthTokens? tokens =
+        await AiseeSessionStore.instance.read();
+    if (tokens == null) return;
+
+    try {
+      final result = await AiseeCallService().createRoom(
+        tokens.accessToken,
+        contact.id,
+        callType,
+      );
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CallScreen(
+            callInfo: AiseeCallInfo(
+              roomName: result.roomName,
+              token: result.token,
+              callType: callType,
+              contact: contact,
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final String msg = e is AiseeApiException
+          ? e.message
+          : 'Không tạo được cuộc gọi';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg)),
+      );
+    }
+  }
+
   Future<void> _sendMessage() async {
     final String text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -210,7 +252,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
             tooltip: 'Gọi thoại',
-            onPressed: () => HapticFeedback.lightImpact(),
+            onPressed: () =>
+                _startCall(widget.contact, 'voice'),
           ),
           IconButton(
             icon: SvgPicture.asset(
@@ -223,7 +266,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
             tooltip: 'Gọi video',
-            onPressed: () => HapticFeedback.lightImpact(),
+            onPressed: () =>
+                _startCall(widget.contact, 'video'),
           ),
         ],
       ),
