@@ -289,16 +289,16 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Xoa thuoc'),
-          content: Text('Ban co chac muon xoa ${med.name}?'),
+          title: const Text('Xóa thuốc'),
+          content: Text('Bạn có chắc muốn xóa ${med.name}?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Huy'),
+              child: const Text('Hủy'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Xoa',
+              child: const Text('Xóa',
                   style: TextStyle(color: Colors.red)),
             ),
           ],
@@ -310,7 +310,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
           widget.accessToken, widget.member.id, med.id,
         );
         await _loadMeds();
-        if (mounted) AppToast.show('Da xoa ${med.name}');
+        if (mounted) AppToast.show('Đã xóa ${med.name}');
       } catch (e) {
         if (mounted) AppToast.show(e.toString(), isError: true);
       }
@@ -331,7 +331,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
         frequency: result['frequency'] ?? 'daily',
       );
       await _loadMeds();
-      if (mounted) AppToast.show('Da them thuoc');
+      if (mounted) AppToast.show('Đã thêm thuốc');
     } catch (e) {
       if (mounted) AppToast.show(e.toString(), isError: true);
     }
@@ -354,7 +354,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
         frequency: result['frequency'] ?? 'daily',
       );
       await _loadMeds();
-      if (mounted) AppToast.show('Da cap nhat thuoc');
+      if (mounted) AppToast.show('Đã cập nhật thuốc');
     } catch (e) {
       if (mounted) AppToast.show(e.toString(), isError: true);
     }
@@ -372,27 +372,27 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(name.isEmpty ? 'Them thuoc' : 'Sua thuoc'),
+        title: Text(name.isEmpty ? 'Thêm thuốc' : 'Sửa thuốc'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(controller: nameC,
-                  decoration: const InputDecoration(labelText: 'Ten thuoc')),
+                  decoration: const InputDecoration(labelText: 'Tên thuốc')),
               TextField(controller: dosageC,
-                  decoration: const InputDecoration(labelText: 'Lieu luong')),
+                  decoration: const InputDecoration(labelText: 'Liều lượng')),
               TextField(controller: timesC,
                   decoration: const InputDecoration(
-                      labelText: 'Gio uong (VD: 07:00, 21:00)')),
+                      labelText: 'Giờ uống (VD: 07:00, 21:00)')),
               TextField(controller: freqC,
                   decoration: const InputDecoration(
-                      labelText: 'Tan suat (daily)')),
+                      labelText: 'Tần suất (daily)')),
             ],
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context),
-              child: const Text('Huy')),
+              child: const Text('Hủy')),
           TextButton(
             onPressed: () {
               if (nameC.text.trim().isEmpty) return;
@@ -403,7 +403,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 'frequency': freqC.text.trim(),
               });
             },
-            child: const Text('Luu'),
+            child: const Text('Lưu'),
           ),
         ],
       ),
@@ -420,7 +420,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_logs.isEmpty) {
-      return const Center(child: Text('Chua co hoat dong nao'));
+      return const Center(child: Text('Chưa có hoạt động nào'));
     }
     return RefreshIndicator(
       onRefresh: _loadLogs,
@@ -468,22 +468,22 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Thoi gian: ${_formatTime(log.createdAt)}'),
+            Text('Thời gian: ${_formatTime(log.createdAt)}'),
             if (log.params.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('Chi tiet: ${log.params.entries.map(
+              Text('Chi tiết: ${log.params.entries.map(
                     (e) => '${e.key}: ${e.value}',
                   ).join(', ')}'),
             ],
             if (log.result != null) ...[
               const SizedBox(height: 8),
-              Text('Ket qua: ${log.result}'),
+              Text('Kết quả: ${log.result}'),
             ],
           ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context),
-              child: const Text('Dong')),
+              child: const Text('Đóng')),
         ],
       ),
     );
@@ -497,7 +497,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     }
     final loc = _location;
     if (loc == null || !loc.hasLocation) {
-      return const Center(child: Text('Chua co vi tri'));
+      return const Center(child: Text('Chưa có vị trí'));
     }
     return RefreshIndicator(
       onRefresh: _loadLocation,
@@ -517,14 +517,14 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
                 ),
                 if (loc.updatedAt != null) ...[
                   const SizedBox(height: 8),
-                  Text('Cap nhat: ${_formatTime(loc.updatedAt!)}',
+                  Text('Cập nhật: ${_formatTime(loc.updatedAt!)}',
                       style: StyleTokens.bodySmall()),
                 ],
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: () => _openMaps(loc.lat!, loc.lng!),
                   icon: const Icon(Icons.map),
-                  label: const Text('Mo ban do'),
+                  label: const Text('Mở bản đồ'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: StyleTokens.buttonPrimary,
                     foregroundColor: Colors.white,
