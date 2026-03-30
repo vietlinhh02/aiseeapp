@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "338486890234",
+    "project_id": "aisee-a056c",
+    "storage_bucket": "aisee-a056c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:338486890234:android:925109c421ba7fd2ce0343",
+        "android_client_info": {
+          "package_name": "com.aisee.aiseeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4C-rvMiXpEf--KtxgZmDry5XmvF6nIGw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
