@@ -21,10 +21,14 @@ Future<void> _firebaseMessagingBackgroundHandler(
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   AiseeVoiceAssistantForeground.initCommunicationPort();
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(
-    _firebaseMessagingBackgroundHandler,
-  );
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(
+      _firebaseMessagingBackgroundHandler,
+    );
+  } catch (e) {
+    debugPrint('[AiSee] Firebase init skipped: $e');
+  }
   await dotenv.load(fileName: 'assets/app_config.env');
   await AiseeReminderService.instance.init();
   assert(() {
