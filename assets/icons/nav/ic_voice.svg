@@ -1,7 +1,5 @@
-<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 17.5 21.5" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g id="Voice">
-<path id="Stroke 1" d="M8.74979 20.75V17.589" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path id="Stroke 3" fill-rule="evenodd" clip-rule="evenodd" d="M8.74979 13.5981V13.5981C6.50658 13.5981 4.68771 11.7718 4.68771 9.51819V4.83095C4.68771 2.57732 6.50658 0.75 8.74979 0.75C10.994 0.75 12.8119 2.57732 12.8119 4.83095V9.51819C12.8119 11.7718 10.994 13.5981 8.74979 13.5981Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path id="Stroke 5" d="M16.75 9.55061C16.75 13.9894 13.1688 17.5883 8.74948 17.5883C4.33117 17.5883 0.75 13.9894 0.75 9.55061" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M11.9999 22V18.8391" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M11.9996 14.8481V14.8481C9.75637 14.8481 7.9375 13.0218 7.9375 10.7682V6.08095C7.9375 3.82732 9.75637 2 11.9996 2C14.2438 2 16.0617 3.82732 16.0617 6.08095V10.7682C16.0617 13.0218 14.2438 14.8481 11.9996 14.8481Z" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M20 10.8006C20 15.2394 16.4188 18.8383 11.9995 18.8383C7.58117 18.8383 4 15.2394 4 10.8006" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

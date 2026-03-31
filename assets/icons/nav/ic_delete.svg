@@ -1,7 +1,5 @@
-<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 18.458 19.9993" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g id="Delete">
-<path id="Stroke 1" d="M16.3247 7.4675C16.3247 7.4675 15.7817 14.2025 15.4667 17.0395C15.3167 18.3945 14.4797 19.1885 13.1087 19.2135C10.4997 19.2605 7.8877 19.2635 5.2797 19.2085C3.9607 19.1815 3.1377 18.3775 2.9907 17.0465C2.6737 14.1845 2.1337 7.4675 2.1337 7.4675" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path id="Stroke 3" d="M17.708 4.239H0.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path id="Stroke 5" d="M14.4404 4.239C13.6554 4.239 12.9794 3.684 12.8254 2.915L12.5824 1.699C12.4324 1.138 11.9244 0.75 11.3454 0.75H7.1124C6.5334 0.75 6.0254 1.138 5.8754 1.699L5.6324 2.915C5.4784 3.684 4.8024 4.239 4.0174 4.239" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M19.3248 9.4682C19.3248 9.4682 18.7818 16.2032 18.4668 19.0402C18.3168 20.3952 17.4798 21.1892 16.1088 21.2142C13.4998 21.2612 10.8878 21.2642 8.27979 21.2092C6.96079 21.1822 6.13779 20.3782 5.99079 19.0472C5.67379 16.1852 5.13379 9.4682 5.13379 9.4682" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M20.708 6.23969H3.75" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M17.4406 6.23967C16.6556 6.23967 15.9796 5.68467 15.8256 4.91567L15.5826 3.69967C15.4326 3.13867 14.9246 2.75067 14.3456 2.75067H10.1126C9.53358 2.75067 9.02558 3.13867 8.87558 3.69967L8.63258 4.91567C8.47858 5.68467 7.80258 6.23967 7.01758 6.23967" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
