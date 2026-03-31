@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 
 import '../config/app_env.dart';
@@ -9,7 +10,7 @@ import '../models/aisee_api_models.dart';
 
 class AiseeUploadService {
   AiseeUploadService({http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+    : _http = httpClient ?? http.Client();
 
   final http.Client _http;
 
@@ -25,10 +26,7 @@ class AiseeUploadService {
 
   /// Upload a file to the backend. Trả về đúng chuỗi `url` trong JSON (URL tuyệt đối https://…),
   /// không nối thêm base storage ở app.
-  Future<String> uploadFile(
-    String accessToken,
-    File file,
-  ) async {
+  Future<String> uploadFile(String accessToken, File file) async {
     final int fileSize = await file.length();
     if (fileSize > _maxSizeBytes) {
       throw AiseeApiException('File quá lớn, tối đa 10MB');
@@ -36,18 +34,19 @@ class AiseeUploadService {
 
     final String mimeType = _guessMimeType(file.path);
     if (!_isAllowedMime(mimeType)) {
-      throw AiseeApiException(
-        'Định dạng không được hỗ trợ: $mimeType',
-      );
+      throw AiseeApiException('Định dạng không được hỗ trợ: $mimeType');
     }
 
     final Uri uri = Uri.parse('${AppEnv.apiBaseUrl}/api/v1/upload');
-    final http.MultipartRequest request =
-        http.MultipartRequest('POST', uri)
-          ..headers['Authorization'] = 'Bearer $accessToken'
-          ..files.add(
-            await http.MultipartFile.fromPath('file', file.path),
-          );
+    final http.MultipartRequest request = http.MultipartRequest('POST', uri)
+      ..headers['Authorization'] = 'Bearer $accessToken'
+      ..files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          file.path,
+          contentType: _mediaTypeFromMime(mimeType),
+        ),
+      );
 
     final http.StreamedResponse streamedRes = await _http.send(request);
     final String bodyStr = await streamedRes.stream.bytesToString();
@@ -92,6 +91,14 @@ class AiseeUploadService {
   static bool _isAllowedMime(String mime) {
     if (mime.startsWith('audio/')) return true;
     return _allowedMimeTypes.contains(mime);
+  }
+
+  static MediaType _mediaTypeFromMime(String mimeType) {
+    final List<String> parts = mimeType.split('/');
+    if (parts.length == 2) {
+      return MediaType(parts[0], parts[1]);
+    }
+    return MediaType('application', 'octet-stream');
   }
 
   AiseeApiException _parseError(String body, int statusCode) {

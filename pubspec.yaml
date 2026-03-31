@@ -41,6 +41,7 @@ dependencies:
   flutter_svg: ^2.2.4
   animations: ^2.1.2
   http: ^1.6.0
+  http_parser: 4.1.2
   flutter_secure_storage: ^10.0.0
   shared_preferences: ^2.5.3
   livekit_client: ^2.7.0
@@ -62,6 +63,7 @@ dependencies:
   image_picker: 1.1.2
   path_provider: 2.1.5
   record: ^6.2.0
+  flutter_wake_word: ^0.0.38
 
 dev_dependencies:
   flutter_test:
