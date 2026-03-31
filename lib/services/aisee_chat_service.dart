@@ -62,17 +62,25 @@ class AiseeChatService {
     String? voiceUrl,
     String? imageUrl,
   }) async {
+    final Map<String, dynamic> body = <String, dynamic>{
+      'receiver_id': receiverId,
+      'content_text': text,
+    };
+    final String? v = voiceUrl?.trim();
+    final String? img = imageUrl?.trim();
+    if (v != null && v.isNotEmpty) {
+      body['voice_url'] = v;
+    }
+    if (img != null && img.isNotEmpty) {
+      body['image_url'] = img;
+    }
+
     final http.Response res = await _http.post(
       _uri('/api/v1/messages/send'),
       headers: _authHeaders(accessToken),
-      body: jsonEncode({
-        'receiver_id': receiverId,
-        'content_text': text,
-        'voice_url': voiceUrl ?? '',
-        'image_url': imageUrl ?? '',
-      }),
+      body: jsonEncode(body),
     );
-    if (res.statusCode != 200) {
+    if (res.statusCode != 200 && res.statusCode != 201) {
       throw _error(res, 'Không gửi được tin nhắn');
     }
     final Object? decoded = _decodeJson(res, 'Không gửi được tin nhắn');

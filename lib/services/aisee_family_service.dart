@@ -50,14 +50,18 @@ class AiseeFamilyService {
       headers: _authHeaders(accessToken),
       body: jsonEncode({'relationship': relationship}),
     );
-    if (res.statusCode != 200) {
+    if (res.statusCode != 200 && res.statusCode != 201) {
       throw _error(res, 'Không tạo được mã mời');
     }
     final Object? decoded = _decodeJson(res, 'Không tạo được mã mời');
     if (decoded is! Map<String, dynamic>) {
       throw AiseeApiException('Phản hồi không hợp lệ');
     }
-    return decoded['invite_code'] as String;
+    final Object? code = decoded['invite_code'];
+    if (code is! String || code.isEmpty) {
+      throw AiseeApiException('Phản hồi thiếu invite_code');
+    }
+    return code;
   }
 
   Future<void> joinFamily(String accessToken, String inviteCode) async {
@@ -66,9 +70,10 @@ class AiseeFamilyService {
       headers: _authHeaders(accessToken),
       body: jsonEncode({'invite_code': inviteCode}),
     );
-    if (res.statusCode != 200) {
+    if (res.statusCode != 200 && res.statusCode != 201) {
       throw _error(res, 'Không tham gia được gia đình');
     }
+    // Backend có thể trả {"status":"joined"} — không bắt buộc parse cho luồng UI.
   }
 
   Future<void> deleteLink(String accessToken, String linkId) async {
@@ -112,14 +117,63 @@ class AiseeFamilyService {
   }
 
   AiseeApiException _error(http.Response res, String fallback) {
+    final String prefix = 'HTTP ${res.statusCode}';
     try {
-      final Map<String, dynamic> map =
-          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      final String? msg = map['message'] as String?;
-      final String? code = map['error'] as String?;
-      return AiseeApiException(msg ?? fallback, code: code);
+      final String raw = utf8.decode(res.bodyBytes).trim();
+      if (raw.isEmpty) {
+        return AiseeApiException('$prefix: $fallback');
+      }
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return AiseeApiException(
+          raw.length > 120 ? '$prefix: ${raw.substring(0, 120)}…' : '$prefix: $raw',
+        );
+      }
+      final String? extracted = _extractApiErrorMessage(decoded);
+      final String? errCode = _extractApiErrorCode(decoded);
+      return AiseeApiException(
+        extracted != null && extracted.isNotEmpty
+            ? '$prefix: $extracted'
+            : '$prefix: $fallback',
+        code: errCode,
+      );
     } catch (_) {
-      return AiseeApiException(fallback);
+      return AiseeApiException('$prefix: $fallback');
     }
+  }
+
+  /// Gin/Go thường trả `{"error":"..."}` — phải đưa vào message, không chỉ `code`.
+  static String? _extractApiErrorMessage(Map<String, dynamic> map) {
+    final Object? msg = map['message'];
+    if (msg is String && msg.isNotEmpty) return msg;
+
+    final Object? err = map['error'];
+    if (err is String && err.isNotEmpty) return err;
+    if (err is Map<String, dynamic>) {
+      final m = err['message'] as String?;
+      if (m != null && m.isNotEmpty) return m;
+    }
+
+    final Object? detail = map['detail'];
+    if (detail is String && detail.isNotEmpty) return detail;
+    if (detail is List && detail.isNotEmpty) {
+      final Object? first = detail.first;
+      if (first is Map<String, dynamic>) {
+        final m = first['msg'] as String? ?? first['message'] as String?;
+        if (m != null && m.isNotEmpty) return m;
+      }
+    }
+    return null;
+  }
+
+  static String? _extractApiErrorCode(Map<String, dynamic> map) {
+    final Object? c = map['code'];
+    if (c is String && c.isNotEmpty) return c;
+    final Object? err = map['error'];
+    if (err is Map<String, dynamic>) {
+      final x = err['code'] as String?;
+      if (x != null && x.isNotEmpty) return x;
+    }
+    return null;
   }
 }

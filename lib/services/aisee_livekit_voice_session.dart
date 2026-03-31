@@ -1043,20 +1043,32 @@ class AiseeLiveKitVoiceSession {
   Future<void> connect({
     required String userName,
     required String userId,
-    required bool hasFamilyLink,
+    /// Chạy song song với lấy token / kết nối phòng; await ngay trước [setAttributes].
+    Future<bool>? resolveHasFamilyLink,
   }) async {
     _log('Connect', 'Bat dau ket noi LiveKit...');
     await disconnect();
-    _log('Connect', 'Xin quyen mic + camera + location...');
-    await _ensureMediaPermissions();
-    _log('Connect', 'Quyen OK. Lay token phong...');
-    final LiveKitJoinCredentials creds = await _fetchWithRefreshIfNeeded();
+    _log('Connect', 'Song song: quyen media + token phong...');
+    final List<dynamic> parallel = await Future.wait<dynamic>(<Future<dynamic>>[
+      _ensureMediaPermissions(),
+      _fetchWithRefreshIfNeeded(),
+    ]);
+    final LiveKitJoinCredentials creds =
+        parallel[1] as LiveKitJoinCredentials;
     _logBlock('Connect', 'Credentials nhan duoc', {
       'url': creds.url,
       'room': creds.roomName ?? '(server tu gan)',
       'token': '${creds.token.substring(0, 20)}...${creds.token.substring(creds.token.length - 10)}',
     });
-    final Room room = Room();
+    final Room room = Room(
+      roomOptions: const RoomOptions(
+        adaptiveStream: true,
+        dynacast: true,
+        defaultAudioPublishOptions: AudioPublishOptions(
+          dtx: true,
+        ),
+      ),
+    );
     _room = room;
     _roomListener = room.createListener()
       ..on<ActiveSpeakersChangedEvent>((ActiveSpeakersChangedEvent e) {
@@ -1113,6 +1125,15 @@ class AiseeLiveKitVoiceSession {
     _log('Connect', 'Dang ket noi room...');
     await room.connect(creds.url, creds.token);
     _registerRpcMethods();
+    bool hasFamilyLink = false;
+    final Future<bool>? famFut = resolveHasFamilyLink;
+    if (famFut != null) {
+      try {
+        hasFamilyLink = await famFut;
+      } catch (_) {
+        hasFamilyLink = false;
+      }
+    }
     await room.localParticipant?.setAttributes(<String, String>{
       'user_name': userName,
       'user_id': userId,

@@ -19,14 +19,22 @@ class AiseeMessage {
   final bool isRead;
   final DateTime createdAt;
 
+  /// Chuỗi rỗng từ API → null (tránh đưa "" vào player). URL dùng nguyên từ backend (https://...).
+  static String? _optionalUrlField(dynamic v) {
+    if (v == null) return null;
+    if (v is! String) return null;
+    final String s = v.trim();
+    return s.isEmpty ? null : s;
+  }
+
   factory AiseeMessage.fromJson(Map<String, dynamic> j) {
     return AiseeMessage(
       id: j['id'] as String,
       senderId: j['sender_id'] as String,
       receiverId: j['receiver_id'] as String,
       contentText: j['content_text'] as String? ?? '',
-      voiceUrl: j['voice_url'] as String?,
-      imageUrl: j['image_url'] as String?,
+      voiceUrl: _optionalUrlField(j['voice_url']),
+      imageUrl: _optionalUrlField(j['image_url']),
       isRead: j['is_read'] as bool? ?? false,
       createdAt: DateTime.parse(j['created_at'] as String).toLocal(),
     );
