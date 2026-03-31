@@ -1,13 +1,25 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/aisee_api_models.dart';
+import '../models/aisee_call_info.dart';
+import '../services/aisee_chat_socket.dart';
+import '../services/aisee_push_service.dart';
+import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
+import '../widgets/user_low_vision_bottom_nav.dart';
+import 'call_screen.dart';
+import 'family_contacts_tab.dart';
+import 'family_messages_tab.dart';
+import 'family_personal_tab.dart';
 
-/// Home cho người thân / hỗ trợ (dashboard).
-class FamilyHomeScreen extends StatelessWidget {
+/// Home thành viên gia đình — 3 tab + pill nav nổi, khớp layout UserHomeScreen.
+class FamilyHomeScreen extends StatefulWidget {
   const FamilyHomeScreen({
     super.key,
     this.googleUser,
@@ -24,171 +36,169 @@ class FamilyHomeScreen extends StatelessWidget {
   final VoidCallback onSignOut;
 
   @override
+  State<FamilyHomeScreen> createState() => _FamilyHomeScreenState();
+}
+
+class _FamilyHomeScreenState extends State<FamilyHomeScreen>
+    with SingleTickerProviderStateMixin {
+  int _tabIndex = 0;
+  late final AnimationController _tabFade;
+  AiseeChatSocket? _chatSocket;
+
+  /// Tăng mỗi khi tab Gia đình tải lại danh sách — tab Tin nhắn lắng nghe để đồng bộ.
+  final ValueNotifier<int> _familyRosterVersion = ValueNotifier<int>(0);
+
+  static const List<String> _tabTitles = ['Gia đình', 'Tin nhắn', 'Cá nhân'];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabFade = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+      value: 1.0,
+    );
+    final AiseeCallInfo? pending =
+        AiseePushService.instance.consumePendingCall();
+    if (pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || CallScreen.openRouteCount > 0) return;
+        Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => CallScreen(callInfo: pending),
+          ),
+        );
+      });
+    }
+    _initSocket();
+  }
+
+  Future<void> _initSocket() async {
+    final stored = await AiseeSessionStore.instance.read();
+    if (stored == null || !mounted) return;
+    _chatSocket = AiseeChatSocket();
+    unawaited(_chatSocket!.connect(stored.accessToken));
+    if (mounted) setState(() {});
+  }
+
+  void _onTabChanged(int index) {
+    if (index == _tabIndex) return;
+    HapticFeedback.mediumImpact();
+    SystemSound.play(SystemSoundType.click);
+    _tabFade.reverse().then((_) {
+      if (!mounted) return;
+      setState(() => _tabIndex = index);
+      _tabFade.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _familyRosterVersion.dispose();
+    _tabFade.dispose();
+    _chatSocket?.dispose();
+    super.dispose();
+  }
+
+  Widget _buildAppBarTitle() {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            _tabTitles[_tabIndex],
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              height: 1,
+              letterSpacing: -0.5,
+              color: StyleTokens.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const AppWordmark(fontSize: 15),
+      ],
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final String? googleName = googleUser?.displayName?.trim();
-    final String? profileName = aiseeProfile?.displayName?.trim();
-    final String displayName = (googleName != null && googleName.isNotEmpty)
-        ? googleName
-        : (profileName != null && profileName.isNotEmpty)
-        ? profileName
-        : (aiseeProfile?.email ?? '—');
-    final String emailLine = googleUser?.email ?? aiseeProfile?.email ?? '';
+    if (widget.aiseeLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final profile = widget.aiseeProfile;
+    if (profile == null) {
+      return Scaffold(
+        body: Center(
+          child: Text(
+            widget.aiseeError ?? 'Không tải được thông tin',
+            style: StyleTokens.bodySmall(),
+          ),
+        ),
+      );
+    }
+
+    final double bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: StyleTokens.background,
-      appBar: AppBar(centerTitle: true, title: const AppWordmark(fontSize: 17)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              displayName,
-              style: StyleTokens.titleScreen().copyWith(fontSize: 20),
+      extendBody: true,
+      appBar: AppBar(
+        centerTitle: false,
+        titleSpacing: 20,
+        toolbarHeight: 48,
+        scrolledUnderElevation: 0,
+        title: _buildAppBarTitle(),
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 8,
+              bottom: 112 + bottomInset,
             ),
-            if (emailLine.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(emailLine, style: StyleTokens.bodySmall()),
-            ],
-            if (kDebugMode) ...[
-              const SizedBox(height: 8),
-              Text(
-                '[DEBUG] FamilyHome — profile.role=${aiseeProfile?.role ?? "null"}',
-                style: StyleTokens.bodySmall().copyWith(
-                  color: StyleTokens.linkAccent,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-            if (googleUser == null && aiseeProfile != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Phiên đã khôi phục từ lần đăng nhập trước. Đăng nhập Google lại để đồng bộ đầy đủ.',
-                style: StyleTokens.legalMuted(),
-              ),
-            ],
-            const SizedBox(height: 28),
-            Text(
-              'Tài khoản AiSee',
-              style: StyleTokens.separator().copyWith(fontSize: 15),
-            ),
-            const SizedBox(height: 14),
-            if (aiseeLoading) ...[
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-              Text(
-                'Đang đồng bộ hồ sơ AiSee…',
-                style: StyleTokens.bodySmall(),
-                textAlign: TextAlign.center,
-              ),
-            ] else if (aiseeError != null) ...[
-              Text(
-                aiseeError!,
-                style: StyleTokens.bodySmall().copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                googleUser != null
-                    ? 'Bạn vẫn đăng nhập Google; đồng bộ với API AiSee chưa thành công.'
-                    : 'Đồng bộ với API AiSee chưa thành công.',
-                style: StyleTokens.legalMuted(),
-              ),
-            ] else if (aiseeProfile != null) ...[
-              _profileLine(
-                'Tên trên hệ thống',
-                aiseeProfile!.displayName?.trim().isNotEmpty == true
-                    ? aiseeProfile!.displayName!
-                    : '—',
-              ),
-              _profileLine('Email', aiseeProfile!.email),
-              _profileLine('Vai trò', _roleLabelVi(aiseeProfile!.role)),
-              _profileLine(
-                'Tình nguyện viên',
-                aiseeProfile!.isVolunteer ? 'Có' : 'Không',
-              ),
-              _profileLine('Mã người dùng', _shortId(aiseeProfile!.id)),
-              if (_formatJoined(aiseeProfile!.createdAt) != null)
-                _profileLine(
-                  'Tham gia',
-                  _formatJoined(aiseeProfile!.createdAt)!,
-                ),
-            ] else
-              Text(
-                'Chưa có dữ liệu từ API AiSee.',
-                style: StyleTokens.bodySmall(),
-              ),
-            const SizedBox(height: 32),
-            Material(
-              color: StyleTokens.buttonPrimary,
-              borderRadius: BorderRadius.circular(31),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(31),
-                onTap: onSignOut,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  child: Center(
-                    child: Text('Đăng xuất', style: StyleTokens.socialLabel()),
+            child: FadeTransition(
+              opacity: _tabFade,
+              child: IndexedStack(
+                index: _tabIndex,
+                children: [
+                  FamilyContactsTab(
+                    onFamilyListChanged: () {
+                      _familyRosterVersion.value++;
+                    },
                   ),
-                ),
+                  FamilyMessagesTab(
+                    currentUserId: profile.id,
+                    chatSocket: _chatSocket ?? AiseeChatSocket(),
+                    familyRosterVersion: _familyRosterVersion,
+                    messagesTabActive: _tabIndex == 1,
+                  ),
+                  FamilyPersonalTab(
+                    profile: profile,
+                    onSignOut: widget.onSignOut,
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16 + bottomInset,
+            child: UserLowVisionBottomNav(
+              currentIndex: _tabIndex,
+              onChanged: _onTabChanged,
+              items: UserLowVisionBottomNav.familyItems,
+            ),
+          ),
+        ],
       ),
     );
-  }
-}
-
-Widget _profileLine(String label, String value) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: StyleTokens.bodySmall().copyWith(color: StyleTokens.textMuted),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: StyleTokens.bodySmall().copyWith(
-            color: StyleTokens.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-String _roleLabelVi(String? role) {
-  return switch (role) {
-    'family' => 'Người thân',
-    'user' => 'Người dùng',
-    final String r when r.isNotEmpty => r,
-    _ => '—',
-  };
-}
-
-String _shortId(String id) {
-  if (id.length <= 12) return id;
-  return '${id.substring(0, 8)}…';
-}
-
-String? _formatJoined(String? iso) {
-  if (iso == null || iso.isEmpty) return null;
-  try {
-    final DateTime dt = DateTime.parse(iso).toLocal();
-    return '${dt.day.toString().padLeft(2, '0')}/'
-        '${dt.month.toString().padLeft(2, '0')}/${dt.year}';
-  } catch (_) {
-    return iso;
   }
 }

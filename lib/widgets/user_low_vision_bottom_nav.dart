@@ -5,38 +5,60 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/style_tokens.dart';
 
-/// Thanh điều hướng nổi — nền đen, pill shape, 3 tab, active trắng + label.
+/// Thanh điều hướng nổi — nền đen, pill shape, active trắng + label.
 class UserLowVisionBottomNav extends StatelessWidget {
   const UserLowVisionBottomNav({
     super.key,
     required this.currentIndex,
     required this.onChanged,
-  });
+    List<NavItemData>? items,
+    this.showLabel = true,
+  }) : _items = items ?? _defaultItems;
 
   final int currentIndex;
   final ValueChanged<int> onChanged;
+  final List<NavItemData> _items;
+  final bool showLabel;
 
-  static const List<_NavItemData> _items = [
-    _NavItemData(
+  static const List<NavItemData> _defaultItems = [
+    NavItemData(
       iconAsset: 'assets/icons/nav/ic_wave.svg',
       label: 'Trợ lý',
       semanticsLabel:
           'Mục 1 trên 3: Trợ lý. '
           'Trang chủ. Trợ lý AiSee đang sẵn sàng nghe.',
     ),
-    _NavItemData(
-      iconAsset: 'assets/icons/nav/ic_3user.svg',
+    NavItemData(
+      iconAsset: 'assets/icons/nav/ic_message.svg',
       label: 'Liên lạc',
       semanticsLabel:
           'Mục 2 trên 3: Liên lạc. '
           'Nhắn tin và gọi điện người thân.',
     ),
-    _NavItemData(
+    NavItemData(
       iconAsset: 'assets/icons/nav/ic_profile.svg',
       label: 'Cá nhân',
       semanticsLabel:
           'Mục 3 trên 3: Cá nhân. '
           'Cá nhân. Lịch uống thuốc và tin nhắn của bạn.',
+    ),
+  ];
+
+  static const List<NavItemData> familyItems = [
+    NavItemData(
+      iconAsset: 'assets/icons/nav/ic_3user.svg',
+      label: 'Gia đình',
+      semanticsLabel: 'Mục 1 trên 3: Gia đình. Danh sách liên lạc gia đình.',
+    ),
+    NavItemData(
+      iconAsset: 'assets/icons/nav/ic_message.svg',
+      label: 'Tin nhắn',
+      semanticsLabel: 'Mục 2 trên 3: Tin nhắn. Hộp thư đến.',
+    ),
+    NavItemData(
+      iconAsset: 'assets/icons/nav/ic_profile.svg',
+      label: 'Cá nhân',
+      semanticsLabel: 'Mục 3 trên 3: Cá nhân. Hồ sơ và cài đặt.',
     ),
   ];
 
@@ -66,8 +88,10 @@ class UserLowVisionBottomNav extends StatelessWidget {
                   child: _NavPill(
                     selected: currentIndex == i,
                     iconAsset: _items[i].iconAsset,
+                    iconData: _items[i].iconData,
                     label: _items[i].label,
                     semanticsLabel: _items[i].semanticsLabel,
+                    showLabel: showLabel,
                     onTap: () => _onSelect(i),
                   ),
                 ),
@@ -79,14 +103,16 @@ class UserLowVisionBottomNav extends StatelessWidget {
   }
 }
 
-class _NavItemData {
-  const _NavItemData({
-    required this.iconAsset,
+class NavItemData {
+  const NavItemData({
+    this.iconAsset,
+    this.iconData,
     required this.label,
     required this.semanticsLabel,
-  });
+  }) : assert(iconAsset != null || iconData != null);
 
-  final String iconAsset;
+  final String? iconAsset;
+  final IconData? iconData;
   final String label;
   final String semanticsLabel;
 }
@@ -94,16 +120,20 @@ class _NavItemData {
 class _NavPill extends StatelessWidget {
   const _NavPill({
     required this.selected,
-    required this.iconAsset,
+    this.iconAsset,
+    this.iconData,
     required this.label,
     required this.semanticsLabel,
+    required this.showLabel,
     required this.onTap,
   });
 
   final bool selected;
-  final String iconAsset;
+  final String? iconAsset;
+  final IconData? iconData;
   final String label;
   final String semanticsLabel;
+  final bool showLabel;
   final VoidCallback onTap;
 
   @override
@@ -136,16 +166,23 @@ class _NavPill extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SvgPicture.asset(
-                  iconAsset,
-                  width: 20,
-                  height: 20,
-                  colorFilter: ColorFilter.mode(
-                    contentColor,
-                    BlendMode.srcIn,
+                if (iconAsset != null)
+                  SvgPicture.asset(
+                    iconAsset!,
+                    width: 20,
+                    height: 20,
+                    colorFilter: ColorFilter.mode(
+                      contentColor,
+                      BlendMode.srcIn,
+                    ),
+                  )
+                else if (iconData != null)
+                  Icon(
+                    iconData,
+                    size: 20,
+                    color: contentColor,
                   ),
-                ),
-                if (selected) ...[
+                if (selected && showLabel) ...[
                   const SizedBox(width: 8),
                   Text(
                     label,

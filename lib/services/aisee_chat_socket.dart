@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../config/app_env.dart';
 import '../models/aisee_message.dart';
+import 'aisee_push_service.dart';
 
 class AiseeChatSocket {
   WebSocket? _socket;
@@ -73,7 +74,16 @@ class AiseeChatSocket {
     try {
       final Map<String, dynamic> map =
           jsonDecode(raw) as Map<String, dynamic>;
-      if (map['type'] == 'new_message') {
+      final String? t = map['type'] as String?;
+      if (t == 'incoming_call') {
+        unawaited(
+          AiseePushService.showIncomingCallUi(
+            Map<String, dynamic>.from(map),
+          ),
+        );
+        return;
+      }
+      if (t == 'new_message') {
         final Map<String, dynamic> msgMap =
             map['message'] as Map<String, dynamic>;
         _controller.add(AiseeMessage.fromJson(msgMap));

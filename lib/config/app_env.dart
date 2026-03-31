@@ -10,6 +10,10 @@ abstract final class AppEnv {
     'LIVEKIT_URL',
     defaultValue: '',
   );
+  static const String _mapboxTokenDefine = String.fromEnvironment(
+    'MAPBOX_ACCESS_TOKEN',
+    defaultValue: '',
+  );
   static const String _defaultBackendUrl = 'http://192.168.1.10:8081';
 
   /// OAuth Web Client ID — dùng cho web, `serverClientId` Android/iOS (aud `id_token` khớp backend).
@@ -50,5 +54,14 @@ abstract final class AppEnv {
       u = _dotenv('LIVEKIT_URL');
     }
     return u.endsWith('/') ? u.substring(0, u.length - 1) : u;
+  }
+
+  /// Token công khai Mapbox (pk.*) — dùng Static Images / SDK; giới hạn URL trong Mapbox Dashboard.
+  static String get mapboxAccessToken {
+    String t = _mapboxTokenDefine.trim();
+    if (t.isEmpty) {
+      t = _dotenv('MAPBOX_ACCESS_TOKEN');
+    }
+    return t;
   }
 }

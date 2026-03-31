@@ -1,7 +1,5 @@
-<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 20.6396 20.7037" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g id="Activity">
-<path id="Path_33966" d="M5.21682 13.2534L8.20995 9.36327L11.6241 12.0452L14.5532 8.26487" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<circle id="Ellipse_741" cx="17.9674" cy="2.6722" r="1.9222" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path id="Path" d="M12.8965 1.59211H5.62872C2.61728 1.59211 0.75 3.72483 0.75 6.73627V14.8186C0.75 17.8301 2.58066 19.9537 5.62872 19.9537H14.2328C17.2443 19.9537 19.1116 17.8301 19.1116 14.8186V7.77975" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</g>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M7.24463 14.7815L10.2378 10.8913L13.652 13.5732L16.581 9.79291" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="19.9954" cy="4.20024" r="1.9222" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M14.9243 3.12015H7.65655C4.64511 3.12015 2.77783 5.25287 2.77783 8.26431V16.3467C2.77783 19.3581 4.6085 21.4817 7.65655 21.4817H16.2607C19.2721 21.4817 21.1394 19.3581 21.1394 16.3467V9.30779" stroke="#060913" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
