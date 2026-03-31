@@ -25,7 +25,28 @@ void _authLog(String message) {
 }
 
 class AuthShell extends StatefulWidget {
-  const AuthShell({super.key});
+  const AuthShell({
+    super.key,
+    this.authService,
+    this.enableGoogleBootstrap = true,
+    this.readCachedProfile,
+    this.readStoredSession,
+    this.clearStoredSession,
+    this.clearCachedProfile,
+    this.buildLoginScreen,
+  });
+
+  final AiseeAuthService? authService;
+  final bool enableGoogleBootstrap;
+  final Future<AiseeUserProfile?> Function()? readCachedProfile;
+  final Future<AiseeAuthTokens?> Function()? readStoredSession;
+  final Future<void> Function()? clearStoredSession;
+  final Future<void> Function()? clearCachedProfile;
+  final Widget Function(
+    VoidCallback onSignInWillStart,
+    VoidCallback onSignInWithGoogle,
+  )?
+  buildLoginScreen;
 
   @override
   State<AuthShell> createState() => _AuthShellState();
@@ -39,7 +60,8 @@ class _AuthShellState extends State<AuthShell> {
   bool _toastAfterSignOut = false;
   String? _bootstrapDetail;
 
-  final AiseeAuthService _aiseeAuth = AiseeAuthService();
+  late final AiseeAuthService _aiseeAuth;
+  late final bool _ownsAuthService;
   AiseeUserProfile? _aiseeProfile;
   bool _profileLoading = false;
   String? _profileError;
@@ -51,28 +73,72 @@ class _AuthShellState extends State<AuthShell> {
   @override
   void initState() {
     super.initState();
+    _aiseeAuth = widget.authService ?? AiseeAuthService();
+    _ownsAuthService = widget.authService == null;
     unawaited(_bootstrap());
+  }
+
+  Future<AiseeUserProfile?> _readCachedProfile() {
+    return widget.readCachedProfile?.call() ??
+        AiseeProfileCache.instance.read();
+  }
+
+  Future<AiseeAuthTokens?> _readStoredSession() {
+    return widget.readStoredSession?.call() ??
+        AiseeSessionStore.instance.read();
+  }
+
+  Future<void> _clearStoredSession() {
+    return widget.clearStoredSession?.call() ??
+        AiseeSessionStore.instance.clear();
+  }
+
+  Future<void> _clearCachedProfile() {
+    return widget.clearCachedProfile?.call() ??
+        AiseeProfileCache.instance.clear();
+  }
+
+  Future<void> _clearSessionAndRouteToLogin({
+    bool showExpiredToast = false,
+  }) async {
+    await _clearStoredSession();
+    await _clearCachedProfile();
+    if (!mounted) return;
+    setState(() {
+      _aiseeProfile = null;
+      _profileLoading = false;
+      _profileError = null;
+    });
+    if (showExpiredToast) {
+      unawaited(
+        AppToast.show('Phiên hết hạn, vui lòng đăng nhập lại', isError: true),
+      );
+    }
   }
 
   Future<void> _bootstrap() async {
     try {
-      await GoogleAuthConfig.initializeGoogleSignIn();
-      _authSub = GoogleSignIn.instance.authenticationEvents.listen(
-        _onAuthEvent,
-        onError: _onAuthError,
-      );
-      final AiseeUserProfile? cachedProfile = await AiseeProfileCache.instance
-          .read();
+      if (widget.enableGoogleBootstrap) {
+        await GoogleAuthConfig.initializeGoogleSignIn();
+        _authSub = GoogleSignIn.instance.authenticationEvents.listen(
+          _onAuthEvent,
+          onError: _onAuthError,
+        );
+      }
+      final AiseeUserProfile? cachedProfile = await _readCachedProfile();
       if (mounted) {
         setState(() {
           _bootstrapDetail = _bootstrapHintFromProfile(cachedProfile);
         });
       }
       await _restoreStoredSession(cachedProfile);
-      final Future<GoogleSignInAccount?>? lightweightFut =
-          GoogleSignIn.instance.attemptLightweightAuthentication();
-      if (lightweightFut != null) {
-        unawaited(lightweightFut);
+      if (widget.enableGoogleBootstrap) {
+        final Future<GoogleSignInAccount?>? lightweightFut = GoogleSignIn
+            .instance
+            .attemptLightweightAuthentication();
+        if (lightweightFut != null) {
+          unawaited(lightweightFut);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -94,8 +160,9 @@ class _AuthShellState extends State<AuthShell> {
   ) async {
     await AiseeSessionStore.instance.write(resumed.tokens);
     await AiseeProfileCache.instance.write(resumed.profile);
-    await AiseePushService.instance
-        .initAndUploadToken(resumed.tokens.accessToken);
+    await AiseePushService.instance.initAndUploadToken(
+      resumed.tokens.accessToken,
+    );
     if (!mounted) return;
     setState(() {
       _aiseeProfile = resumed.profile;
@@ -121,17 +188,8 @@ class _AuthShellState extends State<AuthShell> {
       return;
     }
     if (resumed == null) {
-      _authLog('syncSession(nền): không hợp lệ, đã xóa cache');
-      await AiseeSessionStore.instance.clear();
-      await AiseeProfileCache.instance.clear();
-      setState(() {
-        _aiseeProfile = null;
-        _profileLoading = false;
-        _profileError = null;
-      });
-      unawaited(
-        AppToast.show('Phiên hết hạn, vui lòng đăng nhập lại', isError: true),
-      );
+      _authLog('syncSession(nền): refresh failed, về login');
+      await _clearSessionAndRouteToLogin(showExpiredToast: true);
       return;
     }
     _authLog(
@@ -142,7 +200,7 @@ class _AuthShellState extends State<AuthShell> {
   }
 
   Future<void> _restoreStoredSession(AiseeUserProfile? cachedProfile) async {
-    final AiseeAuthTokens? stored = await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? stored = await _readStoredSession();
     if (stored == null) {
       return;
     }
@@ -176,9 +234,8 @@ class _AuthShellState extends State<AuthShell> {
       return;
     }
     if (resumed == null) {
-      _authLog('restoreSession: không hợp lệ, đã xóa cache');
-      await AiseeSessionStore.instance.clear();
-      await AiseeProfileCache.instance.clear();
+      _authLog('restoreSession: refresh failed, về login');
+      await _clearSessionAndRouteToLogin();
       return;
     }
     _authLog(
@@ -268,8 +325,7 @@ class _AuthShellState extends State<AuthShell> {
       if (!mounted || _user?.id != accountId) return;
       await AiseeSessionStore.instance.write(tokens);
       await AiseeProfileCache.instance.write(profile);
-      await AiseePushService.instance
-          .initAndUploadToken(tokens.accessToken);
+      await AiseePushService.instance.initAndUploadToken(tokens.accessToken);
       _authLog(
         'completeSignIn: GET /users/me xong — gửi role="$role" '
         '→ API profile.role="${profile.role ?? "null"}" '
@@ -379,7 +435,9 @@ class _AuthShellState extends State<AuthShell> {
   @override
   void dispose() {
     unawaited(_authSub?.cancel());
-    _aiseeAuth.close();
+    if (_ownsAuthService) {
+      _aiseeAuth.close();
+    }
     super.dispose();
   }
 
@@ -425,10 +483,14 @@ class _AuthShellState extends State<AuthShell> {
     }
 
     final Widget child = showLogin
-        ? LoginScreen(
-            onSignInWillStart: _onSignInWillStart,
-            onSignInWithGoogle: _signInWithGoogle,
-          )
+        ? (widget.buildLoginScreen?.call(
+                _onSignInWillStart,
+                _signInWithGoogle,
+              ) ??
+              LoginScreen(
+                onSignInWillStart: _onSignInWillStart,
+                onSignInWithGoogle: _signInWithGoogle,
+              ))
         : showBackendLoading
         ? const AuthBootstrapping(
             title: 'Đang đăng nhập AiSee…',

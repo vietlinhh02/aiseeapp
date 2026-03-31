@@ -26,10 +26,24 @@ android {
         applicationId = "com.aisee.aiseeapp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // DaVoice keyworddetection AAR yêu cầu minSdk 29.
+        minSdk = maxOf(flutter.minSdkVersion, 29)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // DaVoice: cần libc++_shared.so từ NDK trong jniLibs (README Flutter_WakeWordDetection).
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDir("src/main/jniLibs")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            pickFirsts.add("**/libc++_shared.so")
+        }
     }
 
     buildTypes {

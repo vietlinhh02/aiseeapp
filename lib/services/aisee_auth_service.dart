@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 
@@ -108,10 +109,15 @@ class AiseeAuthService {
       },
     );
     if (res.statusCode == 401) {
+      developer.log(
+        'resumeSession: access token expired, attempting refresh',
+        name: 'AiSeeAuth',
+      );
       try {
         final AiseeAuthTokens rotated = await refreshTokens(refresh);
         access = rotated.accessToken;
         refresh = rotated.refreshToken;
+        developer.log('resumeSession: refresh succeeded', name: 'AiSeeAuth');
         res = await _http.get(
           _uri('/api/v1/users/me'),
           headers: {
@@ -120,6 +126,7 @@ class AiseeAuthService {
           },
         );
       } catch (_) {
+        developer.log('resumeSession: refresh failed', name: 'AiSeeAuth');
         return null;
       }
     }
@@ -160,11 +167,8 @@ class AiseeAuthService {
         '$fallback (HTTP ${res.statusCode}, phản hồi không phải JSON object)',
       );
     } on FormatException {
-      final String preview =
-          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}): $preview',
-      );
+      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
     }
   }
 

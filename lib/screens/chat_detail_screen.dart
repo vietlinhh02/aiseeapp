@@ -16,6 +16,7 @@ import '../models/aisee_message.dart';
 import '../services/aisee_call_service.dart';
 import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/chat_recording_lifecycle_policy.dart';
 import '../services/aisee_session_store.dart';
 import '../services/aisee_upload_service.dart';
 import '../services/aisee_voice_recorder.dart';
@@ -46,7 +47,8 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen>
+    with WidgetsBindingObserver {
   final AiseeChatService _chatService = AiseeChatService();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -70,6 +72,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   StreamSubscription<RecordProgress>? _recorderSub;
   bool _hasText = false;
   Completer<void>? _recordStartCompleter;
+  final ChatRecordingLifecyclePolicy _recordingLifecyclePolicy =
+      const ChatRecordingLifecyclePolicy();
 
   // Only create own socket if parent didn't provide one.
   AiseeChatSocket? _ownSocket;
@@ -77,6 +81,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
     _textController.addListener(() {
       final bool nowHasText = _textController.text.trim().isNotEmpty;
@@ -93,6 +98,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _socketSub?.cancel();
     _ownSocket?.disconnect();
     _ownSocket?.dispose();
@@ -105,14 +111,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ChatRecordingLifecycleAction action = _recordingLifecyclePolicy
+        .actionFor(
+          state: state,
+          isRecording: _isRecording || _voiceRecorder.isRecording,
+        );
+    if (action == ChatRecordingLifecycleAction.cancelRecording) {
+      debugPrint(
+        '[AiSee:Recorder] Lifecycle interruption: $state -> cancel recording',
+      );
+      unawaited(_cancelRecordingForLifecycle());
+    }
+  }
+
   Future<void> _loadInitialMessages() async {
     setState(() {
       _loading = true;
       _error = null;
     });
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null || !mounted) return;
 
     try {
@@ -142,16 +162,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (_loadingMore || !_hasMore || _messages.isEmpty) return;
     setState(() => _loadingMore = true);
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null || !mounted) {
       if (mounted) setState(() => _loadingMore = false);
       return;
     }
 
     try {
-      final List<AiseeMessage> older =
-          await _chatService.fetchMessages(
+      final List<AiseeMessage> older = await _chatService.fetchMessages(
         tokens.accessToken,
         widget.contact.id,
         before: _messages.last.id,
@@ -219,13 +237,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   /// Tin từ người đối thoại gửi cho mình, chưa đọc — PUT /read (lịch sử không qua socket).
   Future<void> _markIncomingUnreadAsRead(List<AiseeMessage> batch) async {
-    final List<AiseeMessage> incomingUnread =
-        batch.where(_isIncomingUnread).toList();
+    final List<AiseeMessage> incomingUnread = batch
+        .where(_isIncomingUnread)
+        .toList();
     if (incomingUnread.isEmpty) {
       return;
     }
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null || !mounted) {
       return;
     }
@@ -256,16 +274,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     widget.onUnreadCleared?.call();
   }
 
-  Future<void> _startCall(
-    AiseeFamilyMember contact,
-    String callType,
-  ) async {
+  Future<void> _startCall(AiseeFamilyMember contact, String callType) async {
     if (_callingInProgress) return;
     _callingInProgress = true;
     HapticFeedback.lightImpact();
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       _callingInProgress = false;
       return;
@@ -283,23 +297,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
       await Navigator.of(context).push(
         PageRouteBuilder<void>(
-          pageBuilder: (BuildContext c, Animation<double> anim, Animation<double> s) => CallScreen(
-            callInfo: AiseeCallInfo(
-              roomName: result.roomName,
-              token: result.token,
-              callType: callType,
-              contact: contact,
-            ),
-          ),
-          transitionsBuilder: (BuildContext c, Animation<double> anim, Animation<double> s, Widget child) {
-            return FadeTransition(
-              opacity: CurvedAnimation(
-                parent: anim,
-                curve: Curves.easeOut,
-              ),
-              child: child,
-            );
-          },
+          pageBuilder:
+              (BuildContext c, Animation<double> anim, Animation<double> s) =>
+                  CallScreen(
+                    callInfo: AiseeCallInfo(
+                      roomName: result.roomName,
+                      token: result.token,
+                      callType: callType,
+                      contact: contact,
+                    ),
+                  ),
+          transitionsBuilder:
+              (
+                BuildContext c,
+                Animation<double> anim,
+                Animation<double> s,
+                Widget child,
+              ) {
+                return FadeTransition(
+                  opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+                  child: child,
+                );
+              },
           transitionDuration: const Duration(milliseconds: 300),
           reverseTransitionDuration: const Duration(milliseconds: 200),
         ),
@@ -321,8 +340,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _textController.clear();
     _sending = true;
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       _sending = false;
       return;
@@ -416,10 +434,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: <Widget>[
                 SvgPicture.asset(
@@ -453,10 +468,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final PermissionStatus status = await Permission.camera.request();
       if (!status.isGranted) {
         if (mounted) {
-          AppToast.show(
-            'Cần quyền camera để chụp ảnh.',
-            isError: true,
-          );
+          AppToast.show('Cần quyền camera để chụp ảnh.', isError: true);
         }
         return;
       }
@@ -472,23 +484,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     await _uploadAndSend(File(picked.path), isImage: true);
   }
 
-  Future<void> _uploadAndSend(
-    File file, {
-    required bool isImage,
-  }) async {
+  Future<void> _uploadAndSend(File file, {required bool isImage}) async {
     if (_uploadingMedia) return;
     setState(() => _uploadingMedia = true);
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       if (mounted) setState(() => _uploadingMedia = false);
       return;
     }
     try {
+      debugPrint(
+        '[AiSee:Upload] Begin upload path=${file.path} isImage=$isImage',
+      );
       final String url = await _uploadService.uploadFile(
         tokens.accessToken,
         file,
       );
+      debugPrint('[AiSee:Upload] Begin sendMessage after upload');
       final AiseeMessage msg = await _chatService.sendMessage(
         tokens.accessToken,
         widget.contact.id,
@@ -505,9 +517,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (!mounted) return;
       setState(() => _uploadingMedia = false);
       AppToast.show(
-        e is AiseeApiException
-            ? e.message
-            : 'Gửi không thành công.',
+        e is AiseeApiException ? e.message : 'Gửi không thành công.',
         isError: true,
       );
     }
@@ -515,20 +525,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<void> _startRecording() async {
     _recordStartCompleter = Completer<void>();
-    final PermissionStatus micStatus =
-        await Permission.microphone.request();
+    final PermissionStatus micStatus = await Permission.microphone.request();
     if (!micStatus.isGranted) {
       _recordStartCompleter?.complete();
       if (mounted) {
-        AppToast.show(
-          'Cần quyền microphone để ghi âm.',
-          isError: true,
-        );
+        AppToast.show('Cần quyền microphone để ghi âm.', isError: true);
       }
       return;
     }
     HapticFeedback.mediumImpact();
     try {
+      debugPrint('[AiSee:Recorder] UI start recording request');
       _voiceRecorder.onAutoStop = (File file) {
         if (mounted) {
           setState(() => _isRecording = false);
@@ -536,8 +543,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       };
       _recorderSub?.cancel();
-      _recorderSub =
-          _voiceRecorder.onProgress.listen((RecordProgress p) {
+      _recorderSub = _voiceRecorder.onProgress.listen((RecordProgress p) {
         if (!mounted) return;
         setState(() {
           _recordDuration = p.duration;
@@ -558,6 +564,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Future<void> _stopRecording() async {
     // Wait for start to finish to avoid race condition.
     await _recordStartCompleter?.future;
+    debugPrint('[AiSee:Recorder] UI stop recording request');
     _recorderSub?.cancel();
     final File? file = await _voiceRecorder.stop();
     if (!mounted) return;
@@ -567,6 +574,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<void> _cancelRecording() async {
     await _recordStartCompleter?.future;
+    debugPrint('[AiSee:Recorder] UI cancel recording request');
     _recorderSub?.cancel();
     await _voiceRecorder.cancel();
     if (mounted) {
@@ -576,6 +584,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _recordDecibels = 0.0;
       });
     }
+  }
+
+  Future<void> _cancelRecordingForLifecycle() async {
+    if (!_isRecording && !_voiceRecorder.isRecording) {
+      return;
+    }
+    await _recordStartCompleter?.future;
+    _recorderSub?.cancel();
+    await _voiceRecorder.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isRecording = false;
+      _recordDuration = Duration.zero;
+      _recordDecibels = 0.0;
+    });
   }
 
   String _formatTime(DateTime dt) {
@@ -656,9 +681,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget _buildMessageList() {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(
-          color: StyleTokens.buttonPrimary,
-        ),
+        child: CircularProgressIndicator(color: StyleTokens.buttonPrimary),
       );
     }
 
@@ -689,10 +712,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return Center(
         child: Text(
           'Chưa có tin nhắn.\nHãy gửi lời chào!',
-          style: StyleTokens.bodySmall().copyWith(
-            fontSize: 13,
-            height: 1.5,
-          ),
+          style: StyleTokens.bodySmall().copyWith(fontSize: 13, height: 1.5),
           textAlign: TextAlign.center,
         ),
       );
@@ -729,33 +749,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildBubble(AiseeMessage msg) {
     final bool isSent = msg.senderId == widget.currentUserId;
-    final double maxBubbleWidth =
-        MediaQuery.sizeOf(context).width * 0.75;
+    final double maxBubbleWidth = MediaQuery.sizeOf(context).width * 0.75;
 
     Widget content;
     if (msg.imageUrl != null && msg.imageUrl!.isNotEmpty) {
       content = _buildImageContent(msg.imageUrl!, maxBubbleWidth);
     } else if (msg.voiceUrl != null && msg.voiceUrl!.isNotEmpty) {
-      content = _VoiceBubbleContent(
-        voiceUrl: msg.voiceUrl!,
-        isSent: isSent,
-      );
+      content = _VoiceBubbleContent(voiceUrl: msg.voiceUrl!, isSent: isSent);
     } else {
       content = Text(
         msg.contentText,
         style: GoogleFonts.plusJakartaSans(
           fontSize: 14,
           fontWeight: FontWeight.w400,
-          color: isSent
-              ? StyleTokens.buttonOnPrimary
-              : StyleTokens.textPrimary,
+          color: isSent ? StyleTokens.buttonOnPrimary : StyleTokens.textPrimary,
         ),
       );
     }
 
     return Column(
-      crossAxisAlignment:
-          isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: isSent
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: <Widget>[
         Container(
           constraints: BoxConstraints(maxWidth: maxBubbleWidth),
@@ -764,9 +779,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             vertical: msg.imageUrl != null ? 4 : 10,
           ),
           decoration: BoxDecoration(
-            color: isSent
-                ? StyleTokens.buttonPrimary
-                : StyleTokens.surfaceCard,
+            color: isSent ? StyleTokens.buttonPrimary : StyleTokens.surfaceCard,
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(16),
               topRight: const Radius.circular(16),
@@ -798,25 +811,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           imageUrl,
           width: maxWidth - 8,
           fit: BoxFit.cover,
-          loadingBuilder: (
-            BuildContext context,
-            Widget child,
-            ImageChunkEvent? loadingProgress,
-          ) {
-            if (loadingProgress == null) return child;
-            return SizedBox(
-              width: maxWidth - 8,
-              height: 150,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: StyleTokens.buttonPrimary,
-                ),
-              ),
-            );
-          },
-          errorBuilder:
-              (BuildContext context, Object e, StackTrace? st) {
+          loadingBuilder:
+              (
+                BuildContext context,
+                Widget child,
+                ImageChunkEvent? loadingProgress,
+              ) {
+                if (loadingProgress == null) return child;
+                return SizedBox(
+                  width: maxWidth - 8,
+                  height: 150,
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: StyleTokens.buttonPrimary,
+                    ),
+                  ),
+                );
+              },
+          errorBuilder: (BuildContext context, Object e, StackTrace? st) {
             return SizedBox(
               width: maxWidth - 8,
               height: 100,
@@ -845,9 +858,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           child: Scaffold(
             backgroundColor: Colors.black87,
             body: Center(
-              child: InteractiveViewer(
-                child: Image.network(imageUrl),
-              ),
+              child: InteractiveViewer(child: Image.network(imageUrl)),
             ),
           ),
         );
@@ -861,10 +872,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 8,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: StyleTokens.navBarBackground,
             borderRadius: BorderRadius.circular(999),
@@ -1028,9 +1036,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildRecordingInfo() {
     final String mins = _recordDuration.inMinutes.toString();
-    final String secs = (_recordDuration.inSeconds.remainder(60))
-        .toString()
-        .padLeft(2, '0');
+    final String secs = (_recordDuration.inSeconds.remainder(
+      60,
+    )).toString().padLeft(2, '0');
     return Row(
       children: <Widget>[
         const SizedBox(width: 4),
@@ -1081,15 +1089,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Widget _buildWaveform() {
-    final double normalizedDb =
-        ((_recordDecibels + 40) / 60).clamp(0.0, 1.0);
+    final double normalizedDb = ((_recordDecibels + 40) / 60).clamp(0.0, 1.0);
     return SizedBox(
       height: 24,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: List<Widget>.generate(20, (int i) {
-          final double height =
-              4 + (normalizedDb * 20 * ((i % 3 + 1) / 3));
+          final double height = 4 + (normalizedDb * 20 * ((i % 3 + 1) / 3));
           return AnimatedContainer(
             duration: const Duration(milliseconds: 80),
             width: 3,
@@ -1173,10 +1179,7 @@ class _RecordingDotState extends State<_RecordingDot>
 }
 
 class _VoiceBubbleContent extends StatefulWidget {
-  const _VoiceBubbleContent({
-    required this.voiceUrl,
-    required this.isSent,
-  });
+  const _VoiceBubbleContent({required this.voiceUrl, required this.isSent});
 
   final String voiceUrl;
   final bool isSent;
@@ -1190,6 +1193,7 @@ class _VoiceBubbleContentState extends State<_VoiceBubbleContent> {
   bool _isPlaying = false;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
+  StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<PlayerState>? _stateSub;
 
@@ -1200,9 +1204,17 @@ class _VoiceBubbleContentState extends State<_VoiceBubbleContent> {
   }
 
   Future<void> _initPlayer() async {
+    _durationSub = _player.durationStream.listen((Duration? d) {
+      if (!mounted || d == null) return;
+      setState(() => _duration = d);
+    });
+
     try {
       final Duration? d = await _player.setUrl(widget.voiceUrl);
       if (d != null && mounted) {
+        debugPrint(
+          '[AiSee:VoiceBubble] Initial duration=$d url=${widget.voiceUrl}',
+        );
         setState(() => _duration = d);
       }
     } catch (e) {
@@ -1226,6 +1238,7 @@ class _VoiceBubbleContentState extends State<_VoiceBubbleContent> {
 
   @override
   void dispose() {
+    _durationSub?.cancel();
     _posSub?.cancel();
     _stateSub?.cancel();
     _player.dispose();
@@ -1264,8 +1277,7 @@ class _VoiceBubbleContentState extends State<_VoiceBubbleContent> {
                 : 'assets/icons/nav/ic_play.svg',
             width: 24,
             height: 24,
-            colorFilter:
-                ColorFilter.mode(iconColor, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
           ),
         ),
         const SizedBox(width: 8),
@@ -1274,19 +1286,18 @@ class _VoiceBubbleContentState extends State<_VoiceBubbleContent> {
           height: 4,
           child: LinearProgressIndicator(
             value: _duration.inMilliseconds > 0
-                ? _position.inMilliseconds /
-                    _duration.inMilliseconds
+                ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(
+                    0.0,
+                    1.0,
+                  )
                 : 0,
             backgroundColor: mutedColor.withValues(alpha: 0.3),
-            valueColor:
-                AlwaysStoppedAnimation<Color>(iconColor),
+            valueColor: AlwaysStoppedAnimation<Color>(iconColor),
           ),
         ),
         const SizedBox(width: 8),
         Text(
-          _formatDuration(
-            _isPlaying ? _position : _duration,
-          ),
+          _formatDuration(_isPlaying ? _position : _duration),
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12,
             fontWeight: FontWeight.w500,

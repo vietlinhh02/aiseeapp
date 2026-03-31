@@ -2,6 +2,18 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // DaVoice: AAR com.davoice:keyworddetection trong pub-cache (Gradle resolve từ :app cần repo này).
+        val pubDev = file("${System.getProperty("user.home")}/.pub-cache/hosted/pub.dev")
+        val wakeLibDirs = pubDev.listFiles { f: java.io.File ->
+            f.isDirectory &&
+                f.name.startsWith("flutter_wake_word-") &&
+                f.resolve("android/libs/com/davoice").isDirectory
+        }
+        wakeLibDirs?.maxByOrNull { it.name }?.resolve("android/libs")?.let { libs ->
+            maven {
+                url = libs.toURI()
+            }
+        }
     }
 }
 

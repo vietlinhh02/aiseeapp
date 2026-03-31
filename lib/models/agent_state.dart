@@ -22,6 +22,11 @@ enum AgentState {
   bool get canListen =>
       this == listening || this == thinking || this == speaking;
 
+  bool get keepsConversationOpen =>
+      this == listening || this == thinking || this == speaking;
+
+  bool get startsGracePeriod => this == idle;
+
   bool get isConnected =>
       this == listening || this == thinking || this == speaking;
 
