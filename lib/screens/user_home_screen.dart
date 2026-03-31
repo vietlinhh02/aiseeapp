@@ -8,10 +8,13 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
+import '../models/agent_state.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/assistant_audio_coordinator.dart';
 import '../services/aisee_family_service.dart';
 import '../services/aisee_livekit_voice_session.dart';
 import '../services/aisee_push_service.dart';
+import '../services/aisee_wake_word_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
@@ -50,6 +53,8 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   final AiseeChatSocket _chatSocket = AiseeChatSocket();
 
   final AiseeLiveKitVoiceSession _liveKitVoice = AiseeLiveKitVoiceSession();
+  late final AssistantAudioCoordinator _assistantAudioCoordinator;
+  late final bool _wakeWordEnabled;
   bool _liveKitConnecting = true;
   String? _liveKitError;
   bool _liveKitConnected = false;
@@ -66,7 +71,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
 
   void _onTabChanged(int index) {
     if (index == _tabIndex) return;
-    debugPrint('[AiSee:UI] Tab: ${_tabNames[_tabIndex]} -> ${_tabNames[index]}');
+    debugPrint(
+      '[AiSee:UI] Tab: ${_tabNames[_tabIndex]} -> ${_tabNames[index]}',
+    );
     HapticFeedback.mediumImpact();
     SystemSound.play(SystemSoundType.click);
     _tabFade.reverse().then((_) {
@@ -90,16 +97,39 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     debugPrint('');
     debugPrint('[AiSee:UI] UserHomeScreen initState');
     debugPrint('[AiSee:UI] User: $_displayName');
-    debugPrint('[AiSee:UI] aiseeLoading=${widget.aiseeLoading} aiseeError=${widget.aiseeError}');
+    debugPrint(
+      '[AiSee:UI] aiseeLoading=${widget.aiseeLoading} aiseeError=${widget.aiseeError}',
+    );
     WidgetsBinding.instance.addObserver(this);
+    _wakeWordEnabled = AiseeWakeWordService.instance.isFeatureEnabledByConfig;
+    debugPrint('[AiSee:UI] Wake word enabled=$_wakeWordEnabled');
+    _assistantAudioCoordinator = AssistantAudioCoordinator(
+      startWakeListening: AiseeWakeWordService.instance.startIdleListening,
+      stopWakeListening: AiseeWakeWordService.instance.stopForLiveSession,
+      enableAssistantMic: _liveKitVoice.enableAssistantMic,
+      disableAssistantMic: _liveKitVoice.disableAssistantMic,
+      switchToAssistantTab: () => _onTabChanged(0),
+      log: (String message) => debugPrint('[AiSee:WakeFlow] $message'),
+    );
     _liveKitVoice.onMusicUiChanged = _onMusicUiChanged;
     _liveKitVoice.onAgentStartCall = _onAgentStartCall;
+    if (_wakeWordEnabled) {
+      _liveKitVoice.agentState.addListener(_onAgentStateChanged);
+      AiseeWakeWordService.instance.onWakePhrase = (String phrase) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(_assistantAudioCoordinator.onWakeDetected(phrase: phrase));
+      };
+    } else {
+      AiseeWakeWordService.instance.onWakePhrase = null;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_startLiveKitVoice());
     });
     _connectChatSocket();
-    final AiseeCallInfo? pending =
-        AiseePushService.instance.consumePendingCall();
+    final AiseeCallInfo? pending = AiseePushService.instance
+        .consumePendingCall();
     if (pending != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || CallScreen.openRouteCount > 0) return;
@@ -115,33 +145,38 @@ class _UserHomeScreenState extends State<UserHomeScreen>
 
   void _onMusicUiChanged() {
     if (!mounted) return;
-    debugPrint('[AiSee:UI] Music UI changed: title=${_liveKitVoice.nowPlayingTitle ?? "(none)"}');
+    debugPrint(
+      '[AiSee:UI] Music UI changed: title=${_liveKitVoice.nowPlayingTitle ?? "(none)"}',
+    );
     setState(() {});
   }
 
   Future<void> _onAgentStartCall(AiseeCallInfo callInfo) async {
     if (!mounted) return;
-    debugPrint('[AiSee:UI] Agent initiated call: ${callInfo.callType} → ${callInfo.contact.label}');
+    debugPrint(
+      '[AiSee:UI] Agent initiated call: ${callInfo.callType} → ${callInfo.contact.label}',
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.of(context).push(
         PageRouteBuilder<void>(
-          pageBuilder: (BuildContext c, Animation<double> a,
-                  Animation<double> s) =>
-              CallScreen(callInfo: callInfo),
-          transitionsBuilder: (BuildContext c, Animation<double> a,
-              Animation<double> s, Widget child) {
-            return FadeTransition(
-              opacity: CurvedAnimation(
-                parent: a,
-                curve: Curves.easeOut,
-              ),
-              child: child,
-            );
-          },
+          pageBuilder:
+              (BuildContext c, Animation<double> a, Animation<double> s) =>
+                  CallScreen(callInfo: callInfo),
+          transitionsBuilder:
+              (
+                BuildContext c,
+                Animation<double> a,
+                Animation<double> s,
+                Widget child,
+              ) {
+                return FadeTransition(
+                  opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
+                  child: child,
+                );
+              },
           transitionDuration: const Duration(milliseconds: 300),
-          reverseTransitionDuration:
-              const Duration(milliseconds: 200),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
         ),
       );
     });
@@ -159,20 +194,35 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _connectChatSocket();
+      if (_wakeWordEnabled) {
+        unawaited(
+          _assistantAudioCoordinator.onAppResumed(
+            liveKitConnected: _liveKitConnected,
+          ),
+        );
+      }
     } else if (state == AppLifecycleState.paused) {
       _chatSocket.disconnect();
-      debugPrint(
-        '[AiSee:UI] Chat WebSocket disconnected (app paused)',
-      );
+      debugPrint('[AiSee:UI] Chat WebSocket disconnected (app paused)');
+      if (_wakeWordEnabled) {
+        unawaited(_assistantAudioCoordinator.onAppPaused());
+      }
     }
   }
 
   @override
   void dispose() {
+    if (_wakeWordEnabled) {
+      _assistantAudioCoordinator.dispose();
+      unawaited(AiseeWakeWordService.instance.stop());
+    }
     WidgetsBinding.instance.removeObserver(this);
     _chatSocket.dispose();
     _tabFade.dispose();
     debugPrint('[AiSee:UI] UserHomeScreen dispose — ngat LiveKit');
+    if (_wakeWordEnabled) {
+      _liveKitVoice.agentState.removeListener(_onAgentStateChanged);
+    }
     _liveKitVoice.onMusicUiChanged = null;
     _liveKitVoice.onAgentStartCall = null;
     unawaited(_liveKitVoice.disconnect());
@@ -180,16 +230,24 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     super.dispose();
   }
 
+  void _onAgentStateChanged() {
+    if (!_wakeWordEnabled) {
+      return;
+    }
+    final AgentState next = _liveKitVoice.agentState.value;
+    _assistantAudioCoordinator.onAgentStateChanged(next);
+  }
+
   Future<bool> _computeHasFamilyLink() async {
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       return false;
     }
     final AiseeFamilyService svc = AiseeFamilyService();
     try {
-      final List<AiseeFamilyMember> family =
-          await svc.fetchFamily(tokens.accessToken);
+      final List<AiseeFamilyMember> family = await svc.fetchFamily(
+        tokens.accessToken,
+      );
       return family.isNotEmpty;
     } catch (_) {
       return false;
@@ -212,9 +270,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     debugPrint('[AiSee:UI] State: connecting=true connected=false error=null');
     try {
       final Future<bool> familyLinkFuture = _computeHasFamilyLink();
-      debugPrint(
-        '[AiSee:UI] fetchFamily chay song song voi ket noi LiveKit',
-      );
+      debugPrint('[AiSee:UI] fetchFamily chay song song voi ket noi LiveKit');
       await _liveKitVoice.connect(
         userName: _displayName,
         userId: widget.aiseeProfile?.id ?? '',
@@ -232,9 +288,21 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       debugPrint('');
       debugPrint('====================================');
       debugPrint('[AiSee:UI] KET NOI THANH CONG!');
-      debugPrint('[AiSee:UI] State: connecting=false connected=true error=null');
+      debugPrint(
+        '[AiSee:UI] State: connecting=false connected=true error=null',
+      );
       debugPrint('====================================');
       debugPrint('');
+      if (_wakeWordEnabled) {
+        await _assistantAudioCoordinator.enterIdleWakeMode(
+          reason: 'livekit-connected',
+        );
+      } else {
+        await _liveKitVoice.enableAssistantMic();
+        debugPrint(
+          '[AiSee:UI] Wake word disabled by env -> mic ON immediately',
+        );
+      }
     } catch (e, st) {
       debugPrint('LiveKit voice: $e\n$st');
       if (!mounted) return;
@@ -315,28 +383,28 @@ class _UserHomeScreenState extends State<UserHomeScreen>
               child: IndexedStack(
                 index: _tabIndex,
                 children: [
-                UserAssistantTab(
-                  aiseeLoading: widget.aiseeLoading,
-                  aiseeError: widget.aiseeError,
-                  liveKitConnecting: _liveKitConnecting,
-                  liveKitError: _liveKitError,
-                  liveKitConnected: _liveKitConnected,
-                  nowPlayingTitle: _liveKitVoice.nowPlayingTitle,
-                  assistantWaveEnergy: _liveKitVoice.assistantWaveEnergy,
-                  agentState: _liveKitVoice.agentState,
-                  localCameraPreviewTrack:
-                      _liveKitVoice.localCameraPreviewTrack,
-                  onRetryLiveKit: _startLiveKitVoice,
-                ),
-                ContactsTab(
-                  aiseeProfile: widget.aiseeProfile,
-                  chatSocket: _chatSocket,
-                ),
-                UserPersonalTab(
-                  key: UserPersonalTab.tabKey,
-                  onSignOut: widget.onSignOut,
-                ),
-              ],
+                  UserAssistantTab(
+                    aiseeLoading: widget.aiseeLoading,
+                    aiseeError: widget.aiseeError,
+                    liveKitConnecting: _liveKitConnecting,
+                    liveKitError: _liveKitError,
+                    liveKitConnected: _liveKitConnected,
+                    nowPlayingTitle: _liveKitVoice.nowPlayingTitle,
+                    assistantWaveEnergy: _liveKitVoice.assistantWaveEnergy,
+                    agentState: _liveKitVoice.agentState,
+                    localCameraPreviewTrack:
+                        _liveKitVoice.localCameraPreviewTrack,
+                    onRetryLiveKit: _startLiveKitVoice,
+                  ),
+                  ContactsTab(
+                    aiseeProfile: widget.aiseeProfile,
+                    chatSocket: _chatSocket,
+                  ),
+                  UserPersonalTab(
+                    key: UserPersonalTab.tabKey,
+                    onSignOut: widget.onSignOut,
+                  ),
+                ],
               ),
             ),
           ),

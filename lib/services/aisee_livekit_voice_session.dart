@@ -40,20 +40,19 @@ void _log(String tag, String message) {
 
 /// Log nhiều dòng (payload dài, trạng thái nhiều field).
 void _logBlock(String tag, String title, Map<String, Object?> fields) {
-  final StringBuffer buf = StringBuffer()
-    ..writeln('[AiSee:$tag] $title');
+  final StringBuffer buf = StringBuffer()..writeln('[AiSee:$tag] $title');
   for (final MapEntry<String, Object?> e in fields.entries) {
     buf.writeln('  ${e.key}: ${e.value}');
   }
   debugPrint(buf.toString().trimRight());
 }
 
-/// Gọi backend lấy token phòng + kết nối LiveKit, bật mic (trợ lý giọng nói).
+/// Gọi backend lấy token phòng + kết nối LiveKit.
 /// Xin quyền micro + camera trước khi kết nối (sẵn sàng cho video / lệnh từ agent).
 class AiseeLiveKitVoiceSession {
   AiseeLiveKitVoiceSession({http.Client? httpClient})
     : _http = httpClient ?? http.Client(),
-        _ownsClient = httpClient == null;
+      _ownsClient = httpClient == null;
 
   final http.Client _http;
   final bool _ownsClient;
@@ -65,6 +64,7 @@ class AiseeLiveKitVoiceSession {
   StreamSubscription<PlayerState>? _musicPlayingSub;
   String? _nowPlayingTitle;
   Timer? _waveDecayTimer;
+  bool _assistantMicEnabled = false;
 
   /// 0–1 từ LiveKit active speakers (bạn + agent trong phòng).
   final ValueNotifier<double> assistantWaveEnergy = ValueNotifier<double>(0);
@@ -72,8 +72,9 @@ class AiseeLiveKitVoiceSession {
   /// true khi [just_audio] đang phát (sóng nhạc trên UI).
   final ValueNotifier<bool> assistantMusicActive = ValueNotifier<bool>(false);
 
-  final ValueNotifier<AgentState> agentState =
-      ValueNotifier<AgentState>(AgentState.connecting);
+  final ValueNotifier<AgentState> agentState = ValueNotifier<AgentState>(
+    AgentState.connecting,
+  );
 
   /// Track video camera local khi agent bật camera — dùng cho preview tab Trợ lý.
   final ValueNotifier<LocalVideoTrack?> localCameraPreviewTrack =
@@ -85,7 +86,73 @@ class AiseeLiveKitVoiceSession {
   /// Called when agent initiates a voice/video call via RPC.
   Future<void> Function(AiseeCallInfo callInfo)? onAgentStartCall;
 
+  /// Gọi sau khi mic local được bật rõ ràng — dùng để tắt wake word / engine khác tranh mic.
+  Future<void> Function()? onAfterMicEnabledForRoom;
+
+  /// Gọi khi đã ngắt phòng và nhả mic (cuối [disconnect]).
+  Future<void> Function()? onAfterRoomDisconnected;
+
   String? get nowPlayingTitle => _nowPlayingTitle;
+
+  bool get isAssistantMicEnabled => _assistantMicEnabled;
+
+  @visibleForTesting
+  bool get hasConnectedLocalParticipant => _room?.localParticipant != null;
+
+  @visibleForTesting
+  Future<void> setRoomMicrophoneEnabled(bool enabled) async {
+    final LocalParticipant? participant = _room?.localParticipant;
+    if (participant == null) {
+      throw AiseeApiException('LiveKit chưa sẵn sàng để bật micro.');
+    }
+
+    await participant.setMicrophoneEnabled(enabled);
+  }
+
+  @visibleForTesting
+  Future<void> configureAudioSession() async {
+    await _configureAudioSession();
+  }
+
+  @visibleForTesting
+  void startWaveDecayTimer() {
+    _startWaveDecayTimer();
+  }
+
+  @visibleForTesting
+  Future<void> completeConnectedSetup() async {
+    _assistantMicEnabled = false;
+    _log(
+      'Connect',
+      'Room connected. Mic remains OFF until explicitly enabled.',
+    );
+    await configureAudioSession();
+    _log('Connect', 'Sync camera preview...');
+    syncLocalCameraPreviewTrack();
+    startWaveDecayTimer();
+    _log('Connect', 'Ket noi hoan tat. San sang nhan lenh tu agent.');
+  }
+
+  @visibleForTesting
+  Future<void> ensureForegroundStartedAfterConnected() async {
+    await AiseeVoiceAssistantForeground.ensureStartedAfterConnected();
+  }
+
+  @visibleForTesting
+  Future<void> ensureForegroundStopped() async {
+    await AiseeVoiceAssistantForeground.ensureStopped();
+  }
+
+  Future<void> _notifyWakeWordCanResume() async {
+    final Future<void> Function()? wakeResume = onAfterRoomDisconnected;
+    if (wakeResume != null) {
+      try {
+        await wakeResume();
+      } catch (e, st) {
+        debugPrint('[AiSee:LiveKit] onAfterRoomDisconnected: $e\n$st');
+      }
+    }
+  }
 
   void _setLocalCameraPreviewTrack(LocalVideoTrack? track) {
     if (localCameraPreviewTrack.value == track) return;
@@ -98,12 +165,16 @@ class AiseeLiveKitVoiceSession {
   void syncLocalCameraPreviewTrack() {
     final LocalParticipant? lp = _room?.localParticipant;
     if (lp == null || !lp.isCameraEnabled()) {
-      _log('Camera', 'syncPreview: camera OFF hoac chua co participant -> null');
+      _log(
+        'Camera',
+        'syncPreview: camera OFF hoac chua co participant -> null',
+      );
       _setLocalCameraPreviewTrack(null);
       return;
     }
-    final LocalTrackPublication? pub =
-        lp.getTrackPublicationBySource(TrackSource.camera);
+    final LocalTrackPublication? pub = lp.getTrackPublicationBySource(
+      TrackSource.camera,
+    );
     final LocalTrack? t = pub?.track;
     if (t is LocalVideoTrack) {
       _log('Camera', 'syncPreview: co LocalVideoTrack -> hien preview');
@@ -133,7 +204,9 @@ class AiseeLiveKitVoiceSession {
     }
   }
 
-  Future<LiveKitJoinCredentials> _fetchJoinCredentials(String accessToken) async {
+  Future<LiveKitJoinCredentials> _fetchJoinCredentials(
+    String accessToken,
+  ) async {
     final Uri uri = Uri.parse('${AppEnv.apiBaseUrl}/api/v1/calls/token');
     _log('API', 'POST $uri');
     // Backend (chi) đăng ký POST — GET sẽ 404 body rỗng.
@@ -173,7 +246,9 @@ class AiseeLiveKitVoiceSession {
         throw AiseeApiException(_messageFromErrorBody(map, fallback: fb));
       }
       throw AiseeApiException(
-        raw.isEmpty ? '$fb — phản hồi trống.' : '$fb — ${raw.length > 120 ? '${raw.substring(0, 120)}…' : raw}',
+        raw.isEmpty
+            ? '$fb — phản hồi trống.'
+            : '$fb — ${raw.length > 120 ? '${raw.substring(0, 120)}…' : raw}',
       );
     }
 
@@ -185,8 +260,9 @@ class AiseeLiveKitVoiceSession {
     }
 
     final Object? dataField = map['data'];
-    final Map<String, dynamic> p =
-        dataField is Map<String, dynamic> ? dataField : map;
+    final Map<String, dynamic> p = dataField is Map<String, dynamic>
+        ? dataField
+        : map;
     final String token = _pickString(p, const ['token', 'access_token']);
     String url = _pickString(p, const [
       'url',
@@ -198,7 +274,9 @@ class AiseeLiveKitVoiceSession {
       url = AppEnv.liveKitWsUrl;
     }
     final String? room =
-        p['room_name'] as String? ?? p['room'] as String? ?? p['roomName'] as String?;
+        p['room_name'] as String? ??
+        p['room'] as String? ??
+        p['roomName'] as String?;
     if (token.isEmpty) {
       throw AiseeApiException('Phản hồi token LiveKit thiếu token');
     }
@@ -287,7 +365,10 @@ class AiseeLiveKitVoiceSession {
     }
   }
 
-  String _messageFromErrorBody(Map<String, dynamic> map, {required String fallback}) {
+  String _messageFromErrorBody(
+    Map<String, dynamic> map, {
+    required String fallback,
+  }) {
     final Object? errObj = map['error'];
     if (errObj is Map<String, dynamic>) {
       final String? msg = errObj['message'] as String?;
@@ -331,19 +412,21 @@ class AiseeLiveKitVoiceSession {
     if (kIsWeb) return;
     try {
       final AudioSession session = await AudioSession.instance;
-      await session.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-        avAudioSessionCategoryOptions:
-            AVAudioSessionCategoryOptions.defaultToSpeaker |
-            AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowBluetoothA2dp,
-        avAudioSessionMode: AVAudioSessionMode.voiceChat,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.speech,
-          usage: AndroidAudioUsage.voiceCommunication,
+      await session.configure(
+        AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.defaultToSpeaker |
+              AVAudioSessionCategoryOptions.allowBluetooth |
+              AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+          avAudioSessionMode: AVAudioSessionMode.voiceChat,
+          androidAudioAttributes: const AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            usage: AndroidAudioUsage.voiceCommunication,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
         ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-      ));
+      );
       _log('Audio', 'Audio session configured (headphone + BT)');
     } catch (e) {
       _log('Audio', 'Audio session config failed: $e');
@@ -386,25 +469,22 @@ class AiseeLiveKitVoiceSession {
   ) async {
     final Map<String, dynamic> params =
         jsonDecode(data.payload) as Map<String, dynamic>;
-    final String roomName =
-        _paramString(params, const ['room_name']);
-    final String token =
-        _paramString(params, const ['token']);
-    final String calleeId =
-        _paramString(params, const ['callee_id', 'contact_id']);
-    final String calleeName = _paramString(
-      params,
-      const ['callee_name', 'contact_name', 'name'],
-    );
-    _log(
-      'RPC',
-      'make_${callType}_call room=$roomName callee=$calleeName',
-    );
+    final String roomName = _paramString(params, const ['room_name']);
+    final String token = _paramString(params, const ['token']);
+    final String calleeId = _paramString(params, const [
+      'callee_id',
+      'contact_id',
+    ]);
+    final String calleeName = _paramString(params, const [
+      'callee_name',
+      'contact_name',
+      'name',
+    ]);
+    _log('RPC', 'make_${callType}_call room=$roomName callee=$calleeName');
     if (roomName.isEmpty || token.isEmpty) {
       throw RpcError(code: 2010, message: 'Missing room_name or token');
     }
-    final Future<void> Function(AiseeCallInfo)? callback =
-        onAgentStartCall;
+    final Future<void> Function(AiseeCallInfo)? callback = onAgentStartCall;
     if (callback == null) {
       throw RpcError(code: 2011, message: 'App not ready for calls');
     }
@@ -427,236 +507,195 @@ class AiseeLiveKitVoiceSession {
     final Room? room = _room;
     if (room == null) return;
 
-    room.registerRpcMethod(
-      'enable_camera',
-      (RpcInvocationData data) async {
-        _log('RPC', 'enable_camera called');
-        final LocalParticipant? lp = _room?.localParticipant;
-        if (lp == null) {
-          throw RpcError(code: 2000, message: 'Not connected');
-        }
-        if (!kIsWeb) {
-          await _ensurePermission(
-            Permission.camera,
-            nameVi: 'camera',
+    room.registerRpcMethod('enable_camera', (RpcInvocationData data) async {
+      _log('RPC', 'enable_camera called');
+      final LocalParticipant? lp = _room?.localParticipant;
+      if (lp == null) {
+        throw RpcError(code: 2000, message: 'Not connected');
+      }
+      if (!kIsWeb) {
+        await _ensurePermission(Permission.camera, nameVi: 'camera');
+      }
+      final CameraCaptureOptions camOpts = await _agentCameraCaptureOptions();
+      await lp.setCameraEnabled(true, cameraCaptureOptions: camOpts);
+      syncLocalCameraPreviewTrack();
+      return jsonEncode({'status': 'ok'});
+    });
+
+    room.registerRpcMethod('disable_camera', (RpcInvocationData data) async {
+      _log('RPC', 'disable_camera called');
+      await _room?.localParticipant?.setCameraEnabled(false);
+      syncLocalCameraPreviewTrack();
+      return jsonEncode({'status': 'ok'});
+    });
+
+    room.registerRpcMethod('play_audio', (RpcInvocationData data) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      final String url = _paramString(params, const [
+        'url',
+        'audio_url',
+        'src',
+      ]);
+      final String titleRaw = _paramString(params, const ['title', 'name']);
+      _log(
+        'RPC',
+        'play_audio url='
+            '${url.length > 60 ? '${url.substring(0, 60)}...' : url}',
+      );
+      if (url.isEmpty) {
+        throw RpcError(code: 2001, message: 'Missing url parameter');
+      }
+      final AudioPlayer player = await _musicPlayerOrCreate();
+      await player.setUrl(url);
+      _setNowPlayingTitle(titleRaw.isEmpty ? null : titleRaw);
+      await player.play();
+      return jsonEncode({'status': 'ok'});
+    });
+
+    room.registerRpcMethod('control_audio', (RpcInvocationData data) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      final String cmd = _paramString(params, const [
+        'command',
+        'action',
+        'op',
+      ]).toLowerCase();
+      _log('RPC', 'control_audio cmd=$cmd');
+
+      // Volume commands: system media volume, works without music.
+      if (cmd == 'volume_up' || cmd == 'volume_down') {
+        final VolumeController vc = VolumeController.instance;
+        vc.showSystemUI = true;
+        final double cur = await vc.getVolume();
+        const double step = 0.1;
+        final double next = cmd == 'volume_up'
+            ? (cur + step).clamp(0.0, 1.0)
+            : (cur - step).clamp(0.0, 1.0);
+        await vc.setVolume(next);
+        _log('RPC', 'system volume $cur → $next');
+        return jsonEncode({'status': 'ok', 'volume': next});
+      }
+
+      // Music player commands: require active player.
+      final AudioPlayer? p = _musicPlayer;
+      if (p == null) return jsonEncode({'status': 'ok'});
+      switch (cmd) {
+        case 'pause':
+          await p.pause();
+        case 'resume' || 'play':
+          await p.play();
+        case 'stop':
+          await p.stop();
+          _setNowPlayingTitle(null);
+        case 'next' || 'previous':
+          await p.stop();
+          _setNowPlayingTitle(null);
+        default:
+          throw RpcError(code: 2002, message: 'Unsupported command: $cmd');
+      }
+      return jsonEncode({'status': 'ok'});
+    });
+
+    room.registerRpcMethod('get_location', (RpcInvocationData data) async {
+      _log('RPC', 'get_location called');
+      final AiseeLocationResult loc =
+          await AiseeLocationService.getCurrentLocation();
+      return jsonEncode({
+        'status': 'ok',
+        'lat': loc.lat,
+        'lng': loc.lng,
+        'address': loc.address,
+      });
+    });
+
+    room.registerRpcMethod('open_maps', (RpcInvocationData data) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      final String dest = _paramString(params, const [
+        'destination',
+        'dest',
+        'query',
+        'q',
+      ]);
+      final String latStr = _paramString(params, const ['lat', 'latitude']);
+      final String lngStr = _paramString(params, const ['lng', 'longitude']);
+      _log('RPC', 'open_maps dest="$dest" lat=$latStr lng=$lngStr');
+
+      Uri? mapUri;
+      if (dest.isNotEmpty) {
+        if (!kIsWeb && Platform.isIOS) {
+          mapUri = Uri.parse(
+            'https://maps.apple.com/'
+            '?daddr=${Uri.encodeComponent(dest)}',
+          );
+        } else {
+          mapUri = Uri.parse(
+            'google.navigation:'
+            'q=${Uri.encodeComponent(dest)}',
           );
         }
-        final CameraCaptureOptions camOpts =
-            await _agentCameraCaptureOptions();
-        await lp.setCameraEnabled(
-          true,
-          cameraCaptureOptions: camOpts,
+      } else if (latStr.isNotEmpty && lngStr.isNotEmpty) {
+        if (!kIsWeb && Platform.isIOS) {
+          mapUri = Uri.parse('https://maps.apple.com/?daddr=$latStr,$lngStr');
+        } else {
+          mapUri = Uri.parse('google.navigation:q=$latStr,$lngStr');
+        }
+      }
+      if (mapUri == null) {
+        throw RpcError(code: 2003, message: 'Missing destination or lat/lng');
+      }
+      final bool launched = await launchUrl(
+        mapUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw RpcError(code: 2004, message: 'Cannot open maps');
+      }
+      return jsonEncode({'status': 'ok'});
+    });
+
+    room.registerRpcMethod('schedule_reminder', (RpcInvocationData data) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      final String typeStr = _paramString(params, const [
+        'type',
+        'reminder_type',
+      ]);
+      final String name = _paramString(params, const ['name', 'title']);
+      final int baseId = DateTime.now().millisecondsSinceEpoch % 100000;
+      _log('RPC', 'schedule_reminder type=$typeStr name=$name');
+
+      if (typeStr == 'medication') {
+        final List<String> times =
+            (params['times'] as List<dynamic>?)?.cast<String>() ?? <String>[];
+        final String freq = _paramString(params, const ['frequency', 'freq']);
+        final AiseeReminder reminder = AiseeReminder(
+          id: baseId,
+          type: AiseeReminderType.medication,
+          title: name,
+          times: times,
+          frequency: freq.isEmpty ? 'daily' : freq,
+          createdAt: DateTime.now(),
         );
-        syncLocalCameraPreviewTrack();
-        return jsonEncode({'status': 'ok'});
-      },
-    );
-
-    room.registerRpcMethod(
-      'disable_camera',
-      (RpcInvocationData data) async {
-        _log('RPC', 'disable_camera called');
-        await _room?.localParticipant?.setCameraEnabled(false);
-        syncLocalCameraPreviewTrack();
-        return jsonEncode({'status': 'ok'});
-      },
-    );
-
-    room.registerRpcMethod(
-      'play_audio',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        final String url =
-            _paramString(params, const ['url', 'audio_url', 'src']);
-        final String titleRaw =
-            _paramString(params, const ['title', 'name']);
-        _log(
-          'RPC',
-          'play_audio url='
-          '${url.length > 60 ? '${url.substring(0, 60)}...' : url}',
+        await AiseeReminderService.instance.scheduleReminder(reminder);
+      } else if (typeStr == 'appointment') {
+        final String dt = _paramString(params, const [
+          'datetime',
+          'date_time',
+          'time',
+        ]);
+        final AiseeReminder reminder = AiseeReminder(
+          id: baseId,
+          type: AiseeReminderType.appointment,
+          title: name,
+          datetime: dt,
+          createdAt: DateTime.now(),
         );
-        if (url.isEmpty) {
-          throw RpcError(code: 2001, message: 'Missing url parameter');
-        }
-        final AudioPlayer player = await _musicPlayerOrCreate();
-        await player.setUrl(url);
-        _setNowPlayingTitle(titleRaw.isEmpty ? null : titleRaw);
-        await player.play();
-        return jsonEncode({'status': 'ok'});
-      },
-    );
-
-    room.registerRpcMethod(
-      'control_audio',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        final String cmd = _paramString(
-          params,
-          const ['command', 'action', 'op'],
-        ).toLowerCase();
-        _log('RPC', 'control_audio cmd=$cmd');
-
-        // Volume commands: system media volume, works without music.
-        if (cmd == 'volume_up' || cmd == 'volume_down') {
-          final VolumeController vc = VolumeController.instance;
-          vc.showSystemUI = true;
-          final double cur = await vc.getVolume();
-          const double step = 0.1;
-          final double next = cmd == 'volume_up'
-              ? (cur + step).clamp(0.0, 1.0)
-              : (cur - step).clamp(0.0, 1.0);
-          await vc.setVolume(next);
-          _log('RPC', 'system volume $cur → $next');
-          return jsonEncode({
-            'status': 'ok',
-            'volume': next,
-          });
-        }
-
-        // Music player commands: require active player.
-        final AudioPlayer? p = _musicPlayer;
-        if (p == null) return jsonEncode({'status': 'ok'});
-        switch (cmd) {
-          case 'pause':
-            await p.pause();
-          case 'resume' || 'play':
-            await p.play();
-          case 'stop':
-            await p.stop();
-            _setNowPlayingTitle(null);
-          case 'next' || 'previous':
-            await p.stop();
-            _setNowPlayingTitle(null);
-          default:
-            throw RpcError(
-              code: 2002,
-              message: 'Unsupported command: $cmd',
-            );
-        }
-        return jsonEncode({'status': 'ok'});
-      },
-    );
-
-    room.registerRpcMethod(
-      'get_location',
-      (RpcInvocationData data) async {
-        _log('RPC', 'get_location called');
-        final AiseeLocationResult loc =
-            await AiseeLocationService.getCurrentLocation();
-        return jsonEncode({
-          'status': 'ok',
-          'lat': loc.lat,
-          'lng': loc.lng,
-          'address': loc.address,
-        });
-      },
-    );
-
-    room.registerRpcMethod(
-      'open_maps',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        final String dest = _paramString(
-          params,
-          const ['destination', 'dest', 'query', 'q'],
-        );
-        final String latStr =
-            _paramString(params, const ['lat', 'latitude']);
-        final String lngStr =
-            _paramString(params, const ['lng', 'longitude']);
-        _log('RPC', 'open_maps dest="$dest" lat=$latStr lng=$lngStr');
-
-        Uri? mapUri;
-        if (dest.isNotEmpty) {
-          if (!kIsWeb && Platform.isIOS) {
-            mapUri = Uri.parse(
-              'https://maps.apple.com/'
-              '?daddr=${Uri.encodeComponent(dest)}',
-            );
-          } else {
-            mapUri = Uri.parse(
-              'google.navigation:'
-              'q=${Uri.encodeComponent(dest)}',
-            );
-          }
-        } else if (latStr.isNotEmpty && lngStr.isNotEmpty) {
-          if (!kIsWeb && Platform.isIOS) {
-            mapUri = Uri.parse(
-              'https://maps.apple.com/?daddr=$latStr,$lngStr',
-            );
-          } else {
-            mapUri = Uri.parse(
-              'google.navigation:q=$latStr,$lngStr',
-            );
-          }
-        }
-        if (mapUri == null) {
-          throw RpcError(
-            code: 2003,
-            message: 'Missing destination or lat/lng',
-          );
-        }
-        final bool launched = await launchUrl(
-          mapUri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!launched) {
-          throw RpcError(code: 2004, message: 'Cannot open maps');
-        }
-        return jsonEncode({'status': 'ok'});
-      },
-    );
-
-    room.registerRpcMethod(
-      'schedule_reminder',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        final String typeStr =
-            _paramString(params, const ['type', 'reminder_type']);
-        final String name =
-            _paramString(params, const ['name', 'title']);
-        final int baseId =
-            DateTime.now().millisecondsSinceEpoch % 100000;
-        _log('RPC', 'schedule_reminder type=$typeStr name=$name');
-
-        if (typeStr == 'medication') {
-          final List<String> times =
-              (params['times'] as List<dynamic>?)?.cast<String>() ??
-                  <String>[];
-          final String freq =
-              _paramString(params, const ['frequency', 'freq']);
-          final AiseeReminder reminder = AiseeReminder(
-            id: baseId,
-            type: AiseeReminderType.medication,
-            title: name,
-            times: times,
-            frequency: freq.isEmpty ? 'daily' : freq,
-            createdAt: DateTime.now(),
-          );
-          await AiseeReminderService.instance
-              .scheduleReminder(reminder);
-        } else if (typeStr == 'appointment') {
-          final String dt = _paramString(
-            params,
-            const ['datetime', 'date_time', 'time'],
-          );
-          final AiseeReminder reminder = AiseeReminder(
-            id: baseId,
-            type: AiseeReminderType.appointment,
-            title: name,
-            datetime: dt,
-            createdAt: DateTime.now(),
-          );
-          await AiseeReminderService.instance
-              .scheduleReminder(reminder);
-        }
-        return jsonEncode({'status': 'ok'});
-      },
-    );
+        await AiseeReminderService.instance.scheduleReminder(reminder);
+      }
+      return jsonEncode({'status': 'ok'});
+    });
 
     room.registerRpcMethod(
       'make_voice_call',
@@ -668,374 +707,307 @@ class AiseeLiveKitVoiceSession {
       (RpcInvocationData data) async => _handleMakeCall(data, 'video'),
     );
 
-    room.registerRpcMethod(
-      'send_chat_message',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        final String receiverId = _paramString(
-          params,
-          const ['receiver_id', 'contact_id'],
+    room.registerRpcMethod('send_chat_message', (RpcInvocationData data) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      final String receiverId = _paramString(params, const [
+        'receiver_id',
+        'contact_id',
+      ]);
+      final String text = _paramString(params, const [
+        'text',
+        'content',
+        'message',
+      ]);
+      _log('RPC', 'send_chat_message to=$receiverId');
+      if (receiverId.isEmpty || text.isEmpty) {
+        throw RpcError(code: 2020, message: 'Missing receiver_id or text');
+      }
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final AiseeChatService svc = AiseeChatService();
+      try {
+        final AiseeMessage msg = await svc.sendMessage(
+          tokens.accessToken,
+          receiverId,
+          text,
         );
-        final String text = _paramString(
-          params,
-          const ['text', 'content', 'message'],
-        );
-        _log('RPC', 'send_chat_message to=$receiverId');
-        if (receiverId.isEmpty || text.isEmpty) {
-          throw RpcError(
-            code: 2020,
-            message: 'Missing receiver_id or text',
-          );
-        }
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final AiseeChatService svc = AiseeChatService();
-        try {
-          final AiseeMessage msg = await svc.sendMessage(
-            tokens.accessToken,
-            receiverId,
-            text,
-          );
-          return jsonEncode({
-            'status': 'ok',
-            'message_id': msg.id,
-            'created_at': msg.createdAt.toIso8601String(),
-          });
-        } finally {
-          svc.close();
-        }
-      },
-    );
+        return jsonEncode({
+          'status': 'ok',
+          'message_id': msg.id,
+          'created_at': msg.createdAt.toIso8601String(),
+        });
+      } finally {
+        svc.close();
+      }
+    });
 
-    room.registerRpcMethod(
-      'read_unread_messages',
-      (RpcInvocationData data) async {
-        _log('RPC', 'read_unread_messages called');
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final Map<String, dynamic> params = data.payload.isNotEmpty
-            ? jsonDecode(data.payload) as Map<String, dynamic>
-            : <String, dynamic>{};
-        final String contactId = _paramString(
-          params,
-          const ['contact_id', 'receiver_id'],
-        );
-        final AiseeChatService svc = AiseeChatService();
-        try {
-          if (contactId.isNotEmpty) {
-            final List<AiseeMessage> messages =
-                await svc.fetchMessages(
-              tokens.accessToken,
-              contactId,
-            );
-            final List<AiseeMessage> unread = messages
-                .where((AiseeMessage m) =>
-                    !m.isRead && m.senderId == contactId)
-                .toList();
-            for (final AiseeMessage m in unread) {
-              await svc.markRead(tokens.accessToken, m.id);
-            }
-            return jsonEncode({
-              'status': 'ok',
-              'contact_id': contactId,
-              'messages': unread
-                  .map((AiseeMessage m) => {
-                        'id': m.id,
-                        'sender_id': m.senderId,
-                        'content_text': m.contentText,
-                        'created_at':
-                            m.createdAt.toIso8601String(),
-                      })
-                  .toList(),
-            });
-          }
-          final int count = await svc.fetchUnreadCount(
+    room.registerRpcMethod('read_unread_messages', (
+      RpcInvocationData data,
+    ) async {
+      _log('RPC', 'read_unread_messages called');
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final Map<String, dynamic> params = data.payload.isNotEmpty
+          ? jsonDecode(data.payload) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final String contactId = _paramString(params, const [
+        'contact_id',
+        'receiver_id',
+      ]);
+      final AiseeChatService svc = AiseeChatService();
+      try {
+        if (contactId.isNotEmpty) {
+          final List<AiseeMessage> messages = await svc.fetchMessages(
             tokens.accessToken,
+            contactId,
           );
+          final List<AiseeMessage> unread = messages
+              .where((AiseeMessage m) => !m.isRead && m.senderId == contactId)
+              .toList();
+          for (final AiseeMessage m in unread) {
+            await svc.markRead(tokens.accessToken, m.id);
+          }
           return jsonEncode({
             'status': 'ok',
-            'unread_count': count,
+            'contact_id': contactId,
+            'messages': unread
+                .map(
+                  (AiseeMessage m) => {
+                    'id': m.id,
+                    'sender_id': m.senderId,
+                    'content_text': m.contentText,
+                    'created_at': m.createdAt.toIso8601String(),
+                  },
+                )
+                .toList(),
           });
-        } finally {
-          svc.close();
         }
-      },
-    );
+        final int count = await svc.fetchUnreadCount(tokens.accessToken);
+        return jsonEncode({'status': 'ok', 'unread_count': count});
+      } finally {
+        svc.close();
+      }
+    });
 
     // ── Tool 12: set_medication_reminder ──
-    room.registerRpcMethod(
-      'set_medication_reminder',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        final String name = _paramString(
-          params,
-          const ['name', 'title', 'medication_name'],
-        );
-        final List<String> times =
-            (params['times'] as List<dynamic>?)?.cast<String>() ??
-                <String>[];
-        final String freq =
-            _paramString(params, const ['frequency', 'freq']);
-        _log('RPC', 'set_medication_reminder name=$name');
-        if (name.isEmpty) {
-          throw RpcError(
-            code: 2030,
-            message: 'Missing medication name',
-          );
-        }
-        final int baseId =
-            DateTime.now().millisecondsSinceEpoch % 100000;
-        final AiseeReminder reminder = AiseeReminder(
-          id: baseId,
-          type: AiseeReminderType.medication,
-          title: name,
-          times: times,
-          frequency: freq.isEmpty ? 'daily' : freq,
-          createdAt: DateTime.now(),
-        );
-        await AiseeReminderService.instance
-            .scheduleReminder(reminder);
-        return jsonEncode({
-          'status': 'ok',
-          'reminder_id': baseId,
-        });
-      },
-    );
+    room.registerRpcMethod('set_medication_reminder', (
+      RpcInvocationData data,
+    ) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      final String name = _paramString(params, const [
+        'name',
+        'title',
+        'medication_name',
+      ]);
+      final List<String> times =
+          (params['times'] as List<dynamic>?)?.cast<String>() ?? <String>[];
+      final String freq = _paramString(params, const ['frequency', 'freq']);
+      _log('RPC', 'set_medication_reminder name=$name');
+      if (name.isEmpty) {
+        throw RpcError(code: 2030, message: 'Missing medication name');
+      }
+      final int baseId = DateTime.now().millisecondsSinceEpoch % 100000;
+      final AiseeReminder reminder = AiseeReminder(
+        id: baseId,
+        type: AiseeReminderType.medication,
+        title: name,
+        times: times,
+        frequency: freq.isEmpty ? 'daily' : freq,
+        createdAt: DateTime.now(),
+      );
+      await AiseeReminderService.instance.scheduleReminder(reminder);
+      return jsonEncode({'status': 'ok', 'reminder_id': baseId});
+    });
 
     // ── Tool 13: list_medication_reminders ──
-    room.registerRpcMethod(
-      'list_medication_reminders',
-      (RpcInvocationData data) async {
-        _log('RPC', 'list_medication_reminders called');
-        final List<AiseeReminder> all =
-            await AiseeReminderService.instance.loadAll();
-        final List<AiseeReminder> meds = all
-            .where((AiseeReminder r) =>
-                r.type == AiseeReminderType.medication)
-            .toList();
-        return jsonEncode({
-          'status': 'ok',
-          'reminders':
-              meds.map((AiseeReminder r) => r.toJson()).toList(),
-        });
-      },
-    );
+    room.registerRpcMethod('list_medication_reminders', (
+      RpcInvocationData data,
+    ) async {
+      _log('RPC', 'list_medication_reminders called');
+      final List<AiseeReminder> all = await AiseeReminderService.instance
+          .loadAll();
+      final List<AiseeReminder> meds = all
+          .where((AiseeReminder r) => r.type == AiseeReminderType.medication)
+          .toList();
+      return jsonEncode({
+        'status': 'ok',
+        'reminders': meds.map((AiseeReminder r) => r.toJson()).toList(),
+      });
+    });
 
     // ── Tool 14: mark_medication_taken ──
-    room.registerRpcMethod(
-      'mark_medication_taken',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        _log('RPC', 'mark_medication_taken');
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final AiseeHealthService svc = AiseeHealthService();
-        try {
-          await svc.markMedicationTaken(
-            tokens.accessToken,
-            params,
-          );
-          return jsonEncode({'status': 'ok'});
-        } finally {
-          svc.close();
-        }
-      },
-    );
+    room.registerRpcMethod('mark_medication_taken', (
+      RpcInvocationData data,
+    ) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      _log('RPC', 'mark_medication_taken');
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final AiseeHealthService svc = AiseeHealthService();
+      try {
+        await svc.markMedicationTaken(tokens.accessToken, params);
+        return jsonEncode({'status': 'ok'});
+      } finally {
+        svc.close();
+      }
+    });
 
     // ── Tool 15: mark_medication_skipped ──
-    room.registerRpcMethod(
-      'mark_medication_skipped',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        _log('RPC', 'mark_medication_skipped');
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final AiseeHealthService svc = AiseeHealthService();
-        try {
-          await svc.markMedicationSkipped(
-            tokens.accessToken,
-            params,
-          );
-          return jsonEncode({'status': 'ok'});
-        } finally {
-          svc.close();
-        }
-      },
-    );
+    room.registerRpcMethod('mark_medication_skipped', (
+      RpcInvocationData data,
+    ) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      _log('RPC', 'mark_medication_skipped');
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final AiseeHealthService svc = AiseeHealthService();
+      try {
+        await svc.markMedicationSkipped(tokens.accessToken, params);
+        return jsonEncode({'status': 'ok'});
+      } finally {
+        svc.close();
+      }
+    });
 
     // ── Tool 16: log_health_symptom ──
-    room.registerRpcMethod(
-      'log_health_symptom',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        _log('RPC', 'log_health_symptom');
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final AiseeHealthService svc = AiseeHealthService();
-        try {
-          await svc.logSymptom(tokens.accessToken, params);
-          return jsonEncode({'status': 'ok'});
-        } finally {
-          svc.close();
-        }
-      },
-    );
+    room.registerRpcMethod('log_health_symptom', (
+      RpcInvocationData data,
+    ) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      _log('RPC', 'log_health_symptom');
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final AiseeHealthService svc = AiseeHealthService();
+      try {
+        await svc.logSymptom(tokens.accessToken, params);
+        return jsonEncode({'status': 'ok'});
+      } finally {
+        svc.close();
+      }
+    });
 
     // ── Tool 17: log_health_metric ──
-    room.registerRpcMethod(
-      'log_health_metric',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        _log('RPC', 'log_health_metric');
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final AiseeHealthService svc = AiseeHealthService();
-        try {
-          await svc.logMetric(tokens.accessToken, params);
-          return jsonEncode({'status': 'ok'});
-        } finally {
-          svc.close();
-        }
-      },
-    );
+    room.registerRpcMethod('log_health_metric', (RpcInvocationData data) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      _log('RPC', 'log_health_metric');
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final AiseeHealthService svc = AiseeHealthService();
+      try {
+        await svc.logMetric(tokens.accessToken, params);
+        return jsonEncode({'status': 'ok'});
+      } finally {
+        svc.close();
+      }
+    });
 
     // ── Tool 18: set_appointment_reminder ──
-    room.registerRpcMethod(
-      'set_appointment_reminder',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        final String name =
-            _paramString(params, const ['name', 'title']);
-        final String dt = _paramString(
-          params,
-          const ['datetime', 'date_time', 'time'],
-        );
-        _log('RPC', 'set_appointment_reminder name=$name dt=$dt');
-        if (name.isEmpty) {
-          throw RpcError(
-            code: 2030,
-            message: 'Missing appointment name',
-          );
-        }
-        final int baseId =
-            DateTime.now().millisecondsSinceEpoch % 100000;
-        final AiseeReminder reminder = AiseeReminder(
-          id: baseId,
-          type: AiseeReminderType.appointment,
-          title: name,
-          datetime: dt,
-          createdAt: DateTime.now(),
-        );
-        await AiseeReminderService.instance
-            .scheduleReminder(reminder);
-        return jsonEncode({
-          'status': 'ok',
-          'reminder_id': baseId,
-        });
-      },
-    );
+    room.registerRpcMethod('set_appointment_reminder', (
+      RpcInvocationData data,
+    ) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      final String name = _paramString(params, const ['name', 'title']);
+      final String dt = _paramString(params, const [
+        'datetime',
+        'date_time',
+        'time',
+      ]);
+      _log('RPC', 'set_appointment_reminder name=$name dt=$dt');
+      if (name.isEmpty) {
+        throw RpcError(code: 2030, message: 'Missing appointment name');
+      }
+      final int baseId = DateTime.now().millisecondsSinceEpoch % 100000;
+      final AiseeReminder reminder = AiseeReminder(
+        id: baseId,
+        type: AiseeReminderType.appointment,
+        title: name,
+        datetime: dt,
+        createdAt: DateTime.now(),
+      );
+      await AiseeReminderService.instance.scheduleReminder(reminder);
+      return jsonEncode({'status': 'ok', 'reminder_id': baseId});
+    });
 
     // ── Tool 19: emergency_alert — SOS ──
-    room.registerRpcMethod(
-      'emergency_alert',
-      (RpcInvocationData data) async {
-        _log('RPC', 'emergency_alert — SOS!');
-        final Map<String, dynamic> params = data.payload.isNotEmpty
-            ? jsonDecode(data.payload) as Map<String, dynamic>
-            : <String, dynamic>{};
-        final String message =
-            _paramString(params, const ['message', 'reason']);
-        final AiseeLocationResult loc =
-            await AiseeLocationService.getCurrentLocation();
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final AiseeHealthService svc = AiseeHealthService();
-        try {
-          final Map<String, dynamic> result =
-              await svc.sendEmergencyAlert(tokens.accessToken, {
-            'message': message,
-            'location_lat': loc.lat,
-            'location_lng': loc.lng,
-            'location_address': loc.address,
-          });
-          return jsonEncode({
-            'status': 'ok',
-            'location': loc.address,
-            ...result,
-          });
-        } finally {
-          svc.close();
-        }
-      },
-    );
+    room.registerRpcMethod('emergency_alert', (RpcInvocationData data) async {
+      _log('RPC', 'emergency_alert — SOS!');
+      final Map<String, dynamic> params = data.payload.isNotEmpty
+          ? jsonDecode(data.payload) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final String message = _paramString(params, const ['message', 'reason']);
+      final AiseeLocationResult loc =
+          await AiseeLocationService.getCurrentLocation();
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final AiseeHealthService svc = AiseeHealthService();
+      try {
+        final Map<String, dynamic> result = await svc
+            .sendEmergencyAlert(tokens.accessToken, {
+              'message': message,
+              'location_lat': loc.lat,
+              'location_lng': loc.lng,
+              'location_address': loc.address,
+            });
+        return jsonEncode({'status': 'ok', 'location': loc.address, ...result});
+      } finally {
+        svc.close();
+      }
+    });
 
     // ── Tool 20: escalate_to_family ──
-    room.registerRpcMethod(
-      'escalate_to_family',
-      (RpcInvocationData data) async {
-        _log('RPC', 'escalate_to_family');
-        return _handleMakeCall(data, 'voice');
-      },
-    );
+    room.registerRpcMethod('escalate_to_family', (
+      RpcInvocationData data,
+    ) async {
+      _log('RPC', 'escalate_to_family');
+      return _handleMakeCall(data, 'voice');
+    });
 
     // ── Tool 21: escalate_to_volunteer ──
-    room.registerRpcMethod(
-      'escalate_to_volunteer',
-      (RpcInvocationData data) async {
-        _log('RPC', 'escalate_to_volunteer');
-        return _handleMakeCall(data, 'voice');
-      },
-    );
+    room.registerRpcMethod('escalate_to_volunteer', (
+      RpcInvocationData data,
+    ) async {
+      _log('RPC', 'escalate_to_volunteer');
+      return _handleMakeCall(data, 'voice');
+    });
 
     // ── Tool 22: rate_volunteer ──
-    room.registerRpcMethod(
-      'rate_volunteer',
-      (RpcInvocationData data) async {
-        final Map<String, dynamic> params =
-            jsonDecode(data.payload) as Map<String, dynamic>;
-        _log('RPC', 'rate_volunteer');
-        final AiseeAuthTokens? tokens =
-            await AiseeSessionStore.instance.read();
-        if (tokens == null) {
-          throw RpcError(code: 2021, message: 'Not authenticated');
-        }
-        final AiseeHealthService svc = AiseeHealthService();
-        try {
-          await svc.rateVolunteer(tokens.accessToken, params);
-          return jsonEncode({'status': 'ok'});
-        } finally {
-          svc.close();
-        }
-      },
-    );
+    room.registerRpcMethod('rate_volunteer', (RpcInvocationData data) async {
+      final Map<String, dynamic> params =
+          jsonDecode(data.payload) as Map<String, dynamic>;
+      _log('RPC', 'rate_volunteer');
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) {
+        throw RpcError(code: 2021, message: 'Not authenticated');
+      }
+      final AiseeHealthService svc = AiseeHealthService();
+      try {
+        await svc.rateVolunteer(tokens.accessToken, params);
+        return jsonEncode({'status': 'ok'});
+      } finally {
+        svc.close();
+      }
+    });
 
     _log('RPC', '22 methods registered');
   }
@@ -1043,6 +1015,7 @@ class AiseeLiveKitVoiceSession {
   Future<void> connect({
     required String userName,
     required String userId,
+
     /// Chạy song song với lấy token / kết nối phòng; await ngay trước [setAttributes].
     Future<bool>? resolveHasFamilyLink,
   }) async {
@@ -1053,20 +1026,18 @@ class AiseeLiveKitVoiceSession {
       _ensureMediaPermissions(),
       _fetchWithRefreshIfNeeded(),
     ]);
-    final LiveKitJoinCredentials creds =
-        parallel[1] as LiveKitJoinCredentials;
+    final LiveKitJoinCredentials creds = parallel[1] as LiveKitJoinCredentials;
     _logBlock('Connect', 'Credentials nhan duoc', {
       'url': creds.url,
       'room': creds.roomName ?? '(server tu gan)',
-      'token': '${creds.token.substring(0, 20)}...${creds.token.substring(creds.token.length - 10)}',
+      'token':
+          '${creds.token.substring(0, 20)}...${creds.token.substring(creds.token.length - 10)}',
     });
     final Room room = Room(
       roomOptions: const RoomOptions(
         adaptiveStream: true,
         dynacast: true,
-        defaultAudioPublishOptions: AudioPublishOptions(
-          dtx: true,
-        ),
+        defaultAudioPublishOptions: AudioPublishOptions(dtx: true),
       ),
     );
     _room = room;
@@ -1082,8 +1053,7 @@ class AiseeLiveKitVoiceSession {
           }
         }
         final double next = maxLevel.clamp(0.0, 1.0);
-        if (AiseeDebugConfig.enabled &&
-            assistantWaveEnergy.value != next) {
+        if (AiseeDebugConfig.enabled && assistantWaveEnergy.value != next) {
           AiseePerformanceDebug.instance.recordAssistantEnergyChanged();
         }
         assistantWaveEnergy.value = next;
@@ -1101,14 +1071,20 @@ class AiseeLiveKitVoiceSession {
         }
       })
       ..on<TrackMutedEvent>((TrackMutedEvent e) {
-        _log('Camera', 'TrackMuted source=${e.publication.source} isLocal=${e.participant is LocalParticipant}');
+        _log(
+          'Camera',
+          'TrackMuted source=${e.publication.source} isLocal=${e.participant is LocalParticipant}',
+        );
         if (e.participant is LocalParticipant &&
             e.publication.source == TrackSource.camera) {
           syncLocalCameraPreviewTrack();
         }
       })
       ..on<TrackUnmutedEvent>((TrackUnmutedEvent e) {
-        _log('Camera', 'TrackUnmuted source=${e.publication.source} isLocal=${e.participant is LocalParticipant}');
+        _log(
+          'Camera',
+          'TrackUnmuted source=${e.publication.source} isLocal=${e.participant is LocalParticipant}',
+        );
         if (e.participant is LocalParticipant &&
             e.publication.source == TrackSource.camera) {
           syncLocalCameraPreviewTrack();
@@ -1142,19 +1118,48 @@ class AiseeLiveKitVoiceSession {
       'has_family_link': hasFamilyLink ? 'true' : 'false',
     });
     _log('Connect', 'User attributes published: locale=${Platform.localeName}');
-    _log('Connect', 'Room connected! Bat mic...');
-    await room.localParticipant?.setMicrophoneEnabled(true);
-    _log('Connect', 'Mic ON. Config audio session...');
-    await _configureAudioSession();
-    _log('Connect', 'Sync camera preview...');
-    syncLocalCameraPreviewTrack();
-    _startWaveDecayTimer();
-    await AiseeVoiceAssistantForeground.ensureStartedAfterConnected();
-    _log('Connect', 'Ket noi hoan tat. San sang nhan lenh tu agent.');
+    await completeConnectedSetup();
+  }
+
+  Future<void> enableAssistantMic() async {
+    await setRoomMicrophoneEnabled(true);
+    _assistantMicEnabled = true;
+    _log('Connect', 'Assistant mic ON by wake handoff');
+    await ensureForegroundStartedAfterConnected();
+
+    final Future<void> Function()? wakeHook = onAfterMicEnabledForRoom;
+    if (wakeHook != null) {
+      try {
+        await wakeHook();
+      } catch (e, st) {
+        debugPrint('[AiSee:LiveKit] onAfterMicEnabledForRoom: $e\n$st');
+      }
+    }
+  }
+
+  Future<void> disableAssistantMic() async {
+    final bool shouldResumeWakeWord = _assistantMicEnabled;
+    if (!hasConnectedLocalParticipant) {
+      _assistantMicEnabled = false;
+      await ensureForegroundStopped();
+      if (shouldResumeWakeWord) {
+        await _notifyWakeWordCanResume();
+      }
+      return;
+    }
+
+    await setRoomMicrophoneEnabled(false);
+    _assistantMicEnabled = false;
+    _log('Connect', 'Assistant mic OFF, returning to wake idle');
+    await ensureForegroundStopped();
+    if (shouldResumeWakeWord) {
+      await _notifyWakeWordCanResume();
+    }
   }
 
   Future<void> disconnect() async {
     _log('Disconnect', 'Dang ngat ket noi...');
+    _assistantMicEnabled = false;
     _setLocalCameraPreviewTrack(null);
     agentState.value = AgentState.disconnected;
     await _disposeMusicPlayer();
@@ -1181,5 +1186,6 @@ class AiseeLiveKitVoiceSession {
     }
     await AiseeVoiceAssistantForeground.ensureStopped();
     _log('Disconnect', 'Da ngat xong.');
+    await _notifyWakeWordCanResume();
   }
 }
