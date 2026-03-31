@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -5,9 +7,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'debug/aisee_debug_hud.dart';
 import 'debug/aisee_performance_debug.dart';
+import 'services/aisee_push_service.dart';
 import 'services/aisee_reminder_announcer.dart';
 import 'services/aisee_reminder_service.dart';
 import 'services/aisee_voice_foreground.dart';
+import 'config/aisee_navigator_key.dart';
 import 'theme/style_tokens.dart';
 import 'widgets/app_bootstrap.dart';
 
@@ -17,6 +21,10 @@ Future<void> _firebaseMessagingBackgroundHandler(
 ) async {
   await Firebase.initializeApp();
   debugPrint('[AiSee:Push] Background message: ${message.data}');
+  final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+  if (data['type'] == 'incoming_call') {
+    await AiseePushService.showIncomingCallUi(data);
+  }
 }
 
 Future<void> main() async {
@@ -45,15 +53,46 @@ Future<void> main() async {
     return true;
   }());
   AiseePerformanceDebug.instance.install();
+  AiseePushService.instance.attachCallKitListenerEarly();
   runApp(const AiseeApp());
 }
 
-class AiseeApp extends StatelessWidget {
+class AiseeApp extends StatefulWidget {
   const AiseeApp({super.key});
+
+  @override
+  State<AiseeApp> createState() => _AiseeAppState();
+}
+
+class _AiseeAppState extends State<AiseeApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(AiseePushService.instance.syncActiveAcceptedCall());
+      AiseePushService.instance.flushPendingCallNavigation();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(AiseePushService.instance.syncActiveAcceptedCall());
+      AiseePushService.instance.flushPendingCallNavigation();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: aiseeNavigatorKey,
       title: 'aisee',
       theme: StyleTokens.lightTheme(),
       showPerformanceOverlay: AiseeDebugConfig.showPerformanceOverlay,

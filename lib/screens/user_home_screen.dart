@@ -48,7 +48,6 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   late final AnimationController _tabFade;
 
   final AiseeChatSocket _chatSocket = AiseeChatSocket();
-  StreamSubscription<AiseeCallInfo>? _incomingCallSub;
 
   final AiseeLiveKitVoiceSession _liveKitVoice = AiseeLiveKitVoiceSession();
   bool _liveKitConnecting = true;
@@ -99,22 +98,14 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       unawaited(_startLiveKitVoice());
     });
     _connectChatSocket();
-    _incomingCallSub =
-        AiseePushService.instance.onAcceptedCall.listen((callInfo) {
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => CallScreen(callInfo: callInfo),
-        ),
-      );
-    });
     final AiseeCallInfo? pending =
         AiseePushService.instance.consumePendingCall();
     if (pending != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        Navigator.of(context).push(
+        if (!mounted || CallScreen.openRouteCount > 0) return;
+        Navigator.of(context, rootNavigator: true).push(
           MaterialPageRoute<void>(
+            fullscreenDialog: true,
             builder: (_) => CallScreen(callInfo: pending),
           ),
         );
@@ -179,7 +170,6 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _incomingCallSub?.cancel();
     _chatSocket.dispose();
     _tabFade.dispose();
     debugPrint('[AiSee:UI] UserHomeScreen dispose — ngat LiveKit');
@@ -188,6 +178,24 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     unawaited(_liveKitVoice.disconnect());
     _liveKitVoice.disposeHttp();
     super.dispose();
+  }
+
+  Future<bool> _computeHasFamilyLink() async {
+    final AiseeAuthTokens? tokens =
+        await AiseeSessionStore.instance.read();
+    if (tokens == null) {
+      return false;
+    }
+    final AiseeFamilyService svc = AiseeFamilyService();
+    try {
+      final List<AiseeFamilyMember> family =
+          await svc.fetchFamily(tokens.accessToken);
+      return family.isNotEmpty;
+    } catch (_) {
+      return false;
+    } finally {
+      svc.close();
+    }
   }
 
   Future<void> _startLiveKitVoice() async {
@@ -203,26 +211,18 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     });
     debugPrint('[AiSee:UI] State: connecting=true connected=false error=null');
     try {
-      bool hasFamilyLink = false;
-      final AiseeAuthTokens? tokens =
-          await AiseeSessionStore.instance.read();
-      if (tokens != null) {
-        try {
-          final List<AiseeFamilyMember> family =
-              await AiseeFamilyService().fetchFamily(
-            tokens.accessToken,
-          );
-          hasFamilyLink = family.isNotEmpty;
-        } catch (_) {}
-      }
+      final Future<bool> familyLinkFuture = _computeHasFamilyLink();
       debugPrint(
-        '[AiSee:UI] hasFamilyLink=$hasFamilyLink',
+        '[AiSee:UI] fetchFamily chay song song voi ket noi LiveKit',
       );
       await _liveKitVoice.connect(
         userName: _displayName,
         userId: widget.aiseeProfile?.id ?? '',
-        hasFamilyLink: hasFamilyLink,
+        resolveHasFamilyLink: familyLinkFuture,
       );
+      if (!mounted) return;
+      final bool hasLink = await familyLinkFuture;
+      debugPrint('[AiSee:UI] hasFamilyLink=$hasLink');
       if (!mounted) return;
       setState(() {
         _liveKitConnected = true;

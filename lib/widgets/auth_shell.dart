@@ -68,11 +68,11 @@ class _AuthShellState extends State<AuthShell> {
           _bootstrapDetail = _bootstrapHintFromProfile(cachedProfile);
         });
       }
-      await _restoreStoredSession();
-      final Future<GoogleSignInAccount?>? lightweightFut = GoogleSignIn.instance
-          .attemptLightweightAuthentication();
+      await _restoreStoredSession(cachedProfile);
+      final Future<GoogleSignInAccount?>? lightweightFut =
+          GoogleSignIn.instance.attemptLightweightAuthentication();
       if (lightweightFut != null) {
-        await lightweightFut;
+        unawaited(lightweightFut);
       }
     } catch (e) {
       if (mounted) {
@@ -88,31 +88,104 @@ class _AuthShellState extends State<AuthShell> {
     }
   }
 
-  Future<void> _restoreStoredSession() async {
+  /// Áp dụng phiên sau khi máy chủ xác nhận (refresh token / GET /users/me).
+  Future<void> _applySessionFromServer(
+    ({AiseeUserProfile profile, AiseeAuthTokens tokens}) resumed,
+  ) async {
+    await AiseeSessionStore.instance.write(resumed.tokens);
+    await AiseeProfileCache.instance.write(resumed.profile);
+    await AiseePushService.instance
+        .initAndUploadToken(resumed.tokens.accessToken);
+    if (!mounted) return;
+    setState(() {
+      _aiseeProfile = resumed.profile;
+      _profileLoading = false;
+      _profileError = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AiseePushService.instance.flushPendingCallNavigation();
+      unawaited(AiseePushService.instance.syncActiveAcceptedCall());
+    });
+  }
+
+  /// Đồng bộ JWT + profile với máy chủ sau khi đã vào app từ cache cục bộ.
+  Future<void> _revalidateSessionInBackground() async {
+    final AiseeAuthTokens? current = await AiseeSessionStore.instance.read();
+    if (current == null || !mounted) {
+      return;
+    }
+    final ({AiseeUserProfile profile, AiseeAuthTokens tokens})? resumed =
+        await _aiseeAuth.resumeSession(current);
+    if (!mounted) {
+      return;
+    }
+    if (resumed == null) {
+      _authLog('syncSession(nền): không hợp lệ, đã xóa cache');
+      await AiseeSessionStore.instance.clear();
+      await AiseeProfileCache.instance.clear();
+      setState(() {
+        _aiseeProfile = null;
+        _profileLoading = false;
+        _profileError = null;
+      });
+      unawaited(
+        AppToast.show('Phiên hết hạn, vui lòng đăng nhập lại', isError: true),
+      );
+      return;
+    }
+    _authLog(
+      'syncSession(nền): ok userId=${resumed.profile.id} '
+      'role=${resumed.profile.role ?? "null"}',
+    );
+    await _applySessionFromServer(resumed);
+  }
+
+  Future<void> _restoreStoredSession(AiseeUserProfile? cachedProfile) async {
     final AiseeAuthTokens? stored = await AiseeSessionStore.instance.read();
-    if (stored == null) return;
+    if (stored == null) {
+      return;
+    }
+    if (cachedProfile != null) {
+      _authLog(
+        'restoreSession: vào app từ cache userId=${cachedProfile.id} '
+        '— đồng bộ máy chủ sau',
+      );
+      await AiseePushService.instance.initAndUploadToken(stored.accessToken);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _aiseeProfile = cachedProfile;
+        _profileLoading = false;
+        _profileError = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        AiseePushService.instance.flushPendingCallNavigation();
+        unawaited(AiseePushService.instance.syncActiveAcceptedCall());
+      });
+      unawaited(_revalidateSessionInBackground());
+      return;
+    }
     final ({AiseeUserProfile profile, AiseeAuthTokens tokens})? resumed =
         await _aiseeAuth.resumeSession(stored);
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     if (resumed == null) {
       _authLog('restoreSession: không hợp lệ, đã xóa cache');
       await AiseeSessionStore.instance.clear();
       await AiseeProfileCache.instance.clear();
       return;
     }
-    await AiseeSessionStore.instance.write(resumed.tokens);
-    await AiseeProfileCache.instance.write(resumed.profile);
-    await AiseePushService.instance
-        .initAndUploadToken(resumed.tokens.accessToken);
     _authLog(
       'restoreSession: ok userId=${resumed.profile.id} '
       'role=${resumed.profile.role ?? "null"}',
     );
-    setState(() {
-      _aiseeProfile = resumed.profile;
-      _profileLoading = false;
-      _profileError = null;
-    });
+    await _applySessionFromServer(resumed);
   }
 
   void _onAuthEvent(GoogleSignInAuthenticationEvent event) {
@@ -206,6 +279,11 @@ class _AuthShellState extends State<AuthShell> {
         _aiseeProfile = profile;
         _profileLoading = false;
         _profileError = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        AiseePushService.instance.flushPendingCallNavigation();
+        unawaited(AiseePushService.instance.syncActiveAcceptedCall());
       });
       unawaited(AppToast.show('Đăng nhập thành công', isError: false));
     } catch (e) {

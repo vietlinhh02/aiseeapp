@@ -6,11 +6,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/aisee_api_models.dart';
+import '../models/aisee_call_info.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/aisee_push_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
 import '../widgets/user_low_vision_bottom_nav.dart';
+import 'call_screen.dart';
 import 'family_contacts_tab.dart';
 import 'family_messages_tab.dart';
 import 'family_personal_tab.dart';
@@ -42,6 +45,9 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
   late final AnimationController _tabFade;
   AiseeChatSocket? _chatSocket;
 
+  /// Tăng mỗi khi tab Gia đình tải lại danh sách — tab Tin nhắn lắng nghe để đồng bộ.
+  final ValueNotifier<int> _familyRosterVersion = ValueNotifier<int>(0);
+
   static const List<String> _tabTitles = ['Gia đình', 'Tin nhắn', 'Cá nhân'];
 
   @override
@@ -52,6 +58,19 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
       duration: const Duration(milliseconds: 150),
       value: 1.0,
     );
+    final AiseeCallInfo? pending =
+        AiseePushService.instance.consumePendingCall();
+    if (pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || CallScreen.openRouteCount > 0) return;
+        Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => CallScreen(callInfo: pending),
+          ),
+        );
+      });
+    }
     _initSocket();
   }
 
@@ -76,6 +95,7 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
 
   @override
   void dispose() {
+    _familyRosterVersion.dispose();
     _tabFade.dispose();
     _chatSocket?.dispose();
     super.dispose();
@@ -148,10 +168,16 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
               child: IndexedStack(
                 index: _tabIndex,
                 children: [
-                  const FamilyContactsTab(),
+                  FamilyContactsTab(
+                    onFamilyListChanged: () {
+                      _familyRosterVersion.value++;
+                    },
+                  ),
                   FamilyMessagesTab(
                     currentUserId: profile.id,
                     chatSocket: _chatSocket ?? AiseeChatSocket(),
+                    familyRosterVersion: _familyRosterVersion,
+                    messagesTabActive: _tabIndex == 1,
                   ),
                   FamilyPersonalTab(
                     profile: profile,

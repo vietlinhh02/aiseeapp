@@ -12,11 +12,13 @@ class UserLowVisionBottomNav extends StatelessWidget {
     required this.currentIndex,
     required this.onChanged,
     List<NavItemData>? items,
+    this.showLabel = true,
   }) : _items = items ?? _defaultItems;
 
   final int currentIndex;
   final ValueChanged<int> onChanged;
   final List<NavItemData> _items;
+  final bool showLabel;
 
   static const List<NavItemData> _defaultItems = [
     NavItemData(
@@ -27,7 +29,7 @@ class UserLowVisionBottomNav extends StatelessWidget {
           'Trang chủ. Trợ lý AiSee đang sẵn sàng nghe.',
     ),
     NavItemData(
-      iconAsset: 'assets/icons/nav/ic_3user.svg',
+      iconAsset: 'assets/icons/nav/ic_message.svg',
       label: 'Liên lạc',
       semanticsLabel:
           'Mục 2 trên 3: Liên lạc. '
@@ -49,7 +51,7 @@ class UserLowVisionBottomNav extends StatelessWidget {
       semanticsLabel: 'Mục 1 trên 3: Gia đình. Danh sách liên lạc gia đình.',
     ),
     NavItemData(
-      iconAsset: 'assets/icons/nav/ic_paper.svg',
+      iconAsset: 'assets/icons/nav/ic_message.svg',
       label: 'Tin nhắn',
       semanticsLabel: 'Mục 2 trên 3: Tin nhắn. Hộp thư đến.',
     ),
@@ -86,8 +88,10 @@ class UserLowVisionBottomNav extends StatelessWidget {
                   child: _NavPill(
                     selected: currentIndex == i,
                     iconAsset: _items[i].iconAsset,
+                    iconData: _items[i].iconData,
                     label: _items[i].label,
                     semanticsLabel: _items[i].semanticsLabel,
+                    showLabel: showLabel,
                     onTap: () => _onSelect(i),
                   ),
                 ),
@@ -101,12 +105,14 @@ class UserLowVisionBottomNav extends StatelessWidget {
 
 class NavItemData {
   const NavItemData({
-    required this.iconAsset,
+    this.iconAsset,
+    this.iconData,
     required this.label,
     required this.semanticsLabel,
-  });
+  }) : assert(iconAsset != null || iconData != null);
 
-  final String iconAsset;
+  final String? iconAsset;
+  final IconData? iconData;
   final String label;
   final String semanticsLabel;
 }
@@ -114,16 +120,20 @@ class NavItemData {
 class _NavPill extends StatelessWidget {
   const _NavPill({
     required this.selected,
-    required this.iconAsset,
+    this.iconAsset,
+    this.iconData,
     required this.label,
     required this.semanticsLabel,
+    required this.showLabel,
     required this.onTap,
   });
 
   final bool selected;
-  final String iconAsset;
+  final String? iconAsset;
+  final IconData? iconData;
   final String label;
   final String semanticsLabel;
+  final bool showLabel;
   final VoidCallback onTap;
 
   @override
@@ -156,16 +166,23 @@ class _NavPill extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SvgPicture.asset(
-                  iconAsset,
-                  width: 20,
-                  height: 20,
-                  colorFilter: ColorFilter.mode(
-                    contentColor,
-                    BlendMode.srcIn,
+                if (iconAsset != null)
+                  SvgPicture.asset(
+                    iconAsset!,
+                    width: 20,
+                    height: 20,
+                    colorFilter: ColorFilter.mode(
+                      contentColor,
+                      BlendMode.srcIn,
+                    ),
+                  )
+                else if (iconData != null)
+                  Icon(
+                    iconData,
+                    size: 20,
+                    color: contentColor,
                   ),
-                ),
-                if (selected) ...[
+                if (selected && showLabel) ...[
                   const SizedBox(width: 8),
                   Text(
                     label,

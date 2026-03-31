@@ -18,6 +18,9 @@ class CallScreen extends StatefulWidget {
 
   final AiseeCallInfo callInfo;
 
+  /// Tránh mở trùng từ [AiseePushService.syncActiveAcceptedCall] + pending.
+  static int openRouteCount = 0;
+
   @override
   State<CallScreen> createState() => _CallScreenState();
 }
@@ -58,6 +61,7 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
+    CallScreen.openRouteCount++;
     // Render UI first (show "Đang gọi..."), then connect.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _connectToRoom();
@@ -232,6 +236,8 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+    CallScreen.openRouteCount =
+        (CallScreen.openRouteCount - 1).clamp(0, 1 << 30);
     _durationTimer?.cancel();
     _duration.dispose();
     _roomListener?.dispose();
@@ -340,14 +346,18 @@ class _CallScreenState extends State<CallScreen> {
         _buildCircleButton(
           onTap: _toggleSpeaker,
           color: Colors.white,
-          child: Icon(
+          child: SvgPicture.asset(
             _speakerEnabled
-                ? Icons.volume_up_rounded
-                : Icons.volume_off_rounded,
-            size: 24,
-            color: _speakerEnabled
-                ? StyleTokens.buttonPrimary
-                : const Color(0xFFFF3B30),
+                ? 'assets/icons/nav/ic_volume_up.svg'
+                : 'assets/icons/nav/ic_volume_off.svg',
+            width: 24,
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              _speakerEnabled
+                  ? StyleTokens.buttonPrimary
+                  : const Color(0xFFFF3B30),
+              BlendMode.srcIn,
+            ),
           ),
           label: _speakerEnabled ? 'Tắt loa' : 'Bật loa',
         ),
@@ -355,10 +365,14 @@ class _CallScreenState extends State<CallScreen> {
         _buildCircleButton(
           onTap: _endCall,
           color: const Color(0xFFFF3B30),
-          child: const Icon(
-            Icons.call_end_rounded,
-            size: 24,
-            color: Colors.white,
+          child: SvgPicture.asset(
+            'assets/icons/nav/ic_close.svg',
+            width: 24,
+            height: 24,
+            colorFilter: const ColorFilter.mode(
+              Colors.white,
+              BlendMode.srcIn,
+            ),
           ),
           label: 'Kết thúc cuộc gọi',
         ),
@@ -518,10 +532,14 @@ class _CallScreenState extends State<CallScreen> {
         _buildCircleButton(
           onTap: _endCall,
           color: const Color(0xFFFF3B30),
-          child: const Icon(
-            Icons.call_end_rounded,
-            size: 24,
-            color: Colors.white,
+          child: SvgPicture.asset(
+            'assets/icons/nav/ic_close.svg',
+            width: 24,
+            height: 24,
+            colorFilter: const ColorFilter.mode(
+              Colors.white,
+              BlendMode.srcIn,
+            ),
           ),
           label: 'Kết thúc cuộc gọi',
         ),

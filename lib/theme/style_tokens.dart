@@ -20,6 +20,10 @@ abstract final class StyleTokens {
   static const Color cardBorder = Color(0xFFE0E0E0);
   static const Color error = Color(0xFFFF6B6B);
 
+  /// Toast lỗi: nền xám-xanh nhạt (cùng họ navy), chữ đỏ đậm dễ đọc.
+  static const Color toastErrorSurface = Color(0xFFE8ECF4);
+  static const Color toastErrorOnSurface = Color(0xFF7D1D2E);
+
   /// Pill tab nav User UI đang chọn — nền navy, chữ/icon dùng [navSelectedOnPill].
   static const Color navSelectedPill = Color(0xFF1A3263);
   static const Color navSelectedOnPill = Color(0xFFFFFFFF);

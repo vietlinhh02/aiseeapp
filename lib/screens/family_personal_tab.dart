@@ -25,8 +25,9 @@ class FamilyPersonalTab extends StatefulWidget {
 
 class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
   final AiseeVolunteerService _volunteerService = AiseeVolunteerService();
-  late bool _isVolunteer;
+  bool _isVolunteer = false;
   bool _available = false;
+  bool _volunteerStatusLoading = true;
   bool _registering = false;
   bool _toggling = false;
 
@@ -34,6 +35,34 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
   void initState() {
     super.initState();
     _isVolunteer = widget.profile.isVolunteer;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadVolunteerStatus();
+    });
+  }
+
+  /// Đồng bộ từ GET /api/v1/volunteers/status — JWT/profile có thể thiếu cờ tình nguyện viên.
+  Future<void> _loadVolunteerStatus() async {
+    final String? token = await _token();
+    if (!mounted) return;
+    if (token == null) {
+      setState(() {
+        _volunteerStatusLoading = false;
+      });
+      return;
+    }
+    try {
+      final status = await _volunteerService.fetchStatus(token);
+      if (!mounted) return;
+      setState(() {
+        _isVolunteer = status.isRegistered;
+        _available = status.available;
+        _volunteerStatusLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      // Chỉ tắt loading; giữ _isVolunteer/_available hiện tại (ví dụ vừa register xong).
+      setState(() => _volunteerStatusLoading = false);
+    }
   }
 
   @override
@@ -52,13 +81,21 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
     setState(() => _registering = true);
     try {
       final String? token = await _token();
-      if (token == null) return;
+      if (token == null) {
+        AppToast.show(
+          'Phiên đăng nhập hết hạn. Hãy đăng xuất và đăng nhập lại.',
+          isError: true,
+        );
+        return;
+      }
       await _volunteerService.register(token);
       if (!mounted) return;
       setState(() {
         _isVolunteer = true;
         _available = true;
       });
+      await _loadVolunteerStatus();
+      if (!mounted) return;
       AppToast.show('Đã đăng ký tình nguyện viên');
     } catch (e) {
       if (!mounted) return;
@@ -73,7 +110,13 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
     setState(() => _toggling = true);
     try {
       final String? token = await _token();
-      if (token == null) return;
+      if (token == null) {
+        AppToast.show(
+          'Phiên đăng nhập hết hạn. Hãy đăng xuất và đăng nhập lại.',
+          isError: true,
+        );
+        return;
+      }
       await _volunteerService.setAvailability(token, available: value);
       if (!mounted) return;
       setState(() => _available = value);
@@ -134,6 +177,7 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
           ],
           const SizedBox(height: 10),
           _VolunteerCard(
+            statusLoading: _volunteerStatusLoading,
             isVolunteer: _isVolunteer,
             available: _available,
             registering: _registering,
@@ -251,6 +295,7 @@ class _InfoCard extends StatelessWidget {
 /// Volunteer card — shows registration button or availability toggle.
 class _VolunteerCard extends StatelessWidget {
   const _VolunteerCard({
+    required this.statusLoading,
     required this.isVolunteer,
     required this.available,
     required this.registering,
@@ -259,6 +304,7 @@ class _VolunteerCard extends StatelessWidget {
     required this.onToggle,
   });
 
+  final bool statusLoading;
   final bool isVolunteer;
   final bool available;
   final bool registering;
@@ -325,7 +371,21 @@ class _VolunteerCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            if (!isVolunteer)
+            if (statusLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: StyleTokens.buttonPrimary,
+                    ),
+                  ),
+                ),
+              )
+            else if (!isVolunteer)
               _RegisterButton(registering: registering, onRegister: onRegister)
             else
               _AvailabilityToggle(

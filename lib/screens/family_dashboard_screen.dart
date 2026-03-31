@@ -1,12 +1,22 @@
 // lib/screens/family_dashboard_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../models/aisee_dashboard_models.dart';
 import '../models/aisee_family_member.dart';
 import '../services/aisee_dashboard_service.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
+import '../widgets/app_wordmark.dart';
+import '../widgets/user_low_vision_bottom_nav.dart';
+import 'family_dashboard_audit_tab.dart';
+import 'family_dashboard_health_tab.dart';
+import 'family_dashboard_location_tab.dart';
+import 'family_dashboard_med_form_sheet.dart';
+import 'family_dashboard_meds_tab.dart';
+import 'family_dashboard_nav_items.dart';
 
 class FamilyDashboardScreen extends StatefulWidget {
   const FamilyDashboardScreen({
@@ -19,13 +29,14 @@ class FamilyDashboardScreen extends StatefulWidget {
   final AiseeFamilyMember member;
 
   @override
-  State<FamilyDashboardScreen> createState() =>
-      _FamilyDashboardScreenState();
+  State<FamilyDashboardScreen> createState() => _FamilyDashboardScreenState();
 }
 
-class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
+class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
+    with SingleTickerProviderStateMixin {
   final _dashService = AiseeDashboardService();
   int _currentTab = 0;
+  late final TabController _tabController;
 
   DashboardHealth? _health;
   List<MedStatus> _meds = [];
@@ -40,12 +51,20 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(() {
+      if (!mounted) return;
+      if (_currentTab != _tabController.index) {
+        setState(() => _currentTab = _tabController.index);
+      }
+    });
     _loadAll();
   }
 
   @override
   void dispose() {
     _dashService.close();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -62,10 +81,14 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     setState(() => _loadingHealth = true);
     try {
       final health = await _dashService.getHealth(
-        widget.accessToken, widget.member.id,
+        widget.accessToken,
+        widget.member.id,
       );
       if (!mounted) return;
-      setState(() { _health = health; _loadingHealth = false; });
+      setState(() {
+        _health = health;
+        _loadingHealth = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _loadingHealth = false);
     }
@@ -75,10 +98,14 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     setState(() => _loadingMeds = true);
     try {
       final meds = await _dashService.getMedications(
-        widget.accessToken, widget.member.id,
+        widget.accessToken,
+        widget.member.id,
       );
       if (!mounted) return;
-      setState(() { _meds = meds; _loadingMeds = false; });
+      setState(() {
+        _meds = meds;
+        _loadingMeds = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _loadingMeds = false);
     }
@@ -88,10 +115,14 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     setState(() => _loadingLogs = true);
     try {
       final logs = await _dashService.getAuditLog(
-        widget.accessToken, widget.member.id,
+        widget.accessToken,
+        widget.member.id,
       );
       if (!mounted) return;
-      setState(() { _logs = logs; _loadingLogs = false; });
+      setState(() {
+        _logs = logs;
+        _loadingLogs = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _loadingLogs = false);
     }
@@ -101,10 +132,14 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     setState(() => _loadingLocation = true);
     try {
       final loc = await _dashService.getLocation(
-        widget.accessToken, widget.member.id,
+        widget.accessToken,
+        widget.member.id,
       );
       if (!mounted) return;
-      setState(() { _location = loc; _loadingLocation = false; });
+      setState(() {
+        _location = loc;
+        _loadingLocation = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _loadingLocation = false);
     }
@@ -112,308 +147,134 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
+    final double bottomInset = MediaQuery.paddingOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: StyleTokens.background,
+      appBar: AppBar(
         backgroundColor: StyleTokens.background,
-        appBar: AppBar(
-          backgroundColor: StyleTokens.background,
-          elevation: 0,
-          centerTitle: false,
-          title: Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundImage: NetworkImage(
-                  'https://api.dicebear.com/9.x/notionists/png'
-                  '?seed=${Uri.encodeComponent(widget.member.id)}'
-                  '&size=96&backgroundColor=e8e8e8',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                widget.member.label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: StyleTokens.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          bottom: TabBar(
-            isScrollable: true,
-            onTap: (i) => setState(() => _currentTab = i),
-            labelColor: StyleTokens.buttonPrimary,
-            unselectedLabelColor: StyleTokens.textMuted,
-            indicatorColor: StyleTokens.buttonPrimary,
-            labelStyle: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-            unselectedLabelStyle: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            tabs: const [
-              Tab(text: 'Sức khỏe'),
-              Tab(text: 'Thuốc'),
-              Tab(text: 'Hoạt động'),
-              Tab(text: 'Vị trí'),
-            ],
-          ),
-        ),
-        body: TabBarView(
+        elevation: 0,
+        centerTitle: false,
+        title: Row(
           children: [
-            _buildHealthTab(),
-            _buildMedsTab(),
-            _buildAuditTab(),
-            _buildLocationTab(),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    familyDashboardNavItems[_currentTab].label,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                      letterSpacing: -0.5,
+                      color: StyleTokens.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.member.label,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: StyleTokens.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const AppWordmark(fontSize: 15),
           ],
         ),
-        floatingActionButton: _currentTab == 1
-            ? FloatingActionButton(
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(bottom: 90 + bottomInset),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                FamilyDashboardHealthTab(
+                  loading: _loadingHealth,
+                  health: _health,
+                  onRefresh: _loadHealth,
+                ),
+                FamilyDashboardMedsTab(
+                  loading: _loadingMeds,
+                  meds: _meds,
+                  onRefresh: _loadMeds,
+                  onMedAction: _onMedAction,
+                ),
+                FamilyDashboardAuditTab(
+                  loading: _loadingLogs,
+                  logs: _logs,
+                  onRefresh: _loadLogs,
+                  onLogTap: (log) => showFamilyDashboardLogDetail(context, log),
+                ),
+                FamilyDashboardLocationTab(
+                  loading: _loadingLocation,
+                  location: _location,
+                  onRefresh: _loadLocation,
+                  onOpenMaps: _openMaps,
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16 + bottomInset,
+            child: UserLowVisionBottomNav(
+              currentIndex: _currentTab,
+              onChanged: (i) {
+                _tabController.animateTo(i);
+              },
+              items: familyDashboardNavItems,
+              showLabel: false,
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: _currentTab == 1
+          ? Padding(
+              padding: EdgeInsets.only(bottom: 74 + bottomInset),
+              child: FloatingActionButton.extended(
                 backgroundColor: StyleTokens.buttonPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(31),
+                ),
                 onPressed: _showAddMedDialog,
-                child: const Icon(Icons.add, color: Colors.white),
-              )
-            : null,
-      ),
-    );
-  }
-
-  // --- Health tab ---
-
-  Widget _buildHealthTab() {
-    if (_loadingHealth) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final h = _health;
-    if (h == null) return const Center(child: Text('Không có dữ liệu'));
-    return RefreshIndicator(
-      onRefresh: _loadHealth,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _sectionTitle('Thuốc hôm nay'),
-          if (h.medications.isEmpty)
-            _emptyCard('Chưa có thuốc nào')
-          else
-            ...h.medications.map(_buildMedAdherenceCard),
-          const SizedBox(height: 16),
-          _sectionTitle('Triệu chứng gần đây'),
-          if (h.recentSymptoms.isEmpty)
-            _emptyCard('Không có triệu chứng')
-          else
-            ...h.recentSymptoms.map(_buildSymptomCard),
-          const SizedBox(height: 16),
-          _sectionTitle('Chỉ số sức khỏe'),
-          if (h.recentMetrics.isEmpty)
-            _emptyCard('Không có chỉ số')
-          else
-            ...h.recentMetrics.map(_buildMetricCard),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMedAdherenceCard(MedWithAdherence m) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: StyleTokens.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            m.takenToday ? Icons.check_circle : Icons.circle_outlined,
-            color: m.takenToday ? Colors.green : Colors.orange,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  m.medication.name,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: StyleTokens.textPrimary,
+                icon: SvgPicture.asset(
+                  'assets/icons/nav/ic_plus.svg',
+                  width: 20,
+                  height: 20,
+                  colorFilter: const ColorFilter.mode(
+                    Colors.white,
+                    BlendMode.srcIn,
                   ),
                 ),
-                Text(
-                  '${m.medication.dosage} - ${m.medication.times.join(", ")}',
-                  style: StyleTokens.bodySmall(),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSymptomCard(HealthSymptom s) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: StyleTokens.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.healing, color: Colors.orange),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.symptom,
+                label: Text(
+                  'Thêm thuốc',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: StyleTokens.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
-                Text(
-                  [if (s.severity != null) s.severity!, _formatTime(s.loggedAt)]
-                      .join(' - '),
-                  style: StyleTokens.bodySmall(),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetricCard(HealthMetric m) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: StyleTokens.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.monitor_heart, color: Colors.blue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${m.metricType}: ${m.value} ${m.unit ?? ""}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: StyleTokens.textPrimary,
-                  ),
-                ),
-                Text(_formatTime(m.loggedAt), style: StyleTokens.bodySmall()),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Medications tab ---
-
-  Widget _buildMedsTab() {
-    if (_loadingMeds) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_meds.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _loadMeds,
-        child: ListView(
-          children: [
-            const SizedBox(height: 200),
-            Center(
-              child: Text(
-                'Chưa có thuốc nào',
-                style: StyleTokens.bodySmall(),
               ),
-            ),
-          ],
-        ),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: _loadMeds,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _meds.length,
-        itemBuilder: (context, index) {
-          final m = _meds[index];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: StyleTokens.surfaceCard,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  m.taken
-                      ? Icons.check_circle
-                      : m.skipped
-                          ? Icons.cancel
-                          : Icons.circle_outlined,
-                  color: m.taken
-                      ? Colors.green
-                      : m.skipped
-                          ? Colors.red
-                          : Colors.grey,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        m.medication.name,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: StyleTokens.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        '${m.medication.dosage} - '
-                        '${m.medication.times.join(", ")}',
-                        style: StyleTokens.bodySmall(),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (action) => _onMedAction(action, m.medication),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Sửa')),
-                    PopupMenuItem(value: 'delete', child: Text('Xóa')),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+            )
+          : null,
     );
   }
 
   Future<void> _onMedAction(
-    String action, DashboardMedication med,
+    String action,
+    DashboardMedication med,
   ) async {
     if (action == 'delete') {
       final confirm = await showDialog<bool>(
@@ -442,7 +303,9 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
       if (confirm != true) return;
       try {
         await _dashService.deleteMedication(
-          widget.accessToken, widget.member.id, med.id,
+          widget.accessToken,
+          widget.member.id,
+          med.id,
         );
         await _loadMeds();
         if (mounted) AppToast.show('Đã xóa ${med.name}');
@@ -459,7 +322,8 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     if (result == null) return;
     try {
       await _dashService.createMedication(
-        widget.accessToken, widget.member.id,
+        widget.accessToken,
+        widget.member.id,
         name: result['name']!,
         dosage: result['dosage']!,
         times: result['times']!.split(',').map((e) => e.trim()).toList(),
@@ -482,7 +346,9 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
     if (result == null) return;
     try {
       await _dashService.updateMedication(
-        widget.accessToken, widget.member.id, med.id,
+        widget.accessToken,
+        widget.member.id,
+        med.id,
         name: result['name']!,
         dosage: result['dosage']!,
         times: result['times']!.split(',').map((e) => e.trim()).toList(),
@@ -496,401 +362,48 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen> {
   }
 
   Future<Map<String, String>?> _showMedForm({
-    String name = '', String dosage = '',
-    String times = '', String frequency = 'daily',
+    String name = '',
+    String dosage = '',
+    String times = '',
+    String frequency = 'daily',
   }) {
-    final nameC = TextEditingController(text: name);
-    final dosageC = TextEditingController(text: dosage);
-    final timesC = TextEditingController(text: times);
-    final freqC = TextEditingController(text: frequency);
-
     return showModalBottomSheet<Map<String, String>>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 16,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: StyleTokens.textMuted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              name.isEmpty ? 'Thêm thuốc' : 'Sửa thuốc',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: StyleTokens.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: nameC,
-              style: GoogleFonts.plusJakartaSans(),
-              decoration: InputDecoration(
-                labelText: 'Tên thuốc',
-                labelStyle: GoogleFonts.plusJakartaSans(
-                  color: StyleTokens.textMuted,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: dosageC,
-              style: GoogleFonts.plusJakartaSans(),
-              decoration: InputDecoration(
-                labelText: 'Liều lượng',
-                labelStyle: GoogleFonts.plusJakartaSans(
-                  color: StyleTokens.textMuted,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: timesC,
-              style: GoogleFonts.plusJakartaSans(),
-              decoration: InputDecoration(
-                labelText: 'Giờ uống (VD: 07:00, 21:00)',
-                labelStyle: GoogleFonts.plusJakartaSans(
-                  color: StyleTokens.textMuted,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: freqC,
-              style: GoogleFonts.plusJakartaSans(),
-              decoration: InputDecoration(
-                labelText: 'Tần suất (daily)',
-                labelStyle: GoogleFonts.plusJakartaSans(
-                  color: StyleTokens.textMuted,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: Text(
-                      'Hủy',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: StyleTokens.buttonPrimary,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      if (nameC.text.trim().isEmpty) return;
-                      Navigator.pop(ctx, {
-                        'name': nameC.text.trim(),
-                        'dosage': dosageC.text.trim(),
-                        'times': timesC.text.trim(),
-                        'frequency': freqC.text.trim(),
-                      });
-                    },
-                    child: Text(
-                      'Lưu',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ).then((result) {
-      nameC.dispose();
-      dosageC.dispose();
-      timesC.dispose();
-      freqC.dispose();
-      return result;
-    });
-  }
-
-  // --- Audit log tab ---
-
-  Widget _buildAuditTab() {
-    if (_loadingLogs) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_logs.isEmpty) {
-      return const Center(child: Text('Chưa có hoạt động nào'));
-    }
-    return RefreshIndicator(
-      onRefresh: _loadLogs,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _logs.length,
-        itemBuilder: (context, index) {
-          final log = _logs[index];
-          return GestureDetector(
-            onTap: () => _showLogDetail(log),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: StyleTokens.surfaceCard,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  _auditIcon(log.toolName),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          log.toolLabel,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: StyleTokens.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          _formatTime(log.createdAt),
-                          style: StyleTokens.bodySmall(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: StyleTokens.textMuted,
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _auditIcon(String toolName) {
-    if (toolName.contains('call')) {
-      return const Icon(Icons.phone, color: Colors.green);
-    }
-    if (toolName.contains('message')) {
-      return const Icon(Icons.chat, color: Colors.blue);
-    }
-    if (toolName.contains('emergency') || toolName.contains('sos')) {
-      return const Icon(Icons.warning, color: Colors.red);
-    }
-    if (toolName.contains('medication') || toolName.contains('med')) {
-      return const Icon(Icons.medication, color: Colors.purple);
-    }
-    return const Icon(Icons.history, color: Colors.grey);
-  }
-
-  void _showLogDetail(AuditLogEntry log) {
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle bar
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: StyleTokens.textMuted,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              log.toolLabel,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: StyleTokens.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Thời gian: ${_formatTime(log.createdAt)}',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                color: StyleTokens.textSecondary,
-              ),
-            ),
-            if (log.params.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Chi tiết: ${log.params.entries.map(
-                      (e) => '${e.key}: ${e.value}',
-                    ).join(', ')}',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  color: StyleTokens.textSecondary,
-                ),
-              ),
-            ],
-            if (log.result != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Kết quả: ${log.result}',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  color: StyleTokens.textSecondary,
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: StyleTokens.buttonPrimary,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(
-                  'Đóng',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Location tab ---
-
-  Widget _buildLocationTab() {
-    if (_loadingLocation) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final loc = _location;
-    if (loc == null || !loc.hasLocation) {
-      return const Center(child: Text('Chưa có vị trí'));
-    }
-    return RefreshIndicator(
-      onRefresh: _loadLocation,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: StyleTokens.surfaceCard,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.location_on, size: 48, color: Colors.red),
-                const SizedBox(height: 12),
-                Text(
-                  '${loc.lat!.toStringAsFixed(6)}, '
-                  '${loc.lng!.toStringAsFixed(6)}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: StyleTokens.textPrimary,
-                  ),
-                ),
-                if (loc.updatedAt != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Cập nhật: ${_formatTime(loc.updatedAt!)}',
-                    style: StyleTokens.bodySmall(),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () => _openMaps(loc.lat!, loc.lng!),
-                  icon: const Icon(Icons.map),
-                  label: const Text('Mở bản đồ'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: StyleTokens.buttonPrimary,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      builder: (ctx) => FamilyDashboardMedFormSheet(
+        name: name,
+        dosage: dosage,
+        times: times,
+        frequency: frequency,
       ),
     );
   }
 
   Future<void> _openMaps(double lat, double lng) async {
-    final uri = Uri.parse(
+    final Uri uri = Uri.parse(
       'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
     );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final bool launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        AppToast.show(
+          'Không mở được Google Maps. Hãy cài Maps hoặc trình duyệt.',
+          isError: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        AppToast.show(
+          'Không mở được bản đồ. Thử lại sau.',
+          isError: true,
+        );
+      }
     }
-  }
-
-  // --- Helpers ---
-
-  Widget _sectionTitle(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          text,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: StyleTokens.textPrimary,
-          ),
-        ),
-      );
-
-  Widget _emptyCard(String text) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: StyleTokens.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(child: Text(text, style: StyleTokens.bodySmall())),
-      );
-
-  String _formatTime(DateTime dt) {
-    final local = dt.toLocal();
-    return '${local.day}/${local.month}/${local.year} '
-        '${local.hour.toString().padLeft(2, "0")}:'
-        '${local.minute.toString().padLeft(2, "0")}';
   }
 }

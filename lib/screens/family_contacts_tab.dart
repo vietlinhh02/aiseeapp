@@ -12,7 +12,10 @@ import '../utils/app_toast.dart';
 import 'family_dashboard_screen.dart';
 
 class FamilyContactsTab extends StatefulWidget {
-  const FamilyContactsTab({super.key});
+  const FamilyContactsTab({super.key, this.onFamilyListChanged});
+
+  /// Gọi sau mỗi lần tải lại danh sách gia đình thành công (đồng bộ tab Tin nhắn).
+  final VoidCallback? onFamilyListChanged;
 
   @override
   State<FamilyContactsTab> createState() => _FamilyContactsTabState();
@@ -52,13 +55,19 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
     });
     try {
       final token = await _token();
-      if (token == null) return;
+      if (token == null) {
+        if (mounted) {
+          setState(() => _loading = false);
+        }
+        return;
+      }
       final members = await _familyService.fetchFamily(token);
       if (!mounted) return;
       setState(() {
         _members = members;
         _loading = false;
       });
+      widget.onFamilyListChanged?.call();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -68,24 +77,194 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
     }
   }
 
+  /// Gọi API join; trả `true` khi thành công. Chuỗi rỗng / hết token → `false` (đã toast nếu cần).
+  Future<bool> _submitJoinCode(String code) async {
+    final c = code.trim();
+    if (c.isEmpty) return false;
+    final token = await _token();
+      if (token == null) {
+      if (mounted) {
+        AppToast.show(
+          'Phiên đăng nhập hết hạn. Hãy đăng xuất và đăng nhập lại.',
+          isError: true,
+        );
+      }
+      return false;
+    }
+    await _familyService.joinFamily(token, c);
+    return true;
+  }
+
   Future<void> _joinFamily() async {
-    final code = _codeController.text.trim();
-    if (code.isEmpty) return;
+    if (_joining) return;
     setState(() => _joining = true);
     try {
-      final token = await _token();
-      if (token == null) return;
-      await _familyService.joinFamily(token, code);
-      _codeController.clear();
+      if (_codeController.text.trim().isEmpty) {
+        AppToast.show('Vui lòng nhập mã mời', isError: true);
+        return;
+      }
+      final ok = await _submitJoinCode(_codeController.text);
       if (!mounted) return;
-      AppToast.snack(context, 'Đã tham gia gia đình');
+      if (!ok) return;
+      _codeController.clear();
+      AppToast.show('Đã tham gia gia đình');
       await _loadMembers();
     } catch (e) {
       if (!mounted) return;
-      AppToast.snack(context, e.toString(), isError: true);
+      AppToast.show(e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _joining = false);
     }
+  }
+
+  void _openJoinAnotherFamilySheet() {
+    HapticFeedback.lightImpact();
+    final ctrl = TextEditingController();
+    var sheetBusy = false;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+          ),
+          child: StatefulBuilder(
+            builder: (ctx, setSheetState) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: StyleTokens.cardBorder,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Tham gia thêm gia đình',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: StyleTokens.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Nhập mã mời từ người thân. Một tài khoản có thể thuộc nhiều gia đình.',
+                      style: StyleTokens.bodySmall(),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: ctrl,
+                      textCapitalization: TextCapitalization.characters,
+                      autocorrect: false,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: StyleTokens.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Mã mời',
+                        hintStyle: StyleTokens.inputHint(),
+                        filled: true,
+                        fillColor: StyleTokens.background,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: StyleTokens.cardBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: StyleTokens.cardBorder),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: StyleTokens.buttonPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: StyleTokens.buttonPrimary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(31),
+                        ),
+                      ),
+                      onPressed: sheetBusy
+                          ? null
+                          : () async {
+                              setSheetState(() => sheetBusy = true);
+                              try {
+                                if (ctrl.text.trim().isEmpty) {
+                                  AppToast.show(
+                                    'Vui lòng nhập mã mời',
+                                    isError: true,
+                                  );
+                                  return;
+                                }
+                                final ok = await _submitJoinCode(ctrl.text);
+                                if (!mounted) return;
+                                if (ok) {
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  AppToast.show('Đã tham gia gia đình');
+                                  await _loadMembers();
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  AppToast.show(e.toString(), isError: true);
+                                }
+                              } finally {
+                                if (ctx.mounted) {
+                                  setSheetState(() => sheetBusy = false);
+                                }
+                              }
+                            },
+                      child: sheetBusy
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Xác nhận tham gia',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    ).whenComplete(ctrl.dispose);
   }
 
   @override
@@ -227,15 +406,94 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
     );
   }
 
+  Widget _buildJoinAnotherFamilyCard() {
+    return Semantics(
+      button: true,
+      label: 'Tham gia thêm gia đình bằng mã mời',
+      child: Material(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _openJoinAnotherFamilySheet,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: StyleTokens.buttonPrimary.withValues(alpha: 0.35),
+              ),
+            ),
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: StyleTokens.background,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: SvgPicture.asset(
+                    'assets/icons/nav/ic_plus.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: const ColorFilter.mode(
+                      StyleTokens.buttonPrimary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tham gia thêm gia đình',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: StyleTokens.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Dùng mã mời — một tài khoản có thể ở nhiều gia đình',
+                        style: StyleTokens.bodySmall().copyWith(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                SvgPicture.asset(
+                  'assets/icons/nav/ic_arrow_right.svg',
+                  width: 20,
+                  height: 20,
+                  colorFilter: const ColorFilter.mode(
+                    StyleTokens.textMuted,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMemberList() {
     return RefreshIndicator(
       onRefresh: _loadMembers,
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemCount: _members.length,
+        itemCount: _members.length + 1,
         separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
-          final member = _members[index];
+          if (index == 0) {
+            return _buildJoinAnotherFamilyCard();
+          }
+          final member = _members[index - 1];
           return _MemberCard(
             member: member,
             onTap: () async {
@@ -328,9 +586,14 @@ class _MemberCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                color: StyleTokens.textMuted,
+              SvgPicture.asset(
+                'assets/icons/nav/ic_arrow_right.svg',
+                width: 20,
+                height: 20,
+                colorFilter: const ColorFilter.mode(
+                  StyleTokens.textMuted,
+                  BlendMode.srcIn,
+                ),
               ),
             ],
           ),

@@ -21,6 +21,7 @@ import '../services/aisee_upload_service.dart';
 import '../services/aisee_voice_recorder.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
+import '../widgets/app_wordmark.dart';
 import 'call_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -29,6 +30,7 @@ class ChatDetailScreen extends StatefulWidget {
     required this.contact,
     required this.currentUserId,
     this.chatSocket,
+    this.onUnreadCleared,
   });
 
   final AiseeFamilyMember contact;
@@ -36,6 +38,9 @@ class ChatDetailScreen extends StatefulWidget {
 
   /// Reuse parent socket if available — avoids duplicate connections.
   final AiseeChatSocket? chatSocket;
+
+  /// Gọi sau khi đánh dấu đã đọc trên máy chủ (ví dụ làm mới badge danh sách).
+  final VoidCallback? onUnreadCleared;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -121,6 +126,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _loading = false;
         _hasMore = msgs.length >= 50;
       });
+      unawaited(_markIncomingUnreadAsRead(msgs));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -156,6 +162,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _loadingMore = false;
         _hasMore = older.length >= 50;
       });
+      unawaited(_markIncomingUnreadAsRead(older));
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingMore = false);
@@ -194,9 +201,59 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // Fire-and-forget mark read.
     AiseeSessionStore.instance.read().then((AiseeAuthTokens? tokens) {
       if (tokens != null) {
-        unawaited(_chatService.markRead(tokens.accessToken, msg.id));
+        unawaited(_markReadAndNotify(tokens.accessToken, msg.id));
       }
     });
+  }
+
+  bool _isIncomingUnread(AiseeMessage m) {
+    if (m.senderId != widget.contact.id || m.isRead) {
+      return false;
+    }
+    final String me = widget.currentUserId;
+    if (me.isEmpty) {
+      return true;
+    }
+    return m.receiverId == me;
+  }
+
+  /// Tin từ người đối thoại gửi cho mình, chưa đọc — PUT /read (lịch sử không qua socket).
+  Future<void> _markIncomingUnreadAsRead(List<AiseeMessage> batch) async {
+    final List<AiseeMessage> incomingUnread =
+        batch.where(_isIncomingUnread).toList();
+    if (incomingUnread.isEmpty) {
+      return;
+    }
+    final AiseeAuthTokens? tokens =
+        await AiseeSessionStore.instance.read();
+    if (tokens == null || !mounted) {
+      return;
+    }
+    await Future.wait<void>(
+      incomingUnread.map((AiseeMessage m) async {
+        try {
+          await _chatService.markRead(tokens.accessToken, m.id);
+        } catch (_) {
+          // Tiếp tục các tin còn lại.
+        }
+      }),
+    );
+    if (!mounted) {
+      return;
+    }
+    widget.onUnreadCleared?.call();
+  }
+
+  Future<void> _markReadAndNotify(String accessToken, String messageId) async {
+    try {
+      await _chatService.markRead(accessToken, messageId);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    widget.onUnreadCleared?.call();
   }
 
   Future<void> _startCall(
@@ -252,7 +309,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final String msg = e is AiseeApiException
           ? e.message
           : 'Không tạo được cuộc gọi';
-      AppToast.snack(context, msg, isError: true);
+      AppToast.show(msg, isError: true);
     } finally {
       _callingInProgress = false;
     }
@@ -281,8 +338,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       setState(() => _messages.insert(0, msg));
     } catch (e) {
       if (!mounted) return;
-      AppToast.snack(
-        context,
+      AppToast.show(
         e is AiseeApiException ? e.message : 'Không gửi được tin nhắn.',
         isError: true,
       );
@@ -397,8 +453,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final PermissionStatus status = await Permission.camera.request();
       if (!status.isGranted) {
         if (mounted) {
-          AppToast.snack(
-            context,
+          AppToast.show(
             'Cần quyền camera để chụp ảnh.',
             isError: true,
           );
@@ -449,8 +504,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploadingMedia = false);
-      AppToast.snack(
-        context,
+      AppToast.show(
         e is AiseeApiException
             ? e.message
             : 'Gửi không thành công.',
@@ -466,8 +520,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (!micStatus.isGranted) {
       _recordStartCompleter?.complete();
       if (mounted) {
-        AppToast.snack(
-          context,
+        AppToast.show(
           'Cần quyền microphone để ghi âm.',
           isError: true,
         );
@@ -495,7 +548,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (mounted) setState(() => _isRecording = true);
     } catch (e) {
       if (mounted) {
-        AppToast.snack(context, 'Không thể ghi âm.', isError: true);
+        AppToast.show('Không thể ghi âm.', isError: true);
       }
     } finally {
       _recordStartCompleter?.complete();
@@ -537,14 +590,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       backgroundColor: StyleTokens.background,
       appBar: AppBar(
         backgroundColor: StyleTokens.background,
-        centerTitle: true,
-        title: Text(
-          widget.contact.label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: StyleTokens.textPrimary,
-          ),
+        foregroundColor: StyleTokens.textPrimary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 20,
+        toolbarHeight: 48,
+        title: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                widget.contact.label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                  letterSpacing: -0.5,
+                  color: StyleTokens.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const AppWordmark(fontSize: 15),
+          ],
         ),
         actions: <Widget>[
           IconButton(
@@ -898,9 +967,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             height: 36,
             child: Center(
               child: SvgPicture.asset(
-                'assets/icons/nav/ic_paper.svg',
-                width: 16,
-                height: 16,
+                'assets/icons/nav/ic_send.svg',
+                width: 18,
+                height: 18,
                 colorFilter: const ColorFilter.mode(
                   StyleTokens.buttonOnPrimary,
                   BlendMode.srcIn,

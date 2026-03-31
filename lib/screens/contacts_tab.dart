@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -160,7 +162,7 @@ class _ContactsTabState extends State<ContactsTab> {
       final String msg = e is AiseeApiException
           ? e.message
           : 'Không tạo được cuộc gọi';
-      AppToast.snack(context, msg, isError: true);
+      AppToast.show(msg, isError: true);
     } finally {
       _callingInProgress = false;
     }
@@ -190,7 +192,7 @@ class _ContactsTabState extends State<ContactsTab> {
       final String msg = e is AiseeApiException
           ? e.message
           : 'Không tạo được mã mời.';
-      AppToast.snack(context, msg, isError: true);
+      AppToast.show(msg, isError: true);
     }
   }
 
@@ -433,7 +435,7 @@ class _ContactsTabState extends State<ContactsTab> {
                     onTap: () {
                       HapticFeedback.lightImpact();
                       Clipboard.setData(ClipboardData(text: code));
-                      AppToast.snack(context, 'Đã sao chép mã mời');
+                      AppToast.show('Đã sao chép mã mời');
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -442,10 +444,14 @@ class _ContactsTabState extends State<ContactsTab> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          const Icon(
-                            Icons.copy_rounded,
-                            size: 18,
-                            color: StyleTokens.buttonOnPrimary,
+                          SvgPicture.asset(
+                            'assets/icons/nav/ic_document.svg',
+                            width: 18,
+                            height: 18,
+                            colorFilter: const ColorFilter.mode(
+                              StyleTokens.buttonOnPrimary,
+                              BlendMode.srcIn,
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -647,6 +653,9 @@ class _ContactsTabState extends State<ContactsTab> {
                     contact: _contacts[i],
                     currentUserId: widget.aiseeProfile?.id ?? '',
                     chatSocket: widget.chatSocket,
+                    onUnreadCleared: () {
+                      unawaited(_refreshUnreadCount());
+                    },
                   ),
                   transitionsBuilder: (BuildContext c,
                       Animation<double> a, Animation<double> s,
