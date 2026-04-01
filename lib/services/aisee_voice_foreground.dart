@@ -22,6 +22,10 @@ class AiseeVoiceForegroundTaskHandler extends TaskHandler {
 abstract final class AiseeVoiceAssistantForeground {
   static bool _inited = false;
 
+  static StateError _serviceRequestFailure(String action, Object error) {
+    return StateError('AiSee foreground $action failed: $error');
+  }
+
   /// Gọi trong [main] ngay sau [WidgetsFlutterBinding.ensureInitialized].
   static void initCommunicationPort() {
     FlutterForegroundTask.initCommunicationPort();
@@ -66,18 +70,19 @@ abstract final class AiseeVoiceAssistantForeground {
     if (await FlutterForegroundTask.isRunningService) {
       return;
     }
-    final ServiceRequestResult result = await FlutterForegroundTask.startService(
-      serviceId: 9081,
-      serviceTypes: <ForegroundServiceTypes>[
-        ForegroundServiceTypes.microphone,
-        ForegroundServiceTypes.mediaPlayback,
-      ],
-      notificationTitle: 'AiSee đang hoạt động',
-      notificationText: 'Trợ lý giọng nói đang bật — chạm để mở app',
-      callback: aiseeVoiceForegroundTaskCallback,
-    );
+    final ServiceRequestResult result =
+        await FlutterForegroundTask.startService(
+          serviceId: 9081,
+          serviceTypes: <ForegroundServiceTypes>[
+            ForegroundServiceTypes.microphone,
+            ForegroundServiceTypes.mediaPlayback,
+          ],
+          notificationTitle: 'AiSee đang hoạt động',
+          notificationText: 'Trợ lý giọng nói đang bật — chạm để mở app',
+          callback: aiseeVoiceForegroundTaskCallback,
+        );
     if (result case ServiceRequestFailure(:final Object error)) {
-      debugPrint('AiSee foreground service: $error');
+      throw _serviceRequestFailure('start', error);
     }
   }
 
@@ -85,9 +90,10 @@ abstract final class AiseeVoiceAssistantForeground {
   static Future<void> ensureStopped() async {
     if (!_useAndroidFg) return;
     if (!await FlutterForegroundTask.isRunningService) return;
-    final ServiceRequestResult result = await FlutterForegroundTask.stopService();
+    final ServiceRequestResult result =
+        await FlutterForegroundTask.stopService();
     if (result case ServiceRequestFailure(:final Object error)) {
-      debugPrint('AiSee foreground stop: $error');
+      throw _serviceRequestFailure('stop', error);
     }
   }
 }

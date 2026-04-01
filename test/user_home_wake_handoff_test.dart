@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:aiseeapp/models/agent_state.dart';
@@ -40,6 +42,45 @@ void main() {
     expect(session.foregroundStopped, isTrue);
   });
 
+  test(
+    'explicit mic toggle updates state after foreground lifecycle',
+    () async {
+      final Completer<void> startForegroundCompleter = Completer<void>();
+      final Completer<void> stopForegroundCompleter = Completer<void>();
+      final _RecordingVoiceSession session = _RecordingVoiceSession(
+        startForegroundCompleter: startForegroundCompleter,
+        stopForegroundCompleter: stopForegroundCompleter,
+      )..connectedForMic = true;
+
+      final Future<void> enableFuture = session.enableAssistantMic();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(session.isAssistantMicEnabled, isFalse);
+
+      startForegroundCompleter.complete();
+      await enableFuture;
+
+      expect(session.isAssistantMicEnabled, isTrue);
+      expect(session.audioSessionConfigs, 1);
+      expect(session.micTransitions, <bool>[true]);
+      expect(session.foregroundStartCalls, 1);
+      expect(session.foregroundStopCalls, 0);
+
+      final Future<void> disableFuture = session.disableAssistantMic();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(session.isAssistantMicEnabled, isTrue);
+
+      stopForegroundCompleter.complete();
+      await disableFuture;
+
+      expect(session.isAssistantMicEnabled, isFalse);
+      expect(session.micTransitions, <bool>[true, false]);
+      expect(session.foregroundStartCalls, 1);
+      expect(session.foregroundStopCalls, 1);
+    },
+  );
+
   test('enableAssistantMic fails when room is not connected', () async {
     final AiseeLiveKitVoiceSession session = _RecordingVoiceSession();
 
@@ -66,6 +107,64 @@ void main() {
       expect(session.isAssistantMicEnabled, isFalse);
       expect(session.resumeHookCalls, 0);
       session.disposeHttp();
+    },
+  );
+
+  test(
+    'enableAssistantMic rolls back mic when foreground start fails',
+    () async {
+      final _RecordingVoiceSession session = _RecordingVoiceSession(
+        failStartForeground: true,
+      )..connectedForMic = true;
+
+      await expectLater(session.enableAssistantMic(), throwsStateError);
+
+      expect(session.isAssistantMicEnabled, isFalse);
+      expect(session.micTransitions, <bool>[true, false]);
+      expect(session.foregroundStartCalls, 1);
+      expect(session.foregroundStopCalls, 0);
+    },
+  );
+
+  test('disableAssistantMic restores mic when foreground stop fails', () async {
+    final _RecordingVoiceSession session = _RecordingVoiceSession(
+      failStopForeground: true,
+    )..connectedForMic = true;
+
+    await session.enableAssistantMic();
+    expect(session.isAssistantMicEnabled, isTrue);
+
+    await expectLater(session.disableAssistantMic(), throwsStateError);
+
+    expect(session.isAssistantMicEnabled, isTrue);
+    expect(session.micTransitions, <bool>[true, false, true]);
+    expect(session.foregroundStartCalls, 1);
+    expect(session.foregroundStopCalls, 1);
+  });
+
+  test(
+    'disconnect stops foreground service through mic lifecycle seam',
+    () async {
+      final _RecordingVoiceSession session = _RecordingVoiceSession();
+
+      await session.disconnect();
+
+      expect(session.foregroundStopCalls, 1);
+      expect(session.isAssistantMicEnabled, isFalse);
+    },
+  );
+
+  test(
+    'disconnect swallows foreground stop failures during teardown',
+    () async {
+      final _RecordingVoiceSession session = _RecordingVoiceSession(
+        failStopForeground: true,
+      );
+
+      await session.disconnect();
+
+      expect(session.foregroundStopCalls, 1);
+      expect(session.isAssistantMicEnabled, isFalse);
     },
   );
 
@@ -265,10 +364,25 @@ void main() {
 }
 
 class _RecordingVoiceSession extends AiseeLiveKitVoiceSession {
+  _RecordingVoiceSession({
+    this.startForegroundCompleter,
+    this.stopForegroundCompleter,
+    this.failStartForeground = false,
+    this.failStopForeground = false,
+  });
+
+  final Completer<void>? startForegroundCompleter;
+  final Completer<void>? stopForegroundCompleter;
+  final bool failStartForeground;
+  final bool failStopForeground;
+
   bool connectCalled = false;
   bool connectedForMic = false;
   bool foregroundStarted = false;
   bool foregroundStopped = false;
+  int foregroundStartCalls = 0;
+  int foregroundStopCalls = 0;
+  int audioSessionConfigs = 0;
   int pauseHookCalls = 0;
   int resumeHookCalls = 0;
   final List<bool> micTransitions = <bool>[];
@@ -295,9 +409,6 @@ class _RecordingVoiceSession extends AiseeLiveKitVoiceSession {
   }
 
   @override
-  Future<void> configureAudioSession() async {}
-
-  @override
   void syncLocalCameraPreviewTrack() {}
 
   @override
@@ -305,12 +416,27 @@ class _RecordingVoiceSession extends AiseeLiveKitVoiceSession {
 
   @override
   Future<void> ensureForegroundStartedAfterConnected() async {
+    foregroundStartCalls += 1;
     foregroundStarted = true;
+    if (failStartForeground) {
+      throw StateError('foreground start failed');
+    }
+    await startForegroundCompleter?.future;
   }
 
   @override
   Future<void> ensureForegroundStopped() async {
+    foregroundStopCalls += 1;
     foregroundStopped = true;
+    if (failStopForeground) {
+      throw StateError('foreground stop failed');
+    }
+    await stopForegroundCompleter?.future;
+  }
+
+  @override
+  Future<void> configureAudioSession() async {
+    audioSessionConfigs += 1;
   }
 }
 

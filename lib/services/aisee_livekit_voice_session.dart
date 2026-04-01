@@ -126,7 +126,6 @@ class AiseeLiveKitVoiceSession {
       'Connect',
       'Room connected. Mic remains OFF until explicitly enabled.',
     );
-    await configureAudioSession();
     _log('Connect', 'Sync camera preview...');
     syncLocalCameraPreviewTrack();
     startWaveDecayTimer();
@@ -1123,9 +1122,22 @@ class AiseeLiveKitVoiceSession {
 
   Future<void> enableAssistantMic() async {
     await setRoomMicrophoneEnabled(true);
-    _assistantMicEnabled = true;
-    _log('Connect', 'Assistant mic ON by wake handoff');
-    await ensureForegroundStartedAfterConnected();
+    try {
+      await configureAudioSession();
+      await ensureForegroundStartedAfterConnected();
+      _assistantMicEnabled = true;
+      _log('Connect', 'Assistant mic ON by wake handoff');
+    } catch (e) {
+      try {
+        await setRoomMicrophoneEnabled(false);
+      } catch (rollbackError, rollbackStack) {
+        debugPrint(
+          'Assistant mic rollback failed: $rollbackError\n$rollbackStack',
+        );
+      }
+      _assistantMicEnabled = false;
+      rethrow;
+    }
 
     final Future<void> Function()? wakeHook = onAfterMicEnabledForRoom;
     if (wakeHook != null) {
@@ -1149,11 +1161,23 @@ class AiseeLiveKitVoiceSession {
     }
 
     await setRoomMicrophoneEnabled(false);
-    _assistantMicEnabled = false;
-    _log('Connect', 'Assistant mic OFF, returning to wake idle');
-    await ensureForegroundStopped();
-    if (shouldResumeWakeWord) {
-      await _notifyWakeWordCanResume();
+    try {
+      await ensureForegroundStopped();
+      _assistantMicEnabled = false;
+      _log('Connect', 'Assistant mic OFF, returning to wake idle');
+      if (shouldResumeWakeWord) {
+        await _notifyWakeWordCanResume();
+      }
+    } catch (e) {
+      try {
+        await setRoomMicrophoneEnabled(true);
+      } catch (rollbackError, rollbackStack) {
+        debugPrint(
+          'Assistant mic restore failed: $rollbackError\n$rollbackStack',
+        );
+      }
+      _assistantMicEnabled = true;
+      rethrow;
     }
   }
 
@@ -1184,7 +1208,11 @@ class AiseeLiveKitVoiceSession {
     } else {
       _log('Disconnect', 'Khong co room dang ket noi');
     }
-    await AiseeVoiceAssistantForeground.ensureStopped();
+    try {
+      await ensureForegroundStopped();
+    } catch (e, st) {
+      debugPrint('AiSee foreground stop during disconnect: $e\n$st');
+    }
     _log('Disconnect', 'Da ngat xong.');
     await _notifyWakeWordCanResume();
   }
