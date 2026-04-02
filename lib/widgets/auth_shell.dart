@@ -107,9 +107,6 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     if (_aiseeProfile == null) return;
     if (state == AppLifecycleState.resumed) {
       _connectChatSocketIfNeeded();
-    } else if (state == AppLifecycleState.paused) {
-      _chatSocket.disconnect();
-      _authLog('ChatSocket disconnected (app paused)');
     }
   }
 
