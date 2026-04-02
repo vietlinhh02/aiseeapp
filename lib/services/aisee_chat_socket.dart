@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../config/app_env.dart';
 import '../models/aisee_message.dart';
+import '../models/aisee_incoming_call.dart';
 import 'aisee_push_service.dart';
 
 class AiseeChatSocket {
@@ -15,6 +16,7 @@ class AiseeChatSocket {
   int _reconnectAttempts = 0;
   String? _accessToken;
   bool _disposed = false;
+  bool _connecting = false;
 
   final StreamController<AiseeMessage> _controller =
       StreamController<AiseeMessage>.broadcast();
@@ -24,9 +26,26 @@ class AiseeChatSocket {
   bool get isConnected => _socket != null;
 
   Future<void> connect(String accessToken) async {
+    if (_connecting) return;
     _accessToken = accessToken;
     _disposed = false;
-    await _doConnect();
+    _connecting = true;
+    try {
+      // Close existing socket before opening new one.
+      final WebSocket? existing = _socket;
+      if (existing != null) {
+        _socket = null;
+        _reconnectTimer?.cancel();
+        _reconnectTimer = null;
+        try {
+          await existing.close();
+        } catch (_) {}
+      }
+      _reconnectAttempts = 0;
+      await _doConnect();
+    } finally {
+      _connecting = false;
+    }
   }
 
   Future<void> _doConnect() async {
@@ -72,14 +91,12 @@ class AiseeChatSocket {
   void _onData(dynamic raw) {
     if (raw is! String) return;
     try {
-      final Map<String, dynamic> map =
-          jsonDecode(raw) as Map<String, dynamic>;
+      final Map<String, dynamic> map = jsonDecode(raw) as Map<String, dynamic>;
       final String? t = map['type'] as String?;
       if (t == 'incoming_call') {
-        unawaited(
-          AiseePushService.showIncomingCallUi(
-            Map<String, dynamic>.from(map),
-          ),
+        AiseePushService.instance.handleIncomingCallPayload(
+          Map<String, dynamic>.from(map),
+          source: AiseeIncomingCallSource.websocket,
         );
         return;
       }
