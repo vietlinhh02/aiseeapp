@@ -59,6 +59,7 @@ class AiseeLiveKitVoiceSession {
 
   Room? _room;
   EventsListener<RoomEvent>? _roomListener;
+  Completer<void>? _connectCompleter;
 
   AudioPlayer? _musicPlayer;
   StreamSubscription<PlayerState>? _musicPlayingSub;
@@ -1018,8 +1019,35 @@ class AiseeLiveKitVoiceSession {
     /// Chạy song song với lấy token / kết nối phòng; await ngay trước [setAttributes].
     Future<bool>? resolveHasFamilyLink,
   }) async {
+    if (_connectCompleter != null) {
+      _log('Connect', 'Already connecting, waiting...');
+      return _connectCompleter!.future;
+    }
+    _connectCompleter = Completer<void>();
+    try {
+      await _connectInner(
+        userName: userName,
+        userId: userId,
+        resolveHasFamilyLink: resolveHasFamilyLink,
+      );
+      _connectCompleter!.complete();
+    } catch (e, st) {
+      _connectCompleter!.completeError(e, st);
+      rethrow;
+    } finally {
+      _connectCompleter = null;
+    }
+  }
+
+  Future<void> _connectInner({
+    required String userName,
+    required String userId,
+    Future<bool>? resolveHasFamilyLink,
+  }) async {
     _log('Connect', 'Bat dau ket noi LiveKit...');
-    await disconnect();
+    if (_room != null) {
+      await disconnect();
+    }
     _log('Connect', 'Song song: quyen media + token phong...');
     final List<dynamic> parallel = await Future.wait<dynamic>(<Future<dynamic>>[
       _ensureMediaPermissions(),
