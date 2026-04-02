@@ -13,7 +13,6 @@ import 'aisee_push_service.dart';
 class AiseeChatSocket {
   WebSocket? _socket;
   Timer? _reconnectTimer;
-  Timer? _pingTimer;
   int _reconnectAttempts = 0;
   String? _accessToken;
   bool _disposed = false;
@@ -67,9 +66,9 @@ class AiseeChatSocket {
         await ws.close();
         return;
       }
+      ws.pingInterval = const Duration(seconds: 30);
       _socket = ws;
       _reconnectAttempts = 0;
-      _startPing();
       debugPrint('[AiSee:WS] Connected');
 
       ws.listen(
@@ -112,22 +111,6 @@ class AiseeChatSocket {
     }
   }
 
-  void _startPing() {
-    _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      final WebSocket? ws = _socket;
-      if (ws == null) return;
-      try {
-        ws.add('{"type":"ping"}');
-      } catch (_) {}
-    });
-  }
-
-  void _stopPing() {
-    _pingTimer?.cancel();
-    _pingTimer = null;
-  }
-
   void _scheduleReconnect() {
     if (_disposed) return;
     _reconnectTimer?.cancel();
@@ -142,7 +125,6 @@ class AiseeChatSocket {
 
   Future<void> disconnect() async {
     _disposed = true;
-    _stopPing();
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     final WebSocket? ws = _socket;
