@@ -23,10 +23,14 @@ String _avatarUrl(String seed) =>
     'https://api.dicebear.com/9.x/notionists/png?seed=${Uri.encodeComponent(seed)}&size=96&backgroundColor=e8e8e8';
 
 class ContactsTab extends StatefulWidget {
-  const ContactsTab({super.key, this.aiseeProfile, this.chatSocket});
+  const ContactsTab({
+    super.key,
+    this.aiseeProfile,
+    required this.chatSocket,
+  });
 
   final AiseeUserProfile? aiseeProfile;
-  final AiseeChatSocket? chatSocket;
+  final AiseeChatSocket chatSocket;
 
   @override
   State<ContactsTab> createState() => _ContactsTabState();

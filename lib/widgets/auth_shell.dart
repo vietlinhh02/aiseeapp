@@ -13,8 +13,10 @@ import '../screens/login_screen.dart';
 import '../screens/role_selection_screen.dart';
 import '../screens/user_home_screen.dart';
 import '../services/aisee_auth_service.dart';
+import '../services/aisee_chat_socket.dart';
 import '../services/aisee_push_service.dart';
 import 'auth_bootstrapping.dart';
+import 'permission_bootstrap_gate.dart';
 import '../services/aisee_profile_cache.dart';
 import '../services/aisee_session_store.dart';
 import '../utils/app_toast.dart';
@@ -52,7 +54,7 @@ class AuthShell extends StatefulWidget {
   State<AuthShell> createState() => _AuthShellState();
 }
 
-class _AuthShellState extends State<AuthShell> {
+class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
   bool _initializing = true;
   String? _bootstrapError;
   GoogleSignInAccount? _user;
@@ -60,6 +62,7 @@ class _AuthShellState extends State<AuthShell> {
   bool _toastAfterSignOut = false;
   String? _bootstrapDetail;
 
+  final AiseeChatSocket _chatSocket = AiseeChatSocket();
   late final AiseeAuthService _aiseeAuth;
   late final bool _ownsAuthService;
   AiseeUserProfile? _aiseeProfile;
@@ -73,6 +76,7 @@ class _AuthShellState extends State<AuthShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _aiseeAuth = widget.authService ?? AiseeAuthService();
     _ownsAuthService = widget.authService == null;
     unawaited(_bootstrap());
@@ -98,11 +102,33 @@ class _AuthShellState extends State<AuthShell> {
         AiseeProfileCache.instance.clear();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_aiseeProfile == null) return;
+    if (state == AppLifecycleState.resumed) {
+      _connectChatSocketIfNeeded();
+    } else if (state == AppLifecycleState.paused) {
+      _chatSocket.disconnect();
+      _authLog('ChatSocket disconnected (app paused)');
+    }
+  }
+
+  Future<void> _connectChatSocketIfNeeded() async {
+    if (_chatSocket.isConnected) return;
+    final AiseeAuthTokens? tokens =
+        await AiseeSessionStore.instance.read();
+    if (tokens != null) {
+      await _chatSocket.connect(tokens.accessToken);
+      _authLog('ChatSocket connected');
+    }
+  }
+
   Future<void> _clearSessionAndRouteToLogin({
     bool showExpiredToast = false,
   }) async {
     await _clearStoredSession();
     await _clearCachedProfile();
+    unawaited(_chatSocket.disconnect());
     if (!mounted) return;
     setState(() {
       _aiseeProfile = null;
@@ -163,6 +189,7 @@ class _AuthShellState extends State<AuthShell> {
     await AiseePushService.instance.initAndUploadToken(
       resumed.tokens.accessToken,
     );
+    unawaited(_chatSocket.connect(resumed.tokens.accessToken));
     if (!mounted) return;
     setState(() {
       _aiseeProfile = resumed.profile;
@@ -210,6 +237,7 @@ class _AuthShellState extends State<AuthShell> {
         '— đồng bộ máy chủ sau',
       );
       await AiseePushService.instance.initAndUploadToken(stored.accessToken);
+      unawaited(_chatSocket.connect(stored.accessToken));
       if (!mounted) {
         return;
       }
@@ -421,6 +449,7 @@ class _AuthShellState extends State<AuthShell> {
         aiseeLoading: aiseeLoading,
         aiseeError: aiseeError,
         onSignOut: _signOut,
+        chatSocket: _chatSocket,
       );
     }
     return FamilyHomeScreen(
@@ -429,11 +458,14 @@ class _AuthShellState extends State<AuthShell> {
       aiseeLoading: aiseeLoading,
       aiseeError: aiseeError,
       onSignOut: _signOut,
+      chatSocket: _chatSocket,
     );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _chatSocket.dispose();
     unawaited(_authSub?.cancel());
     if (_ownsAuthService) {
       _aiseeAuth.close();
@@ -504,11 +536,13 @@ class _AuthShellState extends State<AuthShell> {
             },
             onSignOut: _signOut,
           )
-        : _homeForRole(
-            googleUser: _user,
-            aiseeProfile: _aiseeProfile,
-            aiseeLoading: _profileLoading,
-            aiseeError: _profileError,
+        : PermissionBootstrapGate(
+            child: _homeForRole(
+              googleUser: _user,
+              aiseeProfile: _aiseeProfile,
+              aiseeLoading: _profileLoading,
+              aiseeError: _profileError,
+            ),
           );
 
     final bool loggedIn = !showLogin;

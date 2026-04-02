@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +7,6 @@ import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_push_service.dart';
-import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
 import '../widgets/user_low_vision_bottom_nav.dart';
@@ -27,6 +24,7 @@ class FamilyHomeScreen extends StatefulWidget {
     this.aiseeLoading = false,
     this.aiseeError,
     required this.onSignOut,
+    required this.chatSocket,
   });
 
   final GoogleSignInAccount? googleUser;
@@ -34,6 +32,7 @@ class FamilyHomeScreen extends StatefulWidget {
   final bool aiseeLoading;
   final String? aiseeError;
   final VoidCallback onSignOut;
+  final AiseeChatSocket chatSocket;
 
   @override
   State<FamilyHomeScreen> createState() => _FamilyHomeScreenState();
@@ -43,7 +42,6 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
     with SingleTickerProviderStateMixin {
   int _tabIndex = 0;
   late final AnimationController _tabFade;
-  AiseeChatSocket? _chatSocket;
 
   /// Tăng mỗi khi tab Gia đình tải lại danh sách — tab Tin nhắn lắng nghe để đồng bộ.
   final ValueNotifier<int> _familyRosterVersion = ValueNotifier<int>(0);
@@ -71,15 +69,6 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
         );
       });
     }
-    _initSocket();
-  }
-
-  Future<void> _initSocket() async {
-    final stored = await AiseeSessionStore.instance.read();
-    if (stored == null || !mounted) return;
-    _chatSocket = AiseeChatSocket();
-    unawaited(_chatSocket!.connect(stored.accessToken));
-    if (mounted) setState(() {});
   }
 
   void _onTabChanged(int index) {
@@ -97,7 +86,6 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
   void dispose() {
     _familyRosterVersion.dispose();
     _tabFade.dispose();
-    _chatSocket?.dispose();
     super.dispose();
   }
 
@@ -175,7 +163,7 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
                   ),
                   FamilyMessagesTab(
                     currentUserId: profile.id,
-                    chatSocket: _chatSocket ?? AiseeChatSocket(),
+                    chatSocket: widget.chatSocket,
                     familyRosterVersion: _familyRosterVersion,
                     messagesTabActive: _tabIndex == 1,
                   ),

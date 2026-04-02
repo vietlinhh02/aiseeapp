@@ -33,6 +33,7 @@ class UserHomeScreen extends StatefulWidget {
     this.aiseeLoading = false,
     this.aiseeError,
     required this.onSignOut,
+    required this.chatSocket,
   });
 
   final GoogleSignInAccount? googleUser;
@@ -40,6 +41,7 @@ class UserHomeScreen extends StatefulWidget {
   final bool aiseeLoading;
   final String? aiseeError;
   final VoidCallback onSignOut;
+  final AiseeChatSocket chatSocket;
 
   @override
   State<UserHomeScreen> createState() => _UserHomeScreenState();
@@ -49,8 +51,6 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _tabIndex = 0;
   late final AnimationController _tabFade;
-
-  final AiseeChatSocket _chatSocket = AiseeChatSocket();
 
   final AiseeLiveKitVoiceSession _liveKitVoice = AiseeLiveKitVoiceSession();
   late final AssistantAudioCoordinator _assistantAudioCoordinator;
@@ -127,7 +127,6 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_startLiveKitVoice());
     });
-    _connectChatSocket();
     final AiseeCallInfo? pending = AiseePushService.instance
         .consumePendingCall();
     if (pending != null) {
@@ -182,18 +181,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     });
   }
 
-  Future<void> _connectChatSocket() async {
-    final tokens = await AiseeSessionStore.instance.read();
-    if (tokens != null) {
-      await _chatSocket.connect(tokens.accessToken);
-      debugPrint('[AiSee:UI] Chat WebSocket connected');
-    }
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _connectChatSocket();
       if (_wakeWordEnabled) {
         unawaited(
           _assistantAudioCoordinator.onAppResumed(
@@ -202,8 +192,6 @@ class _UserHomeScreenState extends State<UserHomeScreen>
         );
       }
     } else if (state == AppLifecycleState.paused) {
-      _chatSocket.disconnect();
-      debugPrint('[AiSee:UI] Chat WebSocket disconnected (app paused)');
       if (_wakeWordEnabled) {
         unawaited(_assistantAudioCoordinator.onAppPaused());
       }
@@ -217,7 +205,6 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       unawaited(AiseeWakeWordService.instance.stop());
     }
     WidgetsBinding.instance.removeObserver(this);
-    _chatSocket.dispose();
     _tabFade.dispose();
     debugPrint('[AiSee:UI] UserHomeScreen dispose — ngat LiveKit');
     if (_wakeWordEnabled) {
@@ -398,7 +385,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
                   ),
                   ContactsTab(
                     aiseeProfile: widget.aiseeProfile,
-                    chatSocket: _chatSocket,
+                    chatSocket: widget.chatSocket,
                   ),
                   UserPersonalTab(
                     key: UserPersonalTab.tabKey,

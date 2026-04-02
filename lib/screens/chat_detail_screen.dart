@@ -30,15 +30,13 @@ class ChatDetailScreen extends StatefulWidget {
     super.key,
     required this.contact,
     required this.currentUserId,
-    this.chatSocket,
+    required this.chatSocket,
     this.onUnreadCleared,
   });
 
   final AiseeFamilyMember contact;
   final String currentUserId;
-
-  /// Reuse parent socket if available — avoids duplicate connections.
-  final AiseeChatSocket? chatSocket;
+  final AiseeChatSocket chatSocket;
 
   /// Gọi sau khi đánh dấu đã đọc trên máy chủ (ví dụ làm mới badge danh sách).
   final VoidCallback? onUnreadCleared;
@@ -75,8 +73,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   final ChatRecordingLifecyclePolicy _recordingLifecyclePolicy =
       const ChatRecordingLifecyclePolicy();
 
-  // Only create own socket if parent didn't provide one.
-  AiseeChatSocket? _ownSocket;
 
   @override
   void initState() {
@@ -100,8 +96,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _socketSub?.cancel();
-    _ownSocket?.disconnect();
-    _ownSocket?.dispose();
     _recorderSub?.cancel();
     _voiceRecorder.dispose();
     _uploadService.close();
@@ -196,20 +190,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   /// Listen to parent socket or create a lightweight one.
   void _listenSocket() {
-    final AiseeChatSocket? parentSocket = widget.chatSocket;
-    if (parentSocket != null) {
-      _socketSub = parentSocket.onMessage.listen(_onNewMessage);
-      return;
-    }
-    // Fallback: create own socket, but don't await connect.
-    final AiseeChatSocket sock = AiseeChatSocket();
-    _ownSocket = sock;
-    _socketSub = sock.onMessage.listen(_onNewMessage);
-    AiseeSessionStore.instance.read().then((AiseeAuthTokens? tokens) {
-      if (tokens != null && mounted) {
-        sock.connect(tokens.accessToken);
-      }
-    });
+    _socketSub = widget.chatSocket.onMessage.listen(_onNewMessage);
   }
 
   void _onNewMessage(AiseeMessage msg) {
