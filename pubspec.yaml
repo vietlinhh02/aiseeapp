@@ -64,6 +64,8 @@ dependencies:
   path_provider: 2.1.5
   record: ^6.2.0
   flutter_wake_word: ^0.0.38
+  tflite_flutter: ^0.11.0
+  image: ^4.5.3
 
 dev_dependencies:
   flutter_test:
@@ -94,6 +96,7 @@ flutter:
     - assets/illustrations/role_user.svg
     - assets/illustrations/role_family.svg
     - assets/icons/nav/
+    - assets/models/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
