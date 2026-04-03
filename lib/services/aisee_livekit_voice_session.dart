@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
@@ -27,6 +28,9 @@ import '../services/aisee_reminder_service.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
 import '../models/aisee_message.dart';
+import '../utils/app_toast.dart';
+import 'aisee_content_guard_service.dart';
+import 'aisee_nsfw_classifier.dart';
 
 class AiseeCallsTokenUnauthorized implements Exception {
   @override
@@ -66,6 +70,7 @@ class AiseeLiveKitVoiceSession {
   String? _nowPlayingTitle;
   Timer? _waveDecayTimer;
   bool _assistantMicEnabled = false;
+  AiseeContentGuardService? _contentGuard;
 
   /// 0–1 từ LiveKit active speakers (bạn + agent trong phòng).
   final ValueNotifier<double> assistantWaveEnergy = ValueNotifier<double>(0);
@@ -503,6 +508,30 @@ class AiseeLiveKitVoiceSession {
     return jsonEncode({'status': 'ok'});
   }
 
+  Future<CapturedFrame?> _captureCurrentFrame() async {
+    final LocalVideoTrack? track = localCameraPreviewTrack.value;
+    if (track == null) return null;
+    try {
+      final ByteBuffer buffer =
+          await track.mediaStreamTrack.captureFrame();
+      final Uint8List pixels = buffer.asUint8List();
+      return (pixels: pixels, width: 640, height: 480);
+    } catch (e) {
+      debugPrint('[AiSee:ContentGuard] captureFrame failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> _onUnsafeCameraContent() async {
+    _log('ContentGuard', 'Disabling camera — unsafe content detected');
+    await _room?.localParticipant?.setCameraEnabled(false);
+    syncLocalCameraPreviewTrack();
+    await AppToast.show(
+      'Camera tạm tắt vì phát hiện nội dung không phù hợp',
+      isError: true,
+    );
+  }
+
   void _registerRpcMethods() {
     final Room? room = _room;
     if (room == null) return;
@@ -519,11 +548,28 @@ class AiseeLiveKitVoiceSession {
       final CameraCaptureOptions camOpts = await _agentCameraCaptureOptions();
       await lp.setCameraEnabled(true, cameraCaptureOptions: camOpts);
       syncLocalCameraPreviewTrack();
+      // Start NSFW content guard.
+      if (_contentGuard == null) {
+        final AiseeNsfwClassifier? classifier =
+            await AiseeNsfwClassifier.load();
+        if (classifier != null) {
+          _contentGuard = AiseeContentGuardService(
+            classifier: classifier,
+          );
+        }
+      }
+      _contentGuard?.startWithFrameProvider(
+        frameProvider: _captureCurrentFrame,
+        onUnsafeDetected: () {
+          unawaited(_onUnsafeCameraContent());
+        },
+      );
       return jsonEncode({'status': 'ok'});
     });
 
     room.registerRpcMethod('disable_camera', (RpcInvocationData data) async {
       _log('RPC', 'disable_camera called');
+      _contentGuard?.stop();
       await _room?.localParticipant?.setCameraEnabled(false);
       syncLocalCameraPreviewTrack();
       return jsonEncode({'status': 'ok'});
@@ -1212,6 +1258,9 @@ class AiseeLiveKitVoiceSession {
   Future<void> disconnect() async {
     _log('Disconnect', 'Dang ngat ket noi...');
     _assistantMicEnabled = false;
+    _contentGuard?.stop();
+    _contentGuard?.classifier.dispose();
+    _contentGuard = null;
     _setLocalCameraPreviewTrack(null);
     agentState.value = AgentState.disconnected;
     await _disposeMusicPlayer();
