@@ -338,29 +338,34 @@ void main() {
     expect(ops.liveMicEnabled, isFalse);
   });
 
-  test('pause disables mic and resume restores idle wake mode', () async {
-    final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
-    final AssistantAudioCoordinator controller = AssistantAudioCoordinator(
-      startWakeListening: ops.startWakeListening,
-      stopWakeListening: ops.stopWakeListening,
-      enableAssistantMic: ops.enableAssistantMic,
-      disableAssistantMic: ops.disableAssistantMic,
-      switchToAssistantTab: ops.switchToAssistantTab,
-      gracePeriod: const Duration(milliseconds: 20),
-    );
+  test(
+    'pause restores wake listening and resume avoids redundant restart',
+    () async {
+      final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
+      final AssistantAudioCoordinator controller = AssistantAudioCoordinator(
+        startWakeListening: ops.startWakeListening,
+        stopWakeListening: ops.stopWakeListening,
+        enableAssistantMic: ops.enableAssistantMic,
+        disableAssistantMic: ops.disableAssistantMic,
+        switchToAssistantTab: ops.switchToAssistantTab,
+        gracePeriod: const Duration(milliseconds: 20),
+      );
 
-    await controller.onWakeDetected();
-    await controller.onAppPaused();
+      await controller.onWakeDetected();
+      await controller.onAppPaused();
 
-    expect(ops.liveMicEnabled, isFalse);
-    expect(ops.wakeListening, isFalse);
+      expect(ops.liveMicEnabled, isFalse);
+      expect(ops.wakeListening, isTrue);
+      expect(ops.startWakeListeningCalls, 1);
 
-    await controller.onAppResumed(liveKitConnected: true);
+      await controller.onAppResumed(liveKitConnected: true);
 
-    expect(controller.state, AssistantAudioState.idleListeningWake);
-    expect(ops.liveMicEnabled, isFalse);
-    expect(ops.wakeListening, isTrue);
-  });
+      expect(controller.state, AssistantAudioState.idleListeningWake);
+      expect(ops.liveMicEnabled, isFalse);
+      expect(ops.wakeListening, isTrue);
+      expect(ops.startWakeListeningCalls, 1);
+    },
+  );
 }
 
 class _RecordingVoiceSession extends AiseeLiveKitVoiceSession {
@@ -485,9 +490,11 @@ class _RecordingCoordinatorOps {
   bool wakeListening = true;
   bool liveMicEnabled = false;
   int enableMicCalls = 0;
+  int startWakeListeningCalls = 0;
   int switchTabCalls = 0;
 
   Future<void> startWakeListening() async {
+    startWakeListeningCalls += 1;
     wakeListening = true;
   }
 

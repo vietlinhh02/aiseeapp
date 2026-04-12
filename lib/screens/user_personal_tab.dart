@@ -8,6 +8,7 @@ import '../services/aisee_health_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import 'reminders_screen.dart';
+import 'user_sponsor_screen.dart';
 
 class UserPersonalTab extends StatefulWidget {
   const UserPersonalTab({super.key, required this.onSignOut});
@@ -34,15 +35,16 @@ class UserPersonalTabState extends State<UserPersonalTab> {
   void refreshReminders() => _loadCounts();
 
   Future<void> _loadCounts() async {
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null || !mounted) return;
     final AiseeHealthService svc = AiseeHealthService();
     try {
-      final List<Map<String, dynamic>> meds =
-          await svc.fetchMedications(tokens.accessToken);
-      final List<Map<String, dynamic>> appts =
-          await svc.fetchAppointments(tokens.accessToken);
+      final List<Map<String, dynamic>> meds = await svc.fetchMedications(
+        tokens.accessToken,
+      );
+      final List<Map<String, dynamic>> appts = await svc.fetchAppointments(
+        tokens.accessToken,
+      );
       if (!mounted) return;
       setState(() {
         _medCount = meds.length;
@@ -57,11 +59,17 @@ class UserPersonalTabState extends State<UserPersonalTab> {
     Navigator.of(context)
         .push(
           MaterialPageRoute<void>(
-            builder: (_) =>
-                RemindersScreen(initialFilter: filter),
+            builder: (_) => RemindersScreen(initialFilter: filter),
           ),
         )
         .then((_) => _loadCounts());
+  }
+
+  void _openSponsors() {
+    HapticFeedback.lightImpact();
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const UserSponsorScreen()));
   }
 
   @override
@@ -74,18 +82,13 @@ class UserPersonalTabState extends State<UserPersonalTab> {
         children: <Widget>[
           Text(
             'Thông tin cá nhân và lịch nhắc nhở của bạn.',
-            style: StyleTokens.bodySmall().copyWith(
-              fontSize: 12,
-              height: 1.4,
-            ),
+            style: StyleTokens.bodySmall().copyWith(fontSize: 12, height: 1.4),
           ),
           const SizedBox(height: 20),
           _MenuCard(
             iconAsset: 'assets/icons/nav/ic_heart.svg',
             title: 'Lịch uống thuốc',
-            subtitle: _medCount > 0
-                ? '$_medCount nhắc nhở'
-                : 'Chưa có lịch',
+            subtitle: _medCount > 0 ? '$_medCount nhắc nhở' : 'Chưa có lịch',
             onTap: () => _openScreen(ReminderFilter.medication),
           ),
           const SizedBox(height: 10),
@@ -103,6 +106,13 @@ class UserPersonalTabState extends State<UserPersonalTab> {
             title: 'Nhật ký sức khỏe',
             subtitle: 'Xem chi tiết',
             onTap: () => _openScreen(ReminderFilter.health),
+          ),
+          const SizedBox(height: 10),
+          _MenuCard(
+            iconAsset: 'assets/icons/nav/ic_3user.svg',
+            title: 'Nhà tài trợ',
+            subtitle: 'Các đơn vị đang đồng hành cùng dự án',
+            onTap: _openSponsors,
           ),
           const SizedBox(height: 32),
           _buildSignOutButton(),
@@ -129,9 +139,7 @@ class UserPersonalTabState extends State<UserPersonalTab> {
             child: Center(
               child: Text(
                 'Đăng xuất',
-                style: StyleTokens.socialLabel().copyWith(
-                  fontSize: 14,
-                ),
+                style: StyleTokens.socialLabel().copyWith(fontSize: 14),
               ),
             ),
           ),

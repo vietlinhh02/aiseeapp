@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -10,10 +8,12 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import '../config/aisee_navigator_key.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
-import '../models/aisee_family_member.dart';
+import '../models/aisee_incoming_call.dart';
 import '../screens/call_screen.dart';
+import '../utils/app_toast.dart';
 import 'aisee_call_service.dart';
 import 'aisee_family_service.dart';
+import 'incoming_call_controller.dart';
 import 'aisee_session_store.dart';
 
 void _log(String msg) => debugPrint('[AiSee:Push] $msg');
@@ -26,6 +26,8 @@ class AiseePushService {
   static bool _callKitListenerAttached = false;
 
   AiseeCallInfo? _pendingCallInfo;
+  final AiseeIncomingCallController _incomingCalls =
+      AiseeIncomingCallController.instance;
 
   /// Gọi từ [AiseeApp] ngay khi khởi động — trước đăng nhập — để bắt Accept/Decline.
   void attachCallKitListenerEarly() {
@@ -94,10 +96,6 @@ class AiseePushService {
   }
 
   Future<void> _initAndUploadTokenUnsafe(String accessToken) async {
-    if (!kIsWeb && Platform.isAndroid) {
-      unawaited(FlutterCallkitIncoming.requestFullIntentPermission());
-    }
-
     if (_initialized) {
       await _uploadFcmToken(accessToken);
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -109,23 +107,19 @@ class AiseePushService {
     _initialized = true;
 
     final FirebaseMessaging messaging = FirebaseMessaging.instance;
-    final NotificationSettings settings =
-        await messaging.requestPermission();
+    final NotificationSettings settings = await messaging
+        .getNotificationSettings();
     _log('Permission: ${settings.authorizationStatus}');
 
     await _uploadFcmToken(accessToken);
 
     messaging.onTokenRefresh.listen((String token) async {
       _log('Token refreshed');
-      final AiseeAuthTokens? tokens =
-          await AiseeSessionStore.instance.read();
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
       if (tokens == null) return;
       final AiseeFamilyService svc = AiseeFamilyService();
       try {
-        await svc.updateProfile(
-          tokens.accessToken,
-          {'fcm_token': token},
-        );
+        await svc.updateProfile(tokens.accessToken, {'fcm_token': token});
       } catch (e) {
         _log('Upload refreshed token failed: $e');
       } finally {
@@ -146,8 +140,7 @@ class AiseePushService {
 
   Future<void> _uploadFcmToken(String accessToken) async {
     try {
-      final String? token =
-          await FirebaseMessaging.instance.getToken();
+      final String? token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) {
         _log('No FCM token available');
         return;
@@ -155,10 +148,7 @@ class AiseePushService {
       _log('FCM token: ${token.substring(0, 20)}...');
       final AiseeFamilyService svc = AiseeFamilyService();
       try {
-        await svc.updateProfile(
-          accessToken,
-          {'fcm_token': token},
-        );
+        await svc.updateProfile(accessToken, {'fcm_token': token});
         _log('FCM token uploaded');
       } finally {
         svc.close();
@@ -174,8 +164,27 @@ class AiseePushService {
     final String type = _stringField(data, const ['type']);
 
     if (type == 'incoming_call') {
-      unawaited(showIncomingCallUi(data));
+      handleIncomingCallPayload(data, source: AiseeIncomingCallSource.fcm);
     }
+  }
+
+  void handleIncomingCallPayload(
+    Map<String, dynamic> data, {
+    required AiseeIncomingCallSource source,
+  }) {
+    final AiseeIncomingCall call = AiseeIncomingCall.fromPayload(
+      data,
+      source: source,
+    );
+    _log(
+      'Incoming call: source=$source room=${call.roomName} '
+      'type=${call.callType} foreground=${_incomingCalls.isAppForeground}',
+    );
+    if (_incomingCalls.isAppForeground) {
+      _incomingCalls.showIncomingCall(call);
+      return;
+    }
+    unawaited(showIncomingCallUi(data));
   }
 
   static String _stringField(Map<String, dynamic> map, List<String> keys) {
@@ -194,56 +203,27 @@ class AiseePushService {
 
   /// FCM (foreground), FCM background isolate, hoặc WebSocket — payload phẳng; FCM hay trả toàn String.
   static Future<void> showIncomingCallUi(Map<String, dynamic> data) async {
-    final Map<String, dynamic> d = Map<String, dynamic>.from(data);
-
-    final String callerName = _stringField(
-      d,
-      const ['caller_name', 'callerName', 'name_caller', 'nameCaller'],
+    final AiseeIncomingCall call = AiseeIncomingCall.fromPayload(
+      Map<String, dynamic>.from(data),
+      source: AiseeIncomingCallSource.fcm,
     );
-    final String displayName =
-        callerName.isNotEmpty ? callerName : 'Người gọi';
-
-    final String roomName = _stringField(
-      d,
-      const ['room_name', 'roomName', 'room', 'id'],
-    );
-    final String callType =
-        _stringField(d, const ['call_type', 'callType']).isEmpty
-            ? 'voice'
-            : _stringField(d, const ['call_type', 'callType']);
-
-    final String callerId = _stringField(
-      d,
-      const ['caller_id', 'callerId', 'from_user_id'],
-    );
-
-    final String token = _stringField(
-      d,
-      const ['token', 'livekit_token', 'livekitToken', 'jwt'],
-    );
-
-    final String callId =
-        roomName.isNotEmpty ? roomName : 'call-${DateTime.now().millisecondsSinceEpoch}';
-
-    _log(
-      'Incoming call UI: name=$displayName room=$roomName type=$callType',
-    );
+    _log('Incoming native UI: name=${call.callerName} room=${call.roomName}');
 
     final CallKitParams params = CallKitParams(
-      id: callId,
-      nameCaller: displayName,
+      id: call.callId,
+      nameCaller: call.callerName,
       appName: 'AiSee',
-      handle: displayName,
-      type: callType == 'video' ? 1 : 0,
+      handle: call.callerName,
+      type: call.isVideo ? 1 : 0,
       duration: 45000,
       textAccept: 'Nghe',
       textDecline: 'Từ chối',
       extra: <String, dynamic>{
-        'caller_id': callerId,
-        'caller_name': displayName,
-        'room_name': roomName.isNotEmpty ? roomName : callId,
-        'call_type': callType,
-        'token': token,
+        'caller_id': call.callerId,
+        'caller_name': call.callerName,
+        'room_name': call.roomName,
+        'call_type': call.callType,
+        'token': call.token,
       },
       android: AndroidParams(
         isShowFullLockedScreen: true,
@@ -295,163 +275,85 @@ class AiseePushService {
     return Map<String, dynamic>.from(b);
   }
 
-  /// Gộp [extra] với các trường trên cùng body (Android gửi nameCaller, id, extra riêng).
-  static Map<String, dynamic> _mergedExtra(CallEvent event) {
-    final Map<String, dynamic> body = _bodyAsMap(event);
-    final Map<String, dynamic> merged = <String, dynamic>{};
-
-    void put(String key, Object? value) {
-      if (value == null) {
-        return;
-      }
-      final String s = value is String ? value : value.toString();
-      if (s.isEmpty) {
-        return;
-      }
-      if (!merged.containsKey(key) ||
-          (merged[key]?.toString().isEmpty ?? true)) {
-        merged[key] = value;
-      }
-    }
-
-    final dynamic rawExtra = body['extra'];
-    if (rawExtra is Map) {
-      rawExtra.forEach((dynamic k, dynamic v) {
-        put(k.toString(), v);
-      });
-    }
-
-    put('room_name', body['room_name']);
-    put('caller_name', body['caller_name']);
-    put('caller_id', body['caller_id']);
-    put('call_type', body['call_type']);
-    put('token', body['token']);
-
-    put('room_name', merged['room_name'] ?? body['id']);
-    put('caller_name', merged['caller_name'] ?? body['nameCaller']);
-    put('handle', body['number']);
-
-    return merged;
-  }
-
   static AiseeCallInfo? _callInfoFromCallKitPayload(Map<String, dynamic> src) {
-    final Map<String, dynamic> m = Map<String, dynamic>.from(src);
-    final Map<String, dynamic> extra = <String, dynamic>{};
-    final dynamic ex = m['extra'];
-    if (ex is Map) {
-      ex.forEach((dynamic k, dynamic v) {
-        extra[k.toString()] = v;
-      });
-    }
-
-    String pick(List<String> keys) {
-      for (final String k in keys) {
-        final Object? v = extra[k] ?? m[k];
-        if (v == null) {
-          continue;
-        }
-        final String s = v is String ? v : v.toString();
-        if (s.isNotEmpty) {
-          return s;
-        }
-      }
-      return '';
-    }
-
-    final String roomName =
-        pick(const ['room_name', 'roomName', 'id']);
-
-    final String token = pick(const ['token', 'livekit_token', 'livekitToken']);
-    final String callType = pick(const ['call_type', 'callType']);
-    final String ct = callType.isEmpty ? 'voice' : callType;
-    final String callerName =
-        pick(const ['caller_name', 'callerName', 'nameCaller']);
-    final String display =
-        callerName.isNotEmpty ? callerName : 'Người gọi';
-    final String callerId = pick(const ['caller_id', 'callerId']);
-
-    if (roomName.isEmpty || token.isEmpty) {
+    final AiseeIncomingCall? call = _incomingCallFromCallKitPayload(src);
+    if (call == null || !call.isValidForAccept) {
       return null;
     }
-    return AiseeCallInfo(
-      roomName: roomName,
-      token: token,
-      callType: ct,
-      contact: AiseeFamilyMember(
-        id: callerId.isNotEmpty ? callerId : roomName,
-        email: '',
-        displayName: display,
-        role: 'family',
-      ),
+    return call.toCallInfo();
+  }
+
+  static AiseeIncomingCall? _incomingCallFromCallKitPayload(
+    Map<String, dynamic> src,
+  ) {
+    final Map<String, dynamic> merged = <String, dynamic>{};
+    final Map<String, dynamic> body = Map<String, dynamic>.from(src);
+    final dynamic extra = body['extra'];
+    if (extra is Map) {
+      extra.forEach((dynamic key, dynamic value) {
+        merged[key.toString()] = value;
+      });
+    }
+    for (final MapEntry<String, dynamic> entry in body.entries) {
+      merged.putIfAbsent(entry.key, () => entry.value);
+    }
+    if ((merged['room_name']?.toString().isEmpty ?? true) &&
+        body['id'] != null) {
+      merged['room_name'] = body['id'];
+    }
+    if ((merged['caller_name']?.toString().isEmpty ?? true) &&
+        body['nameCaller'] != null) {
+      merged['caller_name'] = body['nameCaller'];
+    }
+    final AiseeIncomingCall call = AiseeIncomingCall.fromPayload(
+      merged,
+      source: AiseeIncomingCallSource.callkit,
     );
+    return call;
   }
 
   Future<void> _acceptCall(CallEvent event) async {
-    final Map<String, dynamic> merged = _mergedExtra(event);
-    final String room = _stringField(
-      merged,
-      const ['room_name', 'roomName'],
+    final AiseeIncomingCall? call = _incomingCallFromCallKitPayload(
+      _bodyAsMap(event),
     );
-    final String idFallback = _stringField(_bodyAsMap(event), const ['id']);
-    final String roomName = room.isNotEmpty ? room : idFallback;
-
-    final String token = _stringField(
-      merged,
-      const ['token', 'livekit_token', 'livekitToken'],
-    );
-    final String callType = _stringField(
-      merged,
-      const ['call_type', 'callType'],
-    );
-    final String ct = callType.isEmpty ? 'voice' : callType;
-    final String callerName = _stringField(
-      merged,
-      const ['caller_name', 'callerName', 'nameCaller'],
-    );
-    final String display =
-        callerName.isNotEmpty ? callerName : 'Người gọi';
-    final String callerId = _stringField(
-      merged,
-      const ['caller_id', 'callerId'],
-    );
-
-    if (roomName.isEmpty) {
-      _log('Accept: thiếu room');
+    if (call == null) {
+      _log('Accept: payload callkit không đọc được');
       return;
     }
-    if (token.isEmpty) {
-      _log('Accept: thiếu token trong extra — kiểm tra payload FCM/backend');
+    await acceptIncomingCall(call);
+  }
+
+  Future<void> acceptIncomingCall(AiseeIncomingCall call) async {
+    _incomingCalls.hideIncomingCall();
+    if (!call.isValidForAccept) {
+      _log('Accept rejected: thiếu room/token cho callId=${call.callId}');
+      await AppToast.show(
+        'Cuộc gọi này chưa sẵn sàng để kết nối. Vui lòng thử lại.',
+        isError: true,
+      );
       return;
     }
-
-    _navigateToCall(
-      AiseeCallInfo(
-        roomName: roomName,
-        token: token,
-        callType: ct,
-        contact: AiseeFamilyMember(
-          id: callerId.isNotEmpty ? callerId : roomName,
-          email: '',
-          displayName: display,
-          role: 'family',
-        ),
-      ),
-    );
+    _navigateToCall(call.toCallInfo());
   }
 
   Future<void> _declineCall(CallEvent event) async {
-    final Map<String, dynamic> merged = _mergedExtra(event);
-    final Map<String, dynamic> body = _bodyAsMap(event);
-    String room = _stringField(merged, const ['room_name', 'roomName']);
-    if (room.isEmpty) {
-      room = _stringField(body, const ['id']);
+    final AiseeIncomingCall? call = _incomingCallFromCallKitPayload(
+      _bodyAsMap(event),
+    );
+    if (call == null) {
+      return;
     }
+    await declineIncomingCall(call);
+  }
+
+  Future<void> declineIncomingCall(AiseeIncomingCall call) async {
+    _incomingCalls.hideIncomingCall();
+    final String room = call.roomName;
     if (room.isEmpty) {
       return;
     }
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       return;
     }

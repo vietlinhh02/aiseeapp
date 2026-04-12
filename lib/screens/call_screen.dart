@@ -1,15 +1,36 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:livekit_client/livekit_client.dart';
 
 import '../config/app_env.dart';
+import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../services/aisee_call_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import '../utils/app_toast.dart';
+
+String aiseeCallJoinErrorMessage(Object error) {
+  if (error case AiseeApiException(:final String message)) {
+    return message;
+  }
+  return 'Không vào được cuộc gọi. Vui lòng thử lại.';
+}
+
+bool aiseeShouldEnableSpeakerByDefault(String callType) {
+  return callType == 'voice' || callType == 'video';
+}
+
+bool aiseeShouldRefreshLocalVideoUi({
+  required bool isLocalParticipant,
+  required TrackSource? source,
+}) {
+  return isLocalParticipant && source == TrackSource.camera;
+}
 
 enum _CallState { ringing, connected, ended }
 
@@ -33,8 +54,9 @@ class _CallScreenState extends State<CallScreen> {
   bool _speakerEnabled = true;
   bool _cameraEnabled = true;
   bool _toggling = false; // Guard against rapid taps on buttons.
-  final ValueNotifier<Duration> _duration =
-      ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<Duration> _duration = ValueNotifier<Duration>(
+    Duration.zero,
+  );
   Timer? _durationTimer;
   RemoteParticipant? _remoteParticipant;
 
@@ -73,12 +95,8 @@ class _CallScreenState extends State<CallScreen> {
       roomOptions: const RoomOptions(
         adaptiveStream: true,
         dynacast: true,
-        defaultAudioPublishOptions: AudioPublishOptions(
-          dtx: true,
-        ),
-        defaultVideoPublishOptions: VideoPublishOptions(
-          simulcast: true,
-        ),
+        defaultAudioPublishOptions: AudioPublishOptions(dtx: true),
+        defaultVideoPublishOptions: VideoPublishOptions(simulcast: true),
       ),
     );
     _room = room;
@@ -105,15 +123,62 @@ class _CallScreenState extends State<CallScreen> {
           }
         });
       })
+      ..on<LocalTrackPublishedEvent>((LocalTrackPublishedEvent e) {
+        if (!mounted) return;
+        if (!aiseeShouldRefreshLocalVideoUi(
+          isLocalParticipant: true,
+          source: e.publication.source,
+        )) {
+          return;
+        }
+        setState(() {
+          _cameraEnabled = true;
+        });
+      })
+      ..on<LocalTrackUnpublishedEvent>((LocalTrackUnpublishedEvent e) {
+        if (!mounted) return;
+        if (!aiseeShouldRefreshLocalVideoUi(
+          isLocalParticipant: true,
+          source: e.publication.source,
+        )) {
+          return;
+        }
+        setState(() {
+          _cameraEnabled = false;
+        });
+      })
+      ..on<TrackMutedEvent>((TrackMutedEvent e) {
+        if (!mounted) return;
+        if (!aiseeShouldRefreshLocalVideoUi(
+          isLocalParticipant: e.participant is LocalParticipant,
+          source: e.publication.source,
+        )) {
+          return;
+        }
+        setState(() {
+          _cameraEnabled = false;
+        });
+      })
+      ..on<TrackUnmutedEvent>((TrackUnmutedEvent e) {
+        if (!mounted) return;
+        if (!aiseeShouldRefreshLocalVideoUi(
+          isLocalParticipant: e.participant is LocalParticipant,
+          source: e.publication.source,
+        )) {
+          return;
+        }
+        setState(() {
+          _cameraEnabled = true;
+        });
+      })
       ..on<ParticipantDisconnectedEvent>(
         (ParticipantDisconnectedEvent e) => _endCall(),
       )
-      ..on<RoomDisconnectedEvent>(
-        (RoomDisconnectedEvent e) => _endCall(),
-      );
+      ..on<RoomDisconnectedEvent>((RoomDisconnectedEvent e) => _endCall());
 
     try {
       await room.connect(AppEnv.liveKitWsUrl, widget.callInfo.token);
+      await FlutterCallkitIncoming.setCallConnected(widget.callInfo.roomName);
       await room.localParticipant?.setMicrophoneEnabled(true);
       if (_isVideo) {
         await room.localParticipant?.setCameraEnabled(true);
@@ -121,8 +186,7 @@ class _CallScreenState extends State<CallScreen> {
 
       // Check if remote participant already connected
       if (room.remoteParticipants.isNotEmpty && mounted) {
-        final RemoteParticipant first =
-            room.remoteParticipants.values.first;
+        final RemoteParticipant first = room.remoteParticipants.values.first;
         setState(() {
           _remoteParticipant = first;
           _state = _CallState.connected;
@@ -130,11 +194,13 @@ class _CallScreenState extends State<CallScreen> {
         _startDurationTimer();
       }
 
-      // Enable speakerphone for voice calls by default
-      if (!_isVideo) {
+      if (aiseeShouldEnableSpeakerByDefault(widget.callInfo.callType)) {
         await room.setSpeakerOn(true);
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[AiSee:Call] connect error: $e\n$st');
+      if (!mounted) return;
+      await AppToast.show(aiseeCallJoinErrorMessage(e), isError: true);
       if (!mounted) return;
       Navigator.of(context).pop();
     }
@@ -142,13 +208,10 @@ class _CallScreenState extends State<CallScreen> {
 
   void _startDurationTimer() {
     if (_durationTimer != null) return;
-    _durationTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (!mounted) return;
-        _duration.value += const Duration(seconds: 1);
-      },
-    );
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      _duration.value += const Duration(seconds: 1);
+    });
   }
 
   Future<void> _toggleMic() async {
@@ -226,6 +289,9 @@ class _CallScreenState extends State<CallScreen> {
     await _roomListener?.dispose();
     _roomListener = null;
     try {
+      await FlutterCallkitIncoming.endCall(widget.callInfo.roomName);
+    } catch (_) {}
+    try {
       await _room?.disconnect();
     } catch (_) {}
     try {
@@ -236,8 +302,10 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
-    CallScreen.openRouteCount =
-        (CallScreen.openRouteCount - 1).clamp(0, 1 << 30);
+    CallScreen.openRouteCount = (CallScreen.openRouteCount - 1).clamp(
+      0,
+      1 << 30,
+    );
     _durationTimer?.cancel();
     _duration.dispose();
     _roomListener?.dispose();
@@ -249,8 +317,7 @@ class _CallScreenState extends State<CallScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          _isVideo ? Colors.black : StyleTokens.buttonPrimary,
+      backgroundColor: _isVideo ? Colors.black : StyleTokens.buttonPrimary,
       body: SafeArea(
         child: _isVideo ? _buildVideoLayout() : _buildVoiceLayout(),
       ),
@@ -308,8 +375,8 @@ class _CallScreenState extends State<CallScreen> {
         final String text = _state == _CallState.ringing
             ? 'Đang gọi...'
             : _state == _CallState.ended
-                ? 'Đã kết thúc'
-                : _formatDuration(d);
+            ? 'Đã kết thúc'
+            : _formatDuration(d);
         return Text(
           text,
           style: GoogleFonts.plusJakartaSans(
@@ -334,9 +401,7 @@ class _CallScreenState extends State<CallScreen> {
             width: 24,
             height: 24,
             colorFilter: ColorFilter.mode(
-              _micEnabled
-                  ? StyleTokens.buttonPrimary
-                  : const Color(0xFFFF3B30),
+              _micEnabled ? StyleTokens.buttonPrimary : const Color(0xFFFF3B30),
               BlendMode.srcIn,
             ),
           ),
@@ -369,10 +434,7 @@ class _CallScreenState extends State<CallScreen> {
             'assets/icons/nav/ic_close.svg',
             width: 24,
             height: 24,
-            colorFilter: const ColorFilter.mode(
-              Colors.white,
-              BlendMode.srcIn,
-            ),
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
           label: 'Kết thúc cuộc gọi',
         ),
@@ -386,23 +448,9 @@ class _CallScreenState extends State<CallScreen> {
     return Stack(
       children: <Widget>[
         _buildRemoteVideo(),
-        Positioned(
-          top: 16,
-          right: 16,
-          child: _buildLocalVideoPreview(),
-        ),
-        Positioned(
-          top: 16,
-          left: 16,
-          right: 136,
-          child: _buildVideoOverlay(),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 48,
-          child: _buildVideoButtons(),
-        ),
+        Positioned(top: 16, right: 16, child: _buildLocalVideoPreview()),
+        Positioned(top: 16, left: 16, right: 136, child: _buildVideoOverlay()),
+        Positioned(left: 0, right: 0, bottom: 48, child: _buildVideoButtons()),
       ],
     );
   }
@@ -423,10 +471,7 @@ class _CallScreenState extends State<CallScreen> {
         ),
       );
     }
-    return VideoTrackRenderer(
-      track,
-      fit: VideoViewFit.cover,
-    );
+    return VideoTrackRenderer(track, fit: VideoViewFit.cover);
   }
 
   Widget _buildLocalVideoPreview() {
@@ -450,10 +495,7 @@ class _CallScreenState extends State<CallScreen> {
 
   Widget _buildVideoOverlay() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -503,9 +545,7 @@ class _CallScreenState extends State<CallScreen> {
             width: 24,
             height: 24,
             colorFilter: ColorFilter.mode(
-              _micEnabled
-                  ? StyleTokens.buttonPrimary
-                  : const Color(0xFFFF3B30),
+              _micEnabled ? StyleTokens.buttonPrimary : const Color(0xFFFF3B30),
               BlendMode.srcIn,
             ),
           ),
@@ -530,16 +570,32 @@ class _CallScreenState extends State<CallScreen> {
         ),
         const SizedBox(width: 32),
         _buildCircleButton(
+          onTap: _toggleSpeaker,
+          color: Colors.white,
+          child: SvgPicture.asset(
+            _speakerEnabled
+                ? 'assets/icons/nav/ic_volume_up.svg'
+                : 'assets/icons/nav/ic_volume_off.svg',
+            width: 24,
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              _speakerEnabled
+                  ? StyleTokens.buttonPrimary
+                  : const Color(0xFFFF3B30),
+              BlendMode.srcIn,
+            ),
+          ),
+          label: _speakerEnabled ? 'Tắt loa' : 'Bật loa',
+        ),
+        const SizedBox(width: 32),
+        _buildCircleButton(
           onTap: _endCall,
           color: const Color(0xFFFF3B30),
           child: SvgPicture.asset(
             'assets/icons/nav/ic_close.svg',
             width: 24,
             height: 24,
-            colorFilter: const ColorFilter.mode(
-              Colors.white,
-              BlendMode.srcIn,
-            ),
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
           label: 'Kết thúc cuộc gọi',
         ),
@@ -564,11 +620,7 @@ class _CallScreenState extends State<CallScreen> {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: SizedBox(
-            width: 60,
-            height: 60,
-            child: Center(child: child),
-          ),
+          child: SizedBox(width: 60, height: 60, child: Center(child: child)),
         ),
       ),
     );
@@ -582,8 +634,7 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   VideoTrack? _localVideoTrack() {
-    final pubs =
-        _room?.localParticipant?.videoTrackPublications;
+    final pubs = _room?.localParticipant?.videoTrackPublications;
     if (pubs == null || pubs.isEmpty) return null;
     return pubs.first.track;
   }

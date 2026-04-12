@@ -136,6 +136,16 @@ class AiseeWakeWordService {
       return;
     }
     _pausedForLiveKit = true;
+
+    // Nếu detection vừa xảy ra, đợi native thực sự nhả AudioRecord
+    // trước khi trả quyền cho WebRTC.
+    final Completer<void>? pending = _detectionStopCompleter;
+    if (pending != null && !pending.isCompleted) {
+      debugPrint('[AiSee:WakeWord] Waiting for detection stop to finish...');
+      await pending.future;
+      _detectionStopCompleter = null;
+    }
+
     if (!_listening) {
       debugPrint('[AiSee:WakeWord] Idle listening already OFF for LiveKit');
       return;
@@ -159,7 +169,7 @@ class AiseeWakeWordService {
     if (!_started || !_pausedForLiveKit) {
       return;
     }
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     await startIdleListening();
   }
 
@@ -191,10 +201,6 @@ class AiseeWakeWordService {
       return;
     }
 
-    if (Platform.isAndroid) {
-      await Permission.systemAlertWindow.request();
-    }
-
     final int n = modelNames.length;
     final double threshold = _parseThreshold();
     try {
@@ -204,8 +210,8 @@ class AiseeWakeWordService {
           id: _aiseeWakeInstanceId,
           modelNames: modelNames,
           thresholds: List<double>.filled(n, threshold),
-          bufferCnts: List<int>.filled(n, 4),
-          msBetweenCallback: List<int>.filled(n, 1200),
+          bufferCnts: List<int>.filled(n, 2),
+          msBetweenCallback: List<int>.filled(n, 800),
           sticky: false,
         ),
         _onDetectionEvent,
@@ -226,13 +232,25 @@ class AiseeWakeWordService {
     }
   }
 
+  /// Completer cho lần stop sau detection — [stopForLiveSession] await nó
+  /// để đảm bảo native AudioRecord đã giải phóng trước khi WebRTC chiếm mic.
+  Completer<void>? _detectionStopCompleter;
+
   void _onDetectionEvent(Map<String, dynamic> event) {
     final String phrase = (event['phrase'] as String?)?.trim() ?? '';
     _listening = false;
     debugPrint(
       '[AiSee:WakeWord] Wake detected: ${phrase.isEmpty ? 'wake' : phrase}',
     );
-    unawaited(_wakeModel.stopListening());
+    final Completer<void> completer = Completer<void>();
+    _detectionStopCompleter = completer;
+    _wakeModel.stopListening().then((_) {
+      debugPrint('[AiSee:WakeWord] Native mic released after detection');
+      completer.complete();
+    }).catchError((Object e, StackTrace st) {
+      debugPrint('[AiSee:WakeWord] stopListening after detection: $e\n$st');
+      completer.complete();
+    });
     onWakePhrase?.call(phrase.isEmpty ? 'wake' : phrase);
   }
 
@@ -313,7 +331,7 @@ class AiseeWakeWordService {
     _pausedForLiveKit = false;
   }
 
-  /// 0–1; mặc định 0.88 (0.95–0.999 thường quá khó bắt từ khóa). Env: `DAVOICE_WAKEWORD_THRESHOLD`.
+  /// 0–1; mặc định 0.80. Env: `DAVOICE_WAKEWORD_THRESHOLD`.
   static double _parseThreshold() {
     String? raw;
     try {
@@ -327,6 +345,6 @@ class AiseeWakeWordService {
         return v;
       }
     }
-    return 0.88;
+    return 0.80;
   }
 }

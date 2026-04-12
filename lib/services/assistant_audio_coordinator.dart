@@ -22,6 +22,7 @@ class AssistantAudioCoordinator {
     required this.disableAssistantMic,
     required this.switchToAssistantTab,
     this.gracePeriod = const Duration(seconds: 20),
+    this.onMicReadyAfterWake,
     AssistantAudioLog? log,
   }) : _log = log ?? _defaultLog;
 
@@ -30,6 +31,8 @@ class AssistantAudioCoordinator {
   final AssistantAudioAsyncAction enableAssistantMic;
   final AssistantAudioAsyncAction disableAssistantMic;
   final VoidCallback switchToAssistantTab;
+  /// Gọi sau khi bật mic LiveKit xong (wake) — rung / a11y để user biết có thể nói.
+  final VoidCallback? onMicReadyAfterWake;
   final Duration gracePeriod;
   final AssistantAudioLog _log;
 
@@ -61,8 +64,35 @@ class AssistantAudioCoordinator {
       'Wake detected "$phrase"',
     );
     try {
+      final Stopwatch wakeLatency = Stopwatch()..start();
+      _log('WakeLatency t=0ms start (after state=activatingLiveSession)');
       await stopWakeListening();
+      _log(
+        'WakeLatency t=${wakeLatency.elapsedMilliseconds}ms after stopWakeListening',
+      );
+      // Sau khi DaVoice nhả AudioRecord: chờ tối thiểu trước khi WebRTC chiếm mic.
+      // Android thường cần dài hơn iOS; giảm từ 300ms cố định xuống mức vừa phải.
+      final int postWakeDelayMs =
+          defaultTargetPlatform == TargetPlatform.android ? 200 : 100;
+      await Future<void>.delayed(
+        Duration(milliseconds: postWakeDelayMs),
+      );
+      _log(
+        'WakeLatency t=${wakeLatency.elapsedMilliseconds}ms after '
+        '${postWakeDelayMs}ms post-wake delay',
+      );
       await enableAssistantMic();
+      _log(
+        'WakeLatency t=${wakeLatency.elapsedMilliseconds}ms after enableAssistantMic',
+      );
+      final VoidCallback? readyCb = onMicReadyAfterWake;
+      if (readyCb != null) {
+        try {
+          readyCb();
+        } catch (e, st) {
+          _log('onMicReadyAfterWake failed: $e\n$st');
+        }
+      }
       _setState(
         AssistantAudioState.conversationActive,
         'Live conversation active',
@@ -98,14 +128,25 @@ class AssistantAudioCoordinator {
 
   Future<void> onAppPaused() async {
     _cancelGraceTimer(reason: 'app-paused');
+    final bool wasIdleWake = _state == AssistantAudioState.idleListeningWake;
     await disableAssistantMic();
-    await stopWakeListening();
-    _setState(AssistantAudioState.idleListeningWake, 'App paused cleanup');
+    if (!wasIdleWake) {
+      await startWakeListening();
+    }
+    _setState(
+      AssistantAudioState.idleListeningWake,
+      'App paused; wake retained for background',
+    );
   }
 
   Future<void> onAppResumed({required bool liveKitConnected}) async {
     if (!liveKitConnected) {
       _log('Resume skipped: LiveKit not connected');
+      return;
+    }
+
+    if (_state == AssistantAudioState.idleListeningWake) {
+      _log('Resume skipped: wake already active');
       return;
     }
 

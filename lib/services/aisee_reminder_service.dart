@@ -1,8 +1,5 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -36,8 +33,9 @@ class AiseeReminderService {
     }
     debugPrint('[AiSee:Reminder] Timezone: ${tz.local.name}');
 
-    const AndroidInitializationSettings android =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings android = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const DarwinInitializationSettings ios = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -52,11 +50,6 @@ class AiseeReminderService {
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
-    // Android 13+: request POST_NOTIFICATIONS permission
-    if (!kIsWeb && Platform.isAndroid) {
-      await _requestNotificationPermission();
-    }
-
     _initialized = true;
     debugPrint('[AiSee:Reminder] Service initialized');
   }
@@ -66,13 +59,6 @@ class AiseeReminderService {
       '[AiSee:Reminder] Notification tapped: '
       'id=${response.id} payload=${response.payload}',
     );
-  }
-
-  Future<void> _requestNotificationPermission() async {
-    final PermissionStatus status = await Permission.notification.status;
-    if (status.isGranted) return;
-    final PermissionStatus result = await Permission.notification.request();
-    debugPrint('[AiSee:Reminder] Notification permission: $result');
   }
 
   /// Map tên timezone ngắn (VD: "ICT", "GMT+7") sang IANA.
@@ -124,10 +110,14 @@ class AiseeReminderService {
 
   Future<void> scheduleReminder(AiseeReminder reminder) async {
     if (!_initialized) await init();
-    debugPrint('[AiSee:Reminder] scheduleReminder: '
-        'type=${reminder.type.name} title=${reminder.title}');
-    debugPrint('[AiSee:Reminder] tz.local=${tz.local.name} '
-        'now=${tz.TZDateTime.now(tz.local)}');
+    debugPrint(
+      '[AiSee:Reminder] scheduleReminder: '
+      'type=${reminder.type.name} title=${reminder.title}',
+    );
+    debugPrint(
+      '[AiSee:Reminder] tz.local=${tz.local.name} '
+      'now=${tz.TZDateTime.now(tz.local)}',
+    );
 
     if (reminder.type == AiseeReminderType.medication) {
       await _scheduleMedication(reminder);

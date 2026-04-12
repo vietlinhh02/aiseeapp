@@ -159,6 +159,57 @@ class AiseeLiveKitVoiceSession {
     }
   }
 
+  /// Gọi RPC tới participant AGENT: khởi động lại phiên Gemini sớm sau khi bật mic
+  /// (không phụ thuộc VAD). Chờ agent join tối đa [maxWait] vì dispatch có thể
+  /// hoàn tất sau khi app đã vào phòng.
+  Future<void> _notifyAgentWakeConversationReady() async {
+    const Duration pollInterval = Duration(milliseconds: 200);
+    const Duration maxWait = Duration(seconds: 15);
+    final DateTime deadline = DateTime.now().add(maxWait);
+
+    while (DateTime.now().isBefore(deadline)) {
+      final Room? room = _room;
+      final LocalParticipant? lp = room?.localParticipant;
+      if (room == null || lp == null) {
+        return;
+      }
+
+      RemoteParticipant? agentParticipant;
+      for (final RemoteParticipant p in room.remoteParticipants.values) {
+        if (p.kind == ParticipantKind.AGENT) {
+          agentParticipant = p;
+          break;
+        }
+      }
+
+      if (agentParticipant != null) {
+        try {
+          final String response = await lp.performRpc(
+            PerformRpcParams(
+              destinationIdentity: agentParticipant.identity,
+              method: 'wake_conversation_ready',
+              payload: '{}',
+              responseTimeoutMs: const Duration(seconds: 10),
+            ),
+          );
+          _log('WakeRPC', 'wake_conversation_ready ok: $response');
+          return;
+        } catch (e, st) {
+          debugPrint(
+            '[AiSee:WakeRPC] wake_conversation_ready failed (retry): $e\n$st',
+          );
+        }
+      }
+
+      await Future<void>.delayed(pollInterval);
+    }
+
+    _log(
+      'WakeRPC',
+      'Het thoi gian cho AGENT — wake_conversation_ready bo qua',
+    );
+  }
+
   void _setLocalCameraPreviewTrack(LocalVideoTrack? track) {
     if (localCameraPreviewTrack.value == track) return;
     localCameraPreviewTrack.value = track;
@@ -215,13 +266,16 @@ class AiseeLiveKitVoiceSession {
     final Uri uri = Uri.parse('${AppEnv.apiBaseUrl}/api/v1/calls/token');
     _log('API', 'POST $uri');
     // Backend (chi) đăng ký POST — GET sẽ 404 body rỗng.
-    final http.Response res = await _http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Accept': 'application/json',
-      },
-    );
+    // Backend đợi CreateRoom + dispatch agent trước khi trả JWT — cần timeout dài hơn mặc định.
+    final http.Response res = await _http
+        .post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 45));
 
     final String raw = utf8.decode(res.bodyBytes).trim();
     _log('API', 'Response HTTP ${res.statusCode} (${raw.length} chars)');
@@ -593,9 +647,39 @@ class AiseeLiveKitVoiceSession {
         throw RpcError(code: 2001, message: 'Missing url parameter');
       }
       final AudioPlayer player = await _musicPlayerOrCreate();
-      await player.setUrl(url);
-      _setNowPlayingTitle(titleRaw.isEmpty ? null : titleRaw);
-      await player.play();
+      final Uri uri = Uri.parse(url);
+      // Stream từ yt-dlp (googlevideo / CDN YouTube) thường từ chối request
+      // không có User-Agent + Referer — just_audio setUrl() không gửi được.
+      final bool needsYoutubeFriendlyHeaders =
+          uri.host.contains('googlevideo.com') ||
+          uri.host.contains('googlevideo.net') ||
+          uri.host.contains('googleusercontent.com');
+      try {
+        await player.stop();
+        final AudioSource source = needsYoutubeFriendlyHeaders
+            ? AudioSource.uri(
+                uri,
+                headers: const <String, String>{
+                  'User-Agent':
+                      'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 '
+                      '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                  'Referer': 'https://www.youtube.com/',
+                },
+              )
+            : AudioSource.uri(uri);
+        await player.setAudioSource(source);
+        _setNowPlayingTitle(titleRaw.isEmpty ? null : titleRaw);
+        await player.play();
+      } on PlayerException catch (e, st) {
+        _log('RPC', 'play_audio PlayerException: $e\n$st');
+        throw RpcError(
+          code: 2005,
+          message: 'Playback failed: ${e.message}',
+        );
+      } catch (e, st) {
+        _log('RPC', 'play_audio failed: $e\n$st');
+        throw RpcError(code: 2006, message: 'Playback failed: $e');
+      }
       return jsonEncode({'status': 'ok'});
     });
 
@@ -1212,6 +1296,8 @@ class AiseeLiveKitVoiceSession {
       _assistantMicEnabled = false;
       rethrow;
     }
+
+    unawaited(_notifyAgentWakeConversationReady());
 
     final Future<void> Function()? wakeHook = onAfterMicEnabledForRoom;
     if (wakeHook != null) {

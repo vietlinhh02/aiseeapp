@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -86,6 +87,24 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     });
   }
 
+  /// Sau wake word + mic LiveKit: rung + âm + thông báo trợ năng — user biết lúc được nói.
+  void _signalAssistantReadyToUser() {
+    if (!mounted) {
+      return;
+    }
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.alert);
+    try {
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        'Trợ lý đang lắng nghe. Bạn có thể nói.',
+        Directionality.of(context),
+      );
+    } catch (e, st) {
+      debugPrint('[AiSee:UI] sendAnnouncement mic ready: $e\n$st');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +128,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       enableAssistantMic: _liveKitVoice.enableAssistantMic,
       disableAssistantMic: _liveKitVoice.disableAssistantMic,
       switchToAssistantTab: () => _onTabChanged(0),
+      onMicReadyAfterWake: _wakeWordEnabled ? _signalAssistantReadyToUser : null,
       log: (String message) => debugPrint('[AiSee:WakeFlow] $message'),
     );
     _liveKitVoice.onMusicUiChanged = _onMusicUiChanged;
