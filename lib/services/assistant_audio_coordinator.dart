@@ -22,6 +22,9 @@ class AssistantAudioCoordinator {
     required this.disableAssistantMic,
     required this.switchToAssistantTab,
     this.gracePeriod = const Duration(seconds: 20),
+    /// Giống chuông `in.wav` trong hello-wakeword: ngay khi wake được chấp nhận,
+    /// trước khi tắt engine wake / bật mic LiveKit.
+    this.onWakeAcknowledged,
     this.onMicReadyAfterWake,
     AssistantAudioLog? log,
   }) : _log = log ?? _defaultLog;
@@ -31,6 +34,7 @@ class AssistantAudioCoordinator {
   final AssistantAudioAsyncAction enableAssistantMic;
   final AssistantAudioAsyncAction disableAssistantMic;
   final VoidCallback switchToAssistantTab;
+  final VoidCallback? onWakeAcknowledged;
   /// Gọi sau khi bật mic LiveKit xong (wake) — rung / a11y để user biết có thể nói.
   final VoidCallback? onMicReadyAfterWake;
   final Duration gracePeriod;
@@ -63,6 +67,14 @@ class AssistantAudioCoordinator {
       AssistantAudioState.activatingLiveSession,
       'Wake detected "$phrase"',
     );
+    final VoidCallback? ack = onWakeAcknowledged;
+    if (ack != null) {
+      try {
+        ack();
+      } catch (e, st) {
+        _log('onWakeAcknowledged failed: $e\n$st');
+      }
+    }
     try {
       final Stopwatch wakeLatency = Stopwatch()..start();
       _log('WakeLatency t=0ms start (after state=activatingLiveSession)');

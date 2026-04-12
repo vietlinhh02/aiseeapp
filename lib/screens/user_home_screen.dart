@@ -87,6 +87,12 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     });
   }
 
+  /// Ngay khi wake được chấp nhận (trước khi nhả DaVoice / bật mic) — tương tự chuông vào session của hello-wakeword.
+  void _signalWakeAcknowledged() {
+    HapticFeedback.lightImpact();
+    SystemSound.play(SystemSoundType.click);
+  }
+
   /// Sau wake word + mic LiveKit: rung + âm + thông báo trợ năng — user biết lúc được nói.
   void _signalAssistantReadyToUser() {
     if (!mounted) {
@@ -128,6 +134,8 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       enableAssistantMic: _liveKitVoice.enableAssistantMic,
       disableAssistantMic: _liveKitVoice.disableAssistantMic,
       switchToAssistantTab: () => _onTabChanged(0),
+      onWakeAcknowledged:
+          _wakeWordEnabled ? _signalWakeAcknowledged : null,
       onMicReadyAfterWake: _wakeWordEnabled ? _signalAssistantReadyToUser : null,
       log: (String message) => debugPrint('[AiSee:WakeFlow] $message'),
     );
