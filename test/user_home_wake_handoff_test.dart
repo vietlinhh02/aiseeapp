@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:aiseeapp/models/agent_state.dart';
@@ -10,6 +11,10 @@ import 'package:aiseeapp/services/aisee_wake_word_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  const MethodChannel nativePlatformChannel = MethodChannel(
+    'com.aisee.aiseeapp/platform',
+  );
 
   test('live session keeps mic disabled until explicitly enabled', () async {
     final _RecordingVoiceSession session = _RecordingVoiceSession()
@@ -210,6 +215,40 @@ void main() {
     expect(service.isConfiguredAndStarted, isTrue);
     expect(service.isListening, isTrue);
     expect(backend.addInstanceMultiCalls, 2);
+  });
+
+  test('wake start skips unsupported native runtime without touching backend', () async {
+    final _FakeWakeWordBackend backend = _FakeWakeWordBackend();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(nativePlatformChannel, (MethodCall call) async {
+          if (call.method == 'getWakeWordRuntimeSupport') {
+            return <String, Object?>{
+              'isSupported': false,
+              'reason': 'abi x86_64 has no bundled wake-word JNI libs',
+            };
+          }
+          return null;
+        });
+
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(nativePlatformChannel, null);
+    });
+
+    final AiseeWakeWordService service = AiseeWakeWordService.test(
+      wakeModel: backend,
+      isSupportedPlatform: true,
+      microphoneGranted: true,
+      license: 'valid-license',
+      modelNames: const <String>['hey_lookdeep.onnx'],
+    );
+
+    await service.startIfConfigured();
+
+    expect(service.isConfiguredAndStarted, isFalse);
+    expect(service.isListening, isFalse);
+    expect(backend.addInstanceMultiCalls, 0);
+    expect(backend.setLicenseCalls, 0);
   });
 
   test('wake feature is disabled when config is missing', () {
@@ -448,6 +487,7 @@ class _RecordingVoiceSession extends AiseeLiveKitVoiceSession {
 class _FakeWakeWordBackend implements AiseeWakeWordBackend {
   int addInstanceMultiCalls = 0;
   int removeInstanceCalls = 0;
+  int setLicenseCalls = 0;
   int startListeningCalls = 0;
   int stopListeningCalls = 0;
   int failAddInstanceCount = 0;
@@ -470,7 +510,9 @@ class _FakeWakeWordBackend implements AiseeWakeWordBackend {
   }
 
   @override
-  Future<void> setKeywordDetectionLicense(String license) async {}
+  Future<void> setKeywordDetectionLicense(String license) async {
+    setLicenseCalls += 1;
+  }
 
   @override
   Future<void> startListening() async {

@@ -6,13 +6,49 @@ import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 import kotlin.math.abs
 
 class MainActivity : FlutterActivity() {
+    private val platformChannel = "com.aisee.aiseeapp/platform"
+    private val supportedWakeWordAbis = setOf("arm64-v8a")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preferNearSixtyHzDisplayMode()
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            platformChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getWakeWordRuntimeSupport" -> {
+                    val supportedAbis = Build.SUPPORTED_ABIS?.toList().orEmpty()
+                    val isSupported = supportedAbis.any(supportedWakeWordAbis::contains)
+                    val reason =
+                        if (isSupported) {
+                            "Wake-word JNI available for ABI ${supportedAbis.firstOrNull() ?: "unknown"}"
+                        } else {
+                            "Wake-word JNI is only bundled for ${supportedWakeWordAbis.joinToString()}, device reports ${supportedAbis.joinToString().ifBlank { "unknown" }}"
+                        }
+                    result.success(
+                        mapOf(
+                            "isSupported" to isSupported,
+                            "reason" to reason,
+                            "supportedAbis" to supportedAbis,
+                            "requiredAbis" to supportedWakeWordAbis.toList(),
+                            "isEmulator" to isProbablyEmulator(),
+                        ),
+                    )
+                }
+
+                else -> result.notImplemented()
+            }
+        }
     }
 
     /// Chọn [Display.Mode] có refresh gần 60 Hz (giảm nóng so với 90/120 Hz).
@@ -34,5 +70,16 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             Log.w("MainActivity", "preferNearSixtyHzDisplayMode", e)
         }
+    }
+
+    private fun isProbablyEmulator(): Boolean {
+        return Build.FINGERPRINT.startsWith("generic") ||
+            Build.FINGERPRINT.startsWith("unknown") ||
+            Build.MODEL.contains("google_sdk") ||
+            Build.MODEL.contains("Emulator") ||
+            Build.MODEL.contains("Android SDK built for") ||
+            Build.MANUFACTURER.contains("Genymotion") ||
+            Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic") ||
+            "google_sdk" == Build.PRODUCT
     }
 }

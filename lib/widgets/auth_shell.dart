@@ -393,6 +393,10 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     });
     if (error is GoogleSignInException &&
         error.code == GoogleSignInExceptionCode.canceled) {
+      _authLog(
+        'googleSignIn: canceled by user or Credential Manager. '
+        'Tren Android, day cung co the la dau hieu OAuth config/SHA khong khop.',
+      );
       return;
     }
     final String msg = error is GoogleSignInException
@@ -410,7 +414,13 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       await GoogleSignIn.instance.authenticate();
     } on GoogleSignInException catch (e) {
       _toastAfterSignIn = false;
-      if (e.code == GoogleSignInExceptionCode.canceled) return;
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        _authLog(
+          'googleSignIn.authenticate: canceled by user or Credential Manager. '
+          'Tren Android, day cung co the la dau hieu OAuth config/SHA khong khop.',
+        );
+        return;
+      }
       unawaited(
         AppToast.show(_messageFromGoogleSignInException(e), isError: true),
       );

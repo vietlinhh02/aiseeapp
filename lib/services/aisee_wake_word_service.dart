@@ -10,6 +10,9 @@ import 'package:permission_handler/permission_handler.dart';
 
 const String _aiseeWakeInstanceId = 'aisee_wake';
 const MethodChannel _wakeWordMethodChannel = MethodChannel('flutter_wake_word');
+const MethodChannel _nativePlatformMethodChannel = MethodChannel(
+  'com.aisee.aiseeapp/platform',
+);
 
 abstract class AiseeWakeWordBackend {
   Future<void> setKeywordDetectionLicense(String license);
@@ -196,6 +199,10 @@ class AiseeWakeWordService {
       return;
     }
 
+    if (!await _isNativeRuntimeSupported()) {
+      return;
+    }
+
     if (!await _ensureMicrophonePermission()) {
       debugPrint('[AiSee:WakeWord] Chưa có quyền microphone.');
       return;
@@ -329,6 +336,27 @@ class AiseeWakeWordService {
     _started = false;
     _listening = false;
     _pausedForLiveKit = false;
+  }
+
+  Future<bool> _isNativeRuntimeSupported() async {
+    try {
+      final Map<Object?, Object?>? result =
+          await _nativePlatformMethodChannel.invokeMethod<Map<Object?, Object?>>(
+            'getWakeWordRuntimeSupport',
+          );
+      final bool isSupported = result?['isSupported'] == true;
+      if (!isSupported) {
+        final String reason = (result?['reason'] as String?) ?? 'unknown';
+        debugPrint('[AiSee:WakeWord] Bỏ qua native wake word: $reason');
+      }
+      return isSupported;
+    } on MissingPluginException {
+      // Tests and non-Android embeddings may not expose this probe.
+      return true;
+    } catch (e, st) {
+      debugPrint('[AiSee:WakeWord] Probe native runtime failed: $e\n$st');
+      return true;
+    }
   }
 
   /// 0–1; mặc định 0.80. Env: `DAVOICE_WAKEWORD_THRESHOLD`.
