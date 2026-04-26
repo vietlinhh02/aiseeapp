@@ -165,6 +165,10 @@ class AiseePushService {
 
     if (type == 'incoming_call') {
       handleIncomingCallPayload(data, source: AiseeIncomingCallSource.fcm);
+      return;
+    }
+    if (type == 'call_ended') {
+      unawaited(handleCallEndedPayload(data));
     }
   }
 
@@ -185,6 +189,51 @@ class AiseePushService {
       return;
     }
     unawaited(showIncomingCallUi(data));
+  }
+
+  Future<void> handleCallEndedPayload(Map<String, dynamic> data) async {
+    await endIncomingCallUi(data);
+    final Map<String, dynamic> payload = _unwrapMessagePayload(data);
+    final String roomName = _roomNameFromPayload(payload);
+    if (roomName.isNotEmpty) {
+      _incomingCalls.hideIncomingCallForRoom(roomName);
+    }
+  }
+
+  static Future<void> endIncomingCallUi(Map<String, dynamic> data) async {
+    final Map<String, dynamic> payload = _unwrapMessagePayload(data);
+    final String roomName = _roomNameFromPayload(payload);
+    if (roomName.isEmpty) {
+      return;
+    }
+    _log('Call ended: room=$roomName');
+    try {
+      await FlutterCallkitIncoming.endCall(roomName);
+    } catch (e) {
+      _log('CallKit endCall skipped: $e');
+    }
+  }
+
+  static String _roomNameFromPayload(Map<String, dynamic> payload) {
+    return _stringField(payload, const [
+      'room_name',
+      'roomName',
+      'call_id',
+      'callId',
+      'id',
+    ]);
+  }
+
+  static Map<String, dynamic> _unwrapMessagePayload(Map<String, dynamic> data) {
+    final Object? nested = data['message'];
+    if (nested is Map) {
+      return <String, dynamic>{
+        ...Map<String, dynamic>.from(nested),
+        for (final MapEntry<String, dynamic> entry in data.entries)
+          if (entry.key != 'message') entry.key: entry.value,
+      };
+    }
+    return data;
   }
 
   static String _stringField(Map<String, dynamic> map, List<String> keys) {
@@ -221,6 +270,8 @@ class AiseePushService {
       extra: <String, dynamic>{
         'caller_id': call.callerId,
         'caller_name': call.callerName,
+        if (call.callerAvatarUrl != null)
+          'caller_avatar_url': call.callerAvatarUrl,
         'room_name': call.roomName,
         'call_type': call.callType,
         'token': call.token,

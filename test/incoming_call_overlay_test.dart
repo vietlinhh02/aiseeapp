@@ -11,6 +11,7 @@ void main() {
         'id': 'room-123',
         'callerName': 'Mia',
         'callerId': 'family-1',
+        'caller_avatar_url': 'https://example.com/mia.png',
         'callType': 'video',
         'livekit_token': 'token-abc',
       },
@@ -22,6 +23,7 @@ void main() {
     expect(call.roomName, 'room-123');
     expect(call.callerName, 'Mia');
     expect(call.callerId, 'family-1');
+    expect(call.callerAvatarUrl, 'https://example.com/mia.png');
     expect(call.callType, 'video');
     expect(call.token, 'token-abc');
     expect(call.isValidForAccept, isTrue);
@@ -73,6 +75,63 @@ void main() {
     expect(controller.currentCall, isNull);
   });
 
+  test('controller clears only the matching incoming call room', () {
+    final AiseeIncomingCallController controller =
+        AiseeIncomingCallController();
+    final AiseeIncomingCall call = AiseeIncomingCall.fromPayload(
+      <String, dynamic>{
+        'room_name': 'room-active',
+        'caller_name': 'Mia',
+        'token': 'token-active',
+      },
+      source: AiseeIncomingCallSource.websocket,
+      receivedAt: DateTime(2026, 4, 1, 10),
+    );
+
+    controller.showIncomingCall(call);
+    controller.hideIncomingCallForRoom('room-other');
+    expect(controller.currentCall?.roomName, 'room-active');
+
+    controller.hideIncomingCallForRoom('room-active');
+    expect(controller.currentCall, isNull);
+  });
+
+  testWidgets('overlay renders caller avatar when provided', (
+    WidgetTester tester,
+  ) async {
+    final AiseeIncomingCallController controller =
+        AiseeIncomingCallController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IncomingCallOverlayHost(
+          controller: controller,
+          child: const Scaffold(body: SizedBox.expand()),
+        ),
+      ),
+    );
+
+    controller.showIncomingCall(
+      AiseeIncomingCall.fromPayload(
+        <String, dynamic>{
+          'room_name': 'room-avatar',
+          'caller_name': 'Mia',
+          'caller_avatar_url': 'https://example.com/mia.png',
+          'token': 'token-avatar',
+        },
+        source: AiseeIncomingCallSource.websocket,
+        receivedAt: DateTime(2026, 4, 1, 10),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 260));
+
+    expect(find.text('Mia'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
+
+    controller.dispose();
+  });
+
   testWidgets('overlay renders incoming call and forwards accept/decline', (
     WidgetTester tester,
   ) async {
@@ -110,11 +169,12 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 240));
 
     expect(find.text('Mia'), findsOneWidget);
     expect(find.text('Cuộc gọi thoại đến'), findsOneWidget);
 
-    await tester.tap(find.text('Nghe'));
+    await tester.tap(find.byIcon(Icons.call_rounded));
     await tester.pump();
 
     expect(acceptedCall?.roomName, 'room-ui');
@@ -133,10 +193,47 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Từ chối'));
+    await tester.tap(find.byIcon(Icons.call_end_rounded));
     await tester.pump();
 
     expect(declinedCall?.roomName, 'room-decline');
     expect(find.text('Linh'), findsNothing);
+  });
+
+  testWidgets('overlay works from MaterialApp builder', (
+    WidgetTester tester,
+  ) async {
+    final AiseeIncomingCallController controller =
+        AiseeIncomingCallController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (BuildContext context, Widget? child) {
+          return IncomingCallOverlayHost(
+            controller: controller,
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+        home: const Scaffold(body: SizedBox.expand()),
+      ),
+    );
+
+    controller.showIncomingCall(
+      AiseeIncomingCall.fromPayload(
+        <String, dynamic>{
+          'room_name': 'room-builder',
+          'caller_name': 'Mia',
+          'token': 'token-builder',
+        },
+        source: AiseeIncomingCallSource.websocket,
+        receivedAt: DateTime(2026, 4, 1, 10),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Mia'), findsOneWidget);
+
+    controller.dispose();
   });
 }

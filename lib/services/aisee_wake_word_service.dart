@@ -251,13 +251,16 @@ class AiseeWakeWordService {
     );
     final Completer<void> completer = Completer<void>();
     _detectionStopCompleter = completer;
-    _wakeModel.stopListening().then((_) {
-      debugPrint('[AiSee:WakeWord] Native mic released after detection');
-      completer.complete();
-    }).catchError((Object e, StackTrace st) {
-      debugPrint('[AiSee:WakeWord] stopListening after detection: $e\n$st');
-      completer.complete();
-    });
+    _wakeModel
+        .stopListening()
+        .then((_) {
+          debugPrint('[AiSee:WakeWord] Native mic released after detection');
+          completer.complete();
+        })
+        .catchError((Object e, StackTrace st) {
+          debugPrint('[AiSee:WakeWord] stopListening after detection: $e\n$st');
+          completer.complete();
+        });
     onWakePhrase?.call(phrase.isEmpty ? 'wake' : phrase);
   }
 
@@ -340,14 +343,21 @@ class AiseeWakeWordService {
 
   Future<bool> _isNativeRuntimeSupported() async {
     try {
-      final Map<Object?, Object?>? result =
-          await _nativePlatformMethodChannel.invokeMethod<Map<Object?, Object?>>(
-            'getWakeWordRuntimeSupport',
-          );
-      final bool isSupported = result?['isSupported'] == true;
+      final Map<Object?, Object?>? result = await _nativePlatformMethodChannel
+          .invokeMethod<Map<Object?, Object?>>('getWakeWordRuntimeSupport');
+      final bool isSupported = _isNativeProbeSupported(result);
       if (!isSupported) {
         final String reason = (result?['reason'] as String?) ?? 'unknown';
-        debugPrint('[AiSee:WakeWord] Bỏ qua native wake word: $reason');
+        final List<String> supportedAbis = _stringList(
+          result?['supportedAbis'],
+        );
+        final List<String> requiredAbis = _stringList(result?['requiredAbis']);
+        final String abiDetail = supportedAbis.isEmpty || requiredAbis.isEmpty
+            ? ''
+            : ' processAbi=${supportedAbis.first} required=${requiredAbis.join(",")}';
+        debugPrint(
+          '[AiSee:WakeWord] Bỏ qua native wake word: $reason$abiDetail',
+        );
       }
       return isSupported;
     } on MissingPluginException {
@@ -357,6 +367,31 @@ class AiseeWakeWordService {
       debugPrint('[AiSee:WakeWord] Probe native runtime failed: $e\n$st');
       return true;
     }
+  }
+
+  static bool _isNativeProbeSupported(Map<Object?, Object?>? result) {
+    if (result?['isSupported'] != true) {
+      return false;
+    }
+
+    final List<String> supportedAbis = _stringList(result?['supportedAbis']);
+    final List<String> requiredAbis = _stringList(result?['requiredAbis']);
+    if (supportedAbis.isEmpty || requiredAbis.isEmpty) {
+      return true;
+    }
+
+    final String processAbi = supportedAbis.first;
+    return requiredAbis.contains(processAbi);
+  }
+
+  static List<String> _stringList(Object? value) {
+    if (value is List) {
+      return value
+          .map((Object? item) => item?.toString().trim() ?? '')
+          .where((String item) => item.isNotEmpty)
+          .toList();
+    }
+    return const <String>[];
   }
 
   /// 0–1; mặc định 0.80. Env: `DAVOICE_WAKEWORD_THRESHOLD`.

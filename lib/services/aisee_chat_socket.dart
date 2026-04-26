@@ -9,6 +9,7 @@ import '../config/app_env.dart';
 import '../models/aisee_message.dart';
 import '../models/aisee_incoming_call.dart';
 import 'aisee_push_service.dart';
+import 'in_app_message_controller.dart';
 
 class AiseeChatSocket {
   WebSocket? _socket;
@@ -101,10 +102,20 @@ class AiseeChatSocket {
         );
         return;
       }
+      if (t == 'call_ended') {
+        unawaited(
+          AiseePushService.instance.handleCallEndedPayload(
+            Map<String, dynamic>.from(map),
+          ),
+        );
+        return;
+      }
       if (t == 'new_message') {
         final Map<String, dynamic> msgMap =
             map['message'] as Map<String, dynamic>;
-        _controller.add(AiseeMessage.fromJson(msgMap));
+        final AiseeMessage message = AiseeMessage.fromJson(msgMap);
+        _controller.add(message);
+        AiseeInAppMessageController.instance.showMessage(message);
       }
     } catch (e) {
       debugPrint('[AiSee:WS] Parse error: $e');

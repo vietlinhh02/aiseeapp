@@ -16,6 +16,7 @@ import '../models/aisee_message.dart';
 import '../services/aisee_call_service.dart';
 import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/in_app_message_controller.dart';
 import '../services/chat_recording_lifecycle_policy.dart';
 import '../services/aisee_session_store.dart';
 import '../services/aisee_upload_service.dart';
@@ -73,11 +74,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   final ChatRecordingLifecyclePolicy _recordingLifecyclePolicy =
       const ChatRecordingLifecyclePolicy();
 
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AiseeInAppMessageController.instance.setActiveConversation(
+      widget.contact.id,
+    );
     _scrollController.addListener(_onScroll);
     _textController.addListener(() {
       final bool nowHasText = _textController.text.trim().isNotEmpty;
@@ -95,6 +98,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AiseeInAppMessageController.instance.setActiveConversation(null);
     _socketSub?.cancel();
     _recorderSub?.cancel();
     _voiceRecorder.dispose();
@@ -103,6 +107,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contact.id != widget.contact.id) {
+      AiseeInAppMessageController.instance.setActiveConversation(
+        widget.contact.id,
+      );
+    }
   }
 
   @override

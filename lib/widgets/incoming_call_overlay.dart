@@ -63,109 +63,189 @@ class _IncomingCallCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0x66000000),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            builder: (BuildContext context, double value, Widget? child) {
+              return Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, -16 * (1 - value)),
+                  child: child,
+                ),
+              );
+            },
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 390),
+              child: Material(
                 color: StyleTokens.surfaceCard,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(
-                    blurRadius: 24,
-                    offset: Offset(0, 12),
-                    color: Color(0x22060913),
+                elevation: 10,
+                shadowColor: const Color(0x24060913),
+                borderRadius: BorderRadius.circular(22),
+                clipBehavior: Clip.antiAlias,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: StyleTokens.navBarBorder.withValues(alpha: 0.18),
+                    ),
+                    borderRadius: BorderRadius.circular(22),
                   ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: const Color(0xFFE9EEF8),
-                      child: Text(
-                        call.callerName.characters.first.toUpperCase(),
-                        style: GoogleFonts.plusJakartaSans(
-                          color: StyleTokens.brandSecondary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      call.callerName,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: StyleTokens.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      call.isVideo
-                          ? 'Cuộc gọi video đến'
-                          : 'Cuộc gọi thoại đến',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: StyleTokens.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              unawaited(onDecline());
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: StyleTokens.textPrimary,
-                              side: const BorderSide(
-                                color: StyleTokens.cardBorder,
-                              ),
-                              minimumSize: const Size.fromHeight(52),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                  child: Row(
+                    children: <Widget>[
+                      _CallerAvatar(call: call),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              call.isVideo
+                                  ? 'Cuộc gọi video đến'
+                                  : 'Cuộc gọi thoại đến',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: StyleTokens.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                height: 1.18,
                               ),
                             ),
-                            child: const Text('Từ chối'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () {
-                              unawaited(onAccept());
-                            },
-                            style: FilledButton.styleFrom(
-                              backgroundColor: StyleTokens.buttonPrimary,
-                              foregroundColor: StyleTokens.buttonOnPrimary,
-                              minimumSize: const Size.fromHeight(52),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
+                            const SizedBox(height: 3),
+                            Text(
+                              call.callerName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: StyleTokens.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                height: 1.18,
                               ),
                             ),
-                            child: const Text('Nghe'),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(width: 8),
+                      _CallActionButton(
+                        tooltip: 'Từ chối',
+                        icon: Icons.call_end_rounded,
+                        backgroundColor: const Color(0xFFE53935),
+                        foregroundColor: Colors.white,
+                        onPressed: () => unawaited(onDecline()),
+                      ),
+                      const SizedBox(width: 6),
+                      _CallActionButton(
+                        tooltip: 'Nghe',
+                        icon: Icons.call_rounded,
+                        backgroundColor: StyleTokens.buttonPrimary,
+                        foregroundColor: Colors.white,
+                        onPressed: () => unawaited(onAccept()),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CallActionButton extends StatelessWidget {
+  const _CallActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: tooltip,
+      button: true,
+      child: Material(
+        color: backgroundColor,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: SizedBox.square(
+            dimension: 42,
+            child: Icon(icon, color: foregroundColor, size: 21),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CallerAvatar extends StatelessWidget {
+  const _CallerAvatar({required this.call});
+
+  final AiseeIncomingCall call;
+
+  @override
+  Widget build(BuildContext context) {
+    final String initial = call.callerName.characters.isEmpty
+        ? '?'
+        : call.callerName.characters.first.toUpperCase();
+    final String? avatarUrl = call.callerAvatarUrl;
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: StyleTokens.navInactivePill,
+        shape: BoxShape.circle,
+        border: Border.all(color: StyleTokens.navGlassBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: avatarUrl == null
+          ? _CallerAvatarFallback(initial: initial)
+          : Image.network(
+              avatarUrl,
+              fit: BoxFit.cover,
+              errorBuilder:
+                  (BuildContext context, Object error, StackTrace? stack) {
+                    return _CallerAvatarFallback(initial: initial);
+                  },
+            ),
+    );
+  }
+}
+
+class _CallerAvatarFallback extends StatelessWidget {
+  const _CallerAvatarFallback({required this.initial});
+
+  final String initial;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        initial,
+        style: GoogleFonts.plusJakartaSans(
+          color: StyleTokens.brandSecondary,
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

@@ -1,3 +1,4 @@
+import 'package:chartjs_flutter/chartjs_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,17 +7,22 @@ import '../models/aisee_dashboard_models.dart';
 import '../theme/style_tokens.dart';
 import 'family_dashboard_format.dart';
 
+typedef HealthOverviewChartBuilder =
+    Widget Function(Map<String, dynamic> chartConfig);
+
 class FamilyDashboardHealthTab extends StatelessWidget {
   const FamilyDashboardHealthTab({
     required this.loading,
     required this.health,
     required this.onRefresh,
+    this.overviewChartBuilder,
     super.key,
   });
 
   final bool loading;
   final DashboardHealth? health;
   final Future<void> Function() onRefresh;
+  final HealthOverviewChartBuilder? overviewChartBuilder;
 
   static const String _icCalendar = 'assets/icons/nav/ic_calendar.svg';
   static const String _icActivity = 'assets/icons/nav/ic_activity.svg';
@@ -101,7 +107,16 @@ class FamilyDashboardHealthTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            _HealthSectionHeader(title: 'Thuốc hôm nay', iconAsset: _icCalendar),
+            _HealthOverviewCard(
+              health: h,
+              chartBuilder:
+                  overviewChartBuilder ?? _defaultHealthOverviewChartBuilder,
+            ),
+            const SizedBox(height: 22),
+            _HealthSectionHeader(
+              title: 'Thuốc hôm nay',
+              iconAsset: _icCalendar,
+            ),
             const SizedBox(height: 10),
             if (h.medications.isEmpty)
               _HealthEmptyCard(
@@ -111,7 +126,10 @@ class FamilyDashboardHealthTab extends StatelessWidget {
             else
               ...h.medications.map(_MedAdherenceCard.new),
             const SizedBox(height: 22),
-            _HealthSectionHeader(title: 'Triệu chứng gần đây', iconAsset: _icActivity),
+            _HealthSectionHeader(
+              title: 'Triệu chứng gần đây',
+              iconAsset: _icActivity,
+            ),
             const SizedBox(height: 10),
             if (h.recentSymptoms.isEmpty)
               _HealthEmptyCard(
@@ -124,10 +142,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
             _HealthSectionHeader(title: 'Chỉ số sức khỏe', iconAsset: _icHeart),
             const SizedBox(height: 10),
             if (h.recentMetrics.isEmpty)
-              _HealthEmptyCard(
-                message: 'Không có chỉ số',
-                iconAsset: _icHeart,
-              )
+              _HealthEmptyCard(message: 'Không có chỉ số', iconAsset: _icHeart)
             else
               ...h.recentMetrics.map(_MetricCard.new),
           ],
@@ -138,10 +153,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
 }
 
 class _HealthSectionHeader extends StatelessWidget {
-  const _HealthSectionHeader({
-    required this.title,
-    required this.iconAsset,
-  });
+  const _HealthSectionHeader({required this.title, required this.iconAsset});
 
   final String title;
   final String iconAsset;
@@ -223,10 +235,7 @@ class _HealthNavIcon extends StatelessWidget {
 }
 
 class _HealthEmptyCard extends StatelessWidget {
-  const _HealthEmptyCard({
-    required this.message,
-    required this.iconAsset,
-  });
+  const _HealthEmptyCard({required this.message, required this.iconAsset});
 
   final String message;
   final String iconAsset;
@@ -266,6 +275,127 @@ class _HealthEmptyCard extends StatelessWidget {
   }
 }
 
+class _HealthOverviewCard extends StatelessWidget {
+  const _HealthOverviewCard({required this.health, required this.chartBuilder});
+
+  final DashboardHealth health;
+  final HealthOverviewChartBuilder chartBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final takenCount = health.medications.where((m) => m.takenToday).length;
+    final pendingCount = health.medications.length - takenCount;
+    final symptomCount = health.recentSymptoms.length;
+    final metricCount = health.recentMetrics.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: StyleTokens.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: StyleTokens.textPrimary.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Tổng quan',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: StyleTokens.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 190,
+            child: chartBuilder(
+              _overviewChartConfig(
+                takenCount: takenCount,
+                pendingCount: pendingCount,
+                symptomCount: symptomCount,
+                metricCount: metricCount,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _OverviewStatPill(
+                label: 'Đã uống hôm nay',
+                value: takenCount.toString(),
+                backgroundColor: const Color(0xFFE8F5E9),
+                foregroundColor: const Color(0xFF2E7D32),
+              ),
+              _OverviewStatPill(
+                label: 'Chưa uống',
+                value: pendingCount.toString(),
+                backgroundColor: const Color(0xFFFFF3E0),
+                foregroundColor: const Color(0xFFE65100),
+              ),
+              _OverviewStatPill(
+                label: 'Triệu chứng',
+                value: symptomCount.toString(),
+                backgroundColor: const Color(0xFFFFEBEE),
+                foregroundColor: const Color(0xFFC62828),
+              ),
+              _OverviewStatPill(
+                label: 'Chỉ số',
+                value: metricCount.toString(),
+                backgroundColor: const Color(0xFFE3F2FD),
+                foregroundColor: StyleTokens.buttonPrimary,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverviewStatPill extends StatelessWidget {
+  const _OverviewStatPill({
+    required this.label,
+    required this.value,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final String value;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$label: $value',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: foregroundColor,
+        ),
+      ),
+    );
+  }
+}
+
 class _MedAdherenceCard extends StatelessWidget {
   const _MedAdherenceCard(this.m);
 
@@ -276,18 +406,10 @@ class _MedAdherenceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final taken = m.takenToday;
-    final statusBg = taken
-        ? const Color(0xFFE8F5E9)
-        : const Color(0xFFFFF3E0);
-    final statusFg = taken
-        ? const Color(0xFF2E7D32)
-        : const Color(0xFFE65100);
-    final iconBg = taken
-        ? const Color(0xFFE8F5E9)
-        : const Color(0xFFFFF3E0);
-    final iconFg = taken
-        ? const Color(0xFF2E7D32)
-        : const Color(0xFFE65100);
+    final statusBg = taken ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0);
+    final statusFg = taken ? const Color(0xFF2E7D32) : const Color(0xFFE65100);
+    final iconBg = taken ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0);
+    final iconFg = taken ? const Color(0xFF2E7D32) : const Color(0xFFE65100);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -544,4 +666,52 @@ class _MetricCard extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _defaultHealthOverviewChartBuilder(Map<String, dynamic> chartConfig) {
+  return ChartJsWidget(chartConfig: chartConfig);
+}
+
+Map<String, dynamic> _overviewChartConfig({
+  required int takenCount,
+  required int pendingCount,
+  required int symptomCount,
+  required int metricCount,
+}) {
+  return {
+    'type': 'bar',
+    'data': {
+      'labels': ['Đã uống', 'Chưa uống', 'Triệu chứng', 'Chỉ số'],
+      'datasets': [
+        {
+          'label': 'Tổng quan sức khỏe',
+          'data': [takenCount, pendingCount, symptomCount, metricCount],
+          'backgroundColor': [
+            'rgba(46, 125, 50, 0.72)',
+            'rgba(230, 81, 0, 0.72)',
+            'rgba(198, 40, 40, 0.68)',
+            'rgba(26, 50, 99, 0.72)',
+          ],
+          'borderRadius': 8,
+          'barThickness': 28,
+        },
+      ],
+    },
+    'options': {
+      'responsive': true,
+      'maintainAspectRatio': false,
+      'plugins': {
+        'legend': {'display': false},
+      },
+      'scales': {
+        'x': {
+          'grid': {'display': false},
+        },
+        'y': {
+          'beginAtZero': true,
+          'ticks': {'precision': 0},
+        },
+      },
+    },
+  };
 }

@@ -28,12 +28,13 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "getWakeWordRuntimeSupport" -> {
                     val supportedAbis = Build.SUPPORTED_ABIS?.toList().orEmpty()
-                    val isSupported = supportedAbis.any(supportedWakeWordAbis::contains)
+                    val processAbi = supportedAbis.firstOrNull()
+                    val isSupported = processAbi != null && supportedWakeWordAbis.contains(processAbi)
                     val reason =
                         if (isSupported) {
-                            "Wake-word JNI available for ABI ${supportedAbis.firstOrNull() ?: "unknown"}"
+                            "Wake-word JNI available for process ABI $processAbi"
                         } else {
-                            "Wake-word JNI is only bundled for ${supportedWakeWordAbis.joinToString()}, device reports ${supportedAbis.joinToString().ifBlank { "unknown" }}"
+                            "Wake-word JNI is only bundled for ${supportedWakeWordAbis.joinToString()}, process ABI is ${processAbi ?: "unknown"}, device reports ${supportedAbis.joinToString().ifBlank { "unknown" }}"
                         }
                     result.success(
                         mapOf(

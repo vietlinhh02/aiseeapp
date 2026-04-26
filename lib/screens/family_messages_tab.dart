@@ -11,6 +11,7 @@ import '../services/aisee_call_service.dart';
 import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_family_service.dart';
+import '../services/in_app_message_controller.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
@@ -97,6 +98,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
       }
       final members = await _familyService.fetchFamily(stored.accessToken);
       if (!mounted) return;
+      AiseeInAppMessageController.instance.rememberContacts(members);
       setState(() {
         _members = members;
         _loading = false;
@@ -113,10 +115,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
     }
   }
 
-  Future<void> _startCall(
-    AiseeFamilyMember contact,
-    String callType,
-  ) async {
+  Future<void> _startCall(AiseeFamilyMember contact, String callType) async {
     if (_callingInProgress) return;
     _callingInProgress = true;
     HapticFeedback.lightImpact();
@@ -139,22 +138,28 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
       }
       await Navigator.of(context).push(
         PageRouteBuilder<void>(
-          pageBuilder: (BuildContext c, Animation<double> a, Animation<double> s) =>
-              CallScreen(
-            callInfo: AiseeCallInfo(
-              roomName: result.roomName,
-              token: result.token,
-              callType: callType,
-              contact: contact,
-            ),
-          ),
-          transitionsBuilder: (BuildContext c, Animation<double> a,
-              Animation<double> s, Widget child) {
-            return FadeTransition(
-              opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
-              child: child,
-            );
-          },
+          pageBuilder:
+              (BuildContext c, Animation<double> a, Animation<double> s) =>
+                  CallScreen(
+                    callInfo: AiseeCallInfo(
+                      roomName: result.roomName,
+                      token: result.token,
+                      callType: callType,
+                      contact: contact,
+                    ),
+                  ),
+          transitionsBuilder:
+              (
+                BuildContext c,
+                Animation<double> a,
+                Animation<double> s,
+                Widget child,
+              ) {
+                return FadeTransition(
+                  opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
+                  child: child,
+                );
+              },
           transitionDuration: const Duration(milliseconds: 300),
           reverseTransitionDuration: const Duration(milliseconds: 200),
         ),
@@ -195,26 +200,37 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
               HapticFeedback.lightImpact();
               Navigator.of(context).push(
                 PageRouteBuilder<void>(
-                  pageBuilder: (BuildContext c, Animation<double> a,
-                          Animation<double> s) =>
-                      ChatDetailScreen(
-                    contact: member,
-                    currentUserId: widget.currentUserId,
-                    chatSocket: widget.chatSocket,
-                  ),
-                  transitionsBuilder: (BuildContext c, Animation<double> a,
-                      Animation<double> s, Widget child) {
-                    return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(1, 0),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: a,
-                        curve: Curves.easeOutCubic,
-                      )),
-                      child: child,
-                    );
-                  },
+                  pageBuilder:
+                      (
+                        BuildContext c,
+                        Animation<double> a,
+                        Animation<double> s,
+                      ) => ChatDetailScreen(
+                        contact: member,
+                        currentUserId: widget.currentUserId,
+                        chatSocket: widget.chatSocket,
+                      ),
+                  transitionsBuilder:
+                      (
+                        BuildContext c,
+                        Animation<double> a,
+                        Animation<double> s,
+                        Widget child,
+                      ) {
+                        return SlideTransition(
+                          position:
+                              Tween<Offset>(
+                                begin: const Offset(1, 0),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: a,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                              ),
+                          child: child,
+                        );
+                      },
                   transitionDuration: const Duration(milliseconds: 250),
                   reverseTransitionDuration: const Duration(milliseconds: 200),
                 ),
@@ -277,10 +293,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          'Chưa có người thân để nhắn tin',
-          style: StyleTokens.bodySmall(),
-        ),
+        Text('Chưa có người thân để nhắn tin', style: StyleTokens.bodySmall()),
       ],
     );
   }

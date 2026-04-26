@@ -11,6 +11,7 @@ class AiseeIncomingCall {
     required this.callType,
     required this.callerId,
     required this.callerName,
+    this.callerAvatarUrl,
     required this.source,
     required this.receivedAt,
   });
@@ -46,6 +47,12 @@ class AiseeIncomingCall {
       'name_caller',
       'nameCaller',
     ]);
+    final String callerAvatarUrl = pick(const [
+      'caller_avatar_url',
+      'callerAvatarUrl',
+      'avatar_url',
+      'avatarUrl',
+    ]);
     final String callType = pick(const ['call_type', 'callType']);
     final String callerId = pick(const [
       'caller_id',
@@ -66,6 +73,7 @@ class AiseeIncomingCall {
       callType: callType.isNotEmpty ? callType : 'voice',
       callerId: callerId,
       callerName: callerName.isNotEmpty ? callerName : 'Người gọi',
+      callerAvatarUrl: callerAvatarUrl.isEmpty ? null : callerAvatarUrl,
       source: source,
       receivedAt: receivedAt ?? DateTime.now(),
     );
@@ -97,6 +105,7 @@ class AiseeIncomingCall {
   final String callType;
   final String callerId;
   final String callerName;
+  final String? callerAvatarUrl;
   final AiseeIncomingCallSource source;
   final DateTime receivedAt;
 
@@ -114,6 +123,7 @@ class AiseeIncomingCall {
         email: '',
         displayName: callerName,
         role: 'family',
+        avatarUrl: callerAvatarUrl,
       ),
     );
   }

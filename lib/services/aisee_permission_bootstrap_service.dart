@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'aisee_reminder_service.dart';
+
 typedef PermissionRequest = Future<void> Function();
 
 class AiseePermissionBootstrapService {
@@ -24,7 +26,7 @@ class AiseePermissionBootstrapService {
       AiseePermissionBootstrapService._(
         requestMicrophone: () => _requestPermission(Permission.microphone),
         requestCamera: () => _requestPermission(Permission.camera),
-        requestNotification: () => _requestPermission(Permission.notification),
+        requestNotification: AiseeReminderService.instance.requestPermissions,
         requestLocation: () => _requestPermission(Permission.location),
       );
 

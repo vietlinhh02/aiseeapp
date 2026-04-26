@@ -217,39 +217,86 @@ void main() {
     expect(backend.addInstanceMultiCalls, 2);
   });
 
-  test('wake start skips unsupported native runtime without touching backend', () async {
-    final _FakeWakeWordBackend backend = _FakeWakeWordBackend();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(nativePlatformChannel, (MethodCall call) async {
-          if (call.method == 'getWakeWordRuntimeSupport') {
-            return <String, Object?>{
-              'isSupported': false,
-              'reason': 'abi x86_64 has no bundled wake-word JNI libs',
-            };
-          }
-          return null;
-        });
-
-    addTearDown(() {
+  test(
+    'wake start skips unsupported native runtime without touching backend',
+    () async {
+      final _FakeWakeWordBackend backend = _FakeWakeWordBackend();
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(nativePlatformChannel, null);
-    });
+          .setMockMethodCallHandler(nativePlatformChannel, (
+            MethodCall call,
+          ) async {
+            if (call.method == 'getWakeWordRuntimeSupport') {
+              return <String, Object?>{
+                'isSupported': false,
+                'reason': 'abi x86_64 has no bundled wake-word JNI libs',
+              };
+            }
+            return null;
+          });
 
-    final AiseeWakeWordService service = AiseeWakeWordService.test(
-      wakeModel: backend,
-      isSupportedPlatform: true,
-      microphoneGranted: true,
-      license: 'valid-license',
-      modelNames: const <String>['hey_lookdeep.onnx'],
-    );
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(nativePlatformChannel, null);
+      });
 
-    await service.startIfConfigured();
+      final AiseeWakeWordService service = AiseeWakeWordService.test(
+        wakeModel: backend,
+        isSupportedPlatform: true,
+        microphoneGranted: true,
+        license: 'valid-license',
+        modelNames: const <String>['hey_lookdeep.onnx'],
+      );
 
-    expect(service.isConfiguredAndStarted, isFalse);
-    expect(service.isListening, isFalse);
-    expect(backend.addInstanceMultiCalls, 0);
-    expect(backend.setLicenseCalls, 0);
-  });
+      await service.startIfConfigured();
+
+      expect(service.isConfiguredAndStarted, isFalse);
+      expect(service.isListening, isFalse);
+      expect(backend.addInstanceMultiCalls, 0);
+      expect(backend.setLicenseCalls, 0);
+    },
+  );
+
+  test(
+    'wake start skips translated android abi even if probe reports supported',
+    () async {
+      final _FakeWakeWordBackend backend = _FakeWakeWordBackend();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(nativePlatformChannel, (
+            MethodCall call,
+          ) async {
+            if (call.method == 'getWakeWordRuntimeSupport') {
+              return <String, Object?>{
+                'isSupported': true,
+                'reason': 'legacy any-abi probe allowed arm64 fallback',
+                'supportedAbis': <String>['x86_64', 'arm64-v8a'],
+                'requiredAbis': <String>['arm64-v8a'],
+                'isEmulator': true,
+              };
+            }
+            return null;
+          });
+
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(nativePlatformChannel, null);
+      });
+
+      final AiseeWakeWordService service = AiseeWakeWordService.test(
+        wakeModel: backend,
+        isSupportedPlatform: true,
+        microphoneGranted: true,
+        license: 'valid-license',
+        modelNames: const <String>['hey_lookdeep.onnx'],
+      );
+
+      await service.startIfConfigured();
+
+      expect(service.isConfiguredAndStarted, isFalse);
+      expect(service.isListening, isFalse);
+      expect(backend.addInstanceMultiCalls, 0);
+      expect(backend.setLicenseCalls, 0);
+    },
+  );
 
   test('wake feature is disabled when config is missing', () {
     final AiseeWakeWordService service = AiseeWakeWordService.test(
