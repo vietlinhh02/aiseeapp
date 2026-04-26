@@ -8,10 +8,12 @@ class PermissionBootstrapGate extends StatefulWidget {
     super.key,
     required this.child,
     this.ensurePermissions,
+    this.onCompleted,
   });
 
   final Widget child;
   final Future<void> Function()? ensurePermissions;
+  final VoidCallback? onCompleted;
 
   @override
   State<PermissionBootstrapGate> createState() =>
@@ -20,6 +22,7 @@ class PermissionBootstrapGate extends StatefulWidget {
 
 class _PermissionBootstrapGateState extends State<PermissionBootstrapGate> {
   late final Future<void> _future;
+  bool _reportedCompletion = false;
 
   @override
   void initState() {
@@ -38,6 +41,12 @@ class _PermissionBootstrapGateState extends State<PermissionBootstrapGate> {
           return const AuthBootstrapping(
             title: 'Đang chuẩn bị quyền truy cập…',
           );
+        }
+        if (!_reportedCompletion && !snapshot.hasError) {
+          _reportedCompletion = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            widget.onCompleted?.call();
+          });
         }
         return widget.child;
       },

@@ -29,6 +29,7 @@ import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
 import '../models/aisee_message.dart';
 import '../utils/app_toast.dart';
+import 'aisee_analytics_service.dart';
 import 'aisee_content_guard_service.dart';
 import 'aisee_nsfw_classifier.dart';
 
@@ -204,10 +205,7 @@ class AiseeLiveKitVoiceSession {
       await Future<void>.delayed(pollInterval);
     }
 
-    _log(
-      'WakeRPC',
-      'Het thoi gian cho AGENT — wake_conversation_ready bo qua',
-    );
+    _log('WakeRPC', 'Het thoi gian cho AGENT — wake_conversation_ready bo qua');
   }
 
   void _setLocalCameraPreviewTrack(LocalVideoTrack? track) {
@@ -566,8 +564,7 @@ class AiseeLiveKitVoiceSession {
     final LocalVideoTrack? track = localCameraPreviewTrack.value;
     if (track == null) return null;
     try {
-      final ByteBuffer buffer =
-          await track.mediaStreamTrack.captureFrame();
+      final ByteBuffer buffer = await track.mediaStreamTrack.captureFrame();
       final Uint8List pixels = buffer.asUint8List();
       return (pixels: pixels, width: 640, height: 480);
     } catch (e) {
@@ -586,11 +583,48 @@ class AiseeLiveKitVoiceSession {
     );
   }
 
+  void _registerTrackedRpcMethod(
+    Room room,
+    String methodName,
+    FutureOr<String> Function(RpcInvocationData data) handler,
+  ) {
+    room.registerRpcMethod(methodName, (RpcInvocationData data) async {
+      final Stopwatch stopwatch = Stopwatch()..start();
+      try {
+        final String result = await Future<String>.value(handler(data));
+        stopwatch.stop();
+        unawaited(
+          AiseeAnalyticsService.instance.trackToolCall(
+            toolName: methodName,
+            success: true,
+            durationMs: stopwatch.elapsedMilliseconds,
+          ),
+        );
+        return result;
+      } catch (e) {
+        stopwatch.stop();
+        unawaited(
+          AiseeAnalyticsService.instance.trackToolCall(
+            toolName: methodName,
+            success: false,
+            durationMs: stopwatch.elapsedMilliseconds,
+            errorCode: e is RpcError
+                ? e.code.toString()
+                : e.runtimeType.toString(),
+          ),
+        );
+        rethrow;
+      }
+    });
+  }
+
   void _registerRpcMethods() {
     final Room? room = _room;
     if (room == null) return;
 
-    room.registerRpcMethod('enable_camera', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'enable_camera', (
+      RpcInvocationData data,
+    ) async {
       _log('RPC', 'enable_camera called');
       final LocalParticipant? lp = _room?.localParticipant;
       if (lp == null) {
@@ -601,15 +635,18 @@ class AiseeLiveKitVoiceSession {
       }
       final CameraCaptureOptions camOpts = await _agentCameraCaptureOptions();
       await lp.setCameraEnabled(true, cameraCaptureOptions: camOpts);
+      unawaited(
+        AiseeAnalyticsService.instance.trackOnce(
+          AiseeAnalyticsEvent.firstCameraActivation,
+        ),
+      );
       syncLocalCameraPreviewTrack();
       // Start NSFW content guard.
       if (_contentGuard == null) {
         final AiseeNsfwClassifier? classifier =
             await AiseeNsfwClassifier.load();
         if (classifier != null) {
-          _contentGuard = AiseeContentGuardService(
-            classifier: classifier,
-          );
+          _contentGuard = AiseeContentGuardService(classifier: classifier);
         }
       }
       _contentGuard?.startWithFrameProvider(
@@ -621,7 +658,9 @@ class AiseeLiveKitVoiceSession {
       return jsonEncode({'status': 'ok'});
     });
 
-    room.registerRpcMethod('disable_camera', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'disable_camera', (
+      RpcInvocationData data,
+    ) async {
       _log('RPC', 'disable_camera called');
       _contentGuard?.stop();
       await _room?.localParticipant?.setCameraEnabled(false);
@@ -629,7 +668,9 @@ class AiseeLiveKitVoiceSession {
       return jsonEncode({'status': 'ok'});
     });
 
-    room.registerRpcMethod('play_audio', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'play_audio', (
+      RpcInvocationData data,
+    ) async {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       final String url = _paramString(params, const [
@@ -672,10 +713,7 @@ class AiseeLiveKitVoiceSession {
         await player.play();
       } on PlayerException catch (e, st) {
         _log('RPC', 'play_audio PlayerException: $e\n$st');
-        throw RpcError(
-          code: 2005,
-          message: 'Playback failed: ${e.message}',
-        );
+        throw RpcError(code: 2005, message: 'Playback failed: ${e.message}');
       } catch (e, st) {
         _log('RPC', 'play_audio failed: $e\n$st');
         throw RpcError(code: 2006, message: 'Playback failed: $e');
@@ -683,7 +721,9 @@ class AiseeLiveKitVoiceSession {
       return jsonEncode({'status': 'ok'});
     });
 
-    room.registerRpcMethod('control_audio', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'control_audio', (
+      RpcInvocationData data,
+    ) async {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       final String cmd = _paramString(params, const [
@@ -727,7 +767,9 @@ class AiseeLiveKitVoiceSession {
       return jsonEncode({'status': 'ok'});
     });
 
-    room.registerRpcMethod('get_location', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'get_location', (
+      RpcInvocationData data,
+    ) async {
       _log('RPC', 'get_location called');
       final AiseeLocationResult loc =
           await AiseeLocationService.getCurrentLocation();
@@ -739,7 +781,9 @@ class AiseeLiveKitVoiceSession {
       });
     });
 
-    room.registerRpcMethod('open_maps', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'open_maps', (
+      RpcInvocationData data,
+    ) async {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       final String dest = _paramString(params, const [
@@ -785,7 +829,9 @@ class AiseeLiveKitVoiceSession {
       return jsonEncode({'status': 'ok'});
     });
 
-    room.registerRpcMethod('schedule_reminder', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'schedule_reminder', (
+      RpcInvocationData data,
+    ) async {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       final String typeStr = _paramString(params, const [
@@ -809,6 +855,12 @@ class AiseeLiveKitVoiceSession {
           createdAt: DateTime.now(),
         );
         await AiseeReminderService.instance.scheduleReminder(reminder);
+        unawaited(
+          AiseeAnalyticsService.instance.track(
+            AiseeAnalyticsEvent.medicationCreated,
+            parameters: <String, Object?>{'source': 'ai_tool'},
+          ),
+        );
       } else if (typeStr == 'appointment') {
         final String dt = _paramString(params, const [
           'datetime',
@@ -827,17 +879,21 @@ class AiseeLiveKitVoiceSession {
       return jsonEncode({'status': 'ok'});
     });
 
-    room.registerRpcMethod(
+    _registerTrackedRpcMethod(
+      room,
       'make_voice_call',
       (RpcInvocationData data) async => _handleMakeCall(data, 'voice'),
     );
 
-    room.registerRpcMethod(
+    _registerTrackedRpcMethod(
+      room,
       'make_video_call',
       (RpcInvocationData data) async => _handleMakeCall(data, 'video'),
     );
 
-    room.registerRpcMethod('send_chat_message', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'send_chat_message', (
+      RpcInvocationData data,
+    ) async {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       final String receiverId = _paramString(params, const [
@@ -874,7 +930,7 @@ class AiseeLiveKitVoiceSession {
       }
     });
 
-    room.registerRpcMethod('read_unread_messages', (
+    _registerTrackedRpcMethod(room, 'read_unread_messages', (
       RpcInvocationData data,
     ) async {
       _log('RPC', 'read_unread_messages called');
@@ -925,7 +981,7 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 12: set_medication_reminder ──
-    room.registerRpcMethod('set_medication_reminder', (
+    _registerTrackedRpcMethod(room, 'set_medication_reminder', (
       RpcInvocationData data,
     ) async {
       final Map<String, dynamic> params =
@@ -952,11 +1008,17 @@ class AiseeLiveKitVoiceSession {
         createdAt: DateTime.now(),
       );
       await AiseeReminderService.instance.scheduleReminder(reminder);
+      unawaited(
+        AiseeAnalyticsService.instance.track(
+          AiseeAnalyticsEvent.medicationCreated,
+          parameters: <String, Object?>{'source': 'ai_tool'},
+        ),
+      );
       return jsonEncode({'status': 'ok', 'reminder_id': baseId});
     });
 
     // ── Tool 13: list_medication_reminders ──
-    room.registerRpcMethod('list_medication_reminders', (
+    _registerTrackedRpcMethod(room, 'list_medication_reminders', (
       RpcInvocationData data,
     ) async {
       _log('RPC', 'list_medication_reminders called');
@@ -972,7 +1034,7 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 14: mark_medication_taken ──
-    room.registerRpcMethod('mark_medication_taken', (
+    _registerTrackedRpcMethod(room, 'mark_medication_taken', (
       RpcInvocationData data,
     ) async {
       final Map<String, dynamic> params =
@@ -985,6 +1047,12 @@ class AiseeLiveKitVoiceSession {
       final AiseeHealthService svc = AiseeHealthService();
       try {
         await svc.markMedicationTaken(tokens.accessToken, params);
+        unawaited(
+          AiseeAnalyticsService.instance.track(
+            AiseeAnalyticsEvent.medicationTaken,
+            parameters: <String, Object?>{'source': 'ai_tool'},
+          ),
+        );
         return jsonEncode({'status': 'ok'});
       } finally {
         svc.close();
@@ -992,7 +1060,7 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 15: mark_medication_skipped ──
-    room.registerRpcMethod('mark_medication_skipped', (
+    _registerTrackedRpcMethod(room, 'mark_medication_skipped', (
       RpcInvocationData data,
     ) async {
       final Map<String, dynamic> params =
@@ -1005,6 +1073,12 @@ class AiseeLiveKitVoiceSession {
       final AiseeHealthService svc = AiseeHealthService();
       try {
         await svc.markMedicationSkipped(tokens.accessToken, params);
+        unawaited(
+          AiseeAnalyticsService.instance.track(
+            AiseeAnalyticsEvent.medicationSkipped,
+            parameters: <String, Object?>{'source': 'ai_tool'},
+          ),
+        );
         return jsonEncode({'status': 'ok'});
       } finally {
         svc.close();
@@ -1012,7 +1086,7 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 16: log_health_symptom ──
-    room.registerRpcMethod('log_health_symptom', (
+    _registerTrackedRpcMethod(room, 'log_health_symptom', (
       RpcInvocationData data,
     ) async {
       final Map<String, dynamic> params =
@@ -1032,7 +1106,9 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 17: log_health_metric ──
-    room.registerRpcMethod('log_health_metric', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'log_health_metric', (
+      RpcInvocationData data,
+    ) async {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       _log('RPC', 'log_health_metric');
@@ -1050,7 +1126,7 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 18: set_appointment_reminder ──
-    room.registerRpcMethod('set_appointment_reminder', (
+    _registerTrackedRpcMethod(room, 'set_appointment_reminder', (
       RpcInvocationData data,
     ) async {
       final Map<String, dynamic> params =
@@ -1078,7 +1154,9 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 19: emergency_alert — SOS ──
-    room.registerRpcMethod('emergency_alert', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'emergency_alert', (
+      RpcInvocationData data,
+    ) async {
       _log('RPC', 'emergency_alert — SOS!');
       final Map<String, dynamic> params = data.payload.isNotEmpty
           ? jsonDecode(data.payload) as Map<String, dynamic>
@@ -1099,6 +1177,12 @@ class AiseeLiveKitVoiceSession {
               'location_lng': loc.lng,
               'location_address': loc.address,
             });
+        unawaited(
+          AiseeAnalyticsService.instance.track(
+            AiseeAnalyticsEvent.sosTriggered,
+            parameters: <String, Object?>{'source': 'ai_tool'},
+          ),
+        );
         return jsonEncode({'status': 'ok', 'location': loc.address, ...result});
       } finally {
         svc.close();
@@ -1106,7 +1190,7 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 20: escalate_to_family ──
-    room.registerRpcMethod('escalate_to_family', (
+    _registerTrackedRpcMethod(room, 'escalate_to_family', (
       RpcInvocationData data,
     ) async {
       _log('RPC', 'escalate_to_family');
@@ -1114,7 +1198,7 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 21: escalate_to_volunteer ──
-    room.registerRpcMethod('escalate_to_volunteer', (
+    _registerTrackedRpcMethod(room, 'escalate_to_volunteer', (
       RpcInvocationData data,
     ) async {
       _log('RPC', 'escalate_to_volunteer');
@@ -1122,7 +1206,9 @@ class AiseeLiveKitVoiceSession {
     });
 
     // ── Tool 22: rate_volunteer ──
-    room.registerRpcMethod('rate_volunteer', (RpcInvocationData data) async {
+    _registerTrackedRpcMethod(room, 'rate_volunteer', (
+      RpcInvocationData data,
+    ) async {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       _log('RPC', 'rate_volunteer');

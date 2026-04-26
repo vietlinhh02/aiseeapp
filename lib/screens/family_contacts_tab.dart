@@ -1,11 +1,15 @@
 // lib/screens/family_contacts_tab.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/aisee_family_member.dart';
+import '../services/aisee_analytics_service.dart';
 import '../services/aisee_family_service.dart';
+import '../services/in_app_message_controller.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
@@ -63,6 +67,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
       }
       final members = await _familyService.fetchFamily(token);
       if (!mounted) return;
+      AiseeInAppMessageController.instance.rememberContacts(members);
       setState(() {
         _members = members;
         _loading = false;
@@ -82,7 +87,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
     final c = code.trim();
     if (c.isEmpty) return false;
     final token = await _token();
-      if (token == null) {
+    if (token == null) {
       if (mounted) {
         AppToast.show(
           'Phiên đăng nhập hết hạn. Hãy đăng xuất và đăng nhập lại.',
@@ -92,6 +97,12 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
       return false;
     }
     await _familyService.joinFamily(token, c);
+    unawaited(
+      AiseeAnalyticsService.instance.track(
+        AiseeAnalyticsEvent.familyLinkCreated,
+        parameters: <String, Object?>{'source': 'invite_joined'},
+      ),
+    );
     return true;
   }
 
@@ -129,9 +140,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
       ),
       builder: (ctx) {
         return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
-          ),
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
           child: StatefulBuilder(
             builder: (ctx, setSheetState) {
               return Padding(
@@ -185,13 +194,15 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: StyleTokens.cardBorder),
+                          borderSide: const BorderSide(
+                            color: StyleTokens.cardBorder,
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: StyleTokens.cardBorder),
+                          borderSide: const BorderSide(
+                            color: StyleTokens.cardBorder,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -503,19 +514,20 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
               if (!context.mounted) return;
               await Navigator.of(context).push(
                 PageRouteBuilder<void>(
-                  pageBuilder: (c, a, s) => FamilyDashboardScreen(
-                    accessToken: token,
-                    member: member,
-                  ),
+                  pageBuilder: (c, a, s) =>
+                      FamilyDashboardScreen(accessToken: token, member: member),
                   transitionsBuilder: (c, a, s, child) {
                     return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(1, 0),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: a,
-                        curve: Curves.easeOutCubic,
-                      )),
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(1, 0),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: a,
+                              curve: Curves.easeOutCubic,
+                            ),
+                          ),
                       child: child,
                     );
                   },

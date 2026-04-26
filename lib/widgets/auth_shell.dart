@@ -13,8 +13,11 @@ import '../screens/login_screen.dart';
 import '../screens/role_selection_screen.dart';
 import '../screens/user_home_screen.dart';
 import '../services/aisee_auth_service.dart';
+import '../services/aisee_analytics_service.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/aisee_family_service.dart';
 import '../services/aisee_push_service.dart';
+import '../services/in_app_message_controller.dart';
 import 'auth_bootstrapping.dart';
 import 'permission_bootstrap_gate.dart';
 import '../services/aisee_profile_cache.dart';
@@ -112,11 +115,23 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
 
   Future<void> _connectChatSocketIfNeeded() async {
     if (_chatSocket.isConnected) return;
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens != null) {
       await _chatSocket.connect(tokens.accessToken);
+      unawaited(_primeMessageContacts(tokens.accessToken));
       _authLog('ChatSocket connected');
+    }
+  }
+
+  Future<void> _primeMessageContacts(String accessToken) async {
+    final AiseeFamilyService svc = AiseeFamilyService();
+    try {
+      final contacts = await svc.fetchFamily(accessToken);
+      AiseeInAppMessageController.instance.rememberContacts(contacts);
+    } catch (e) {
+      _authLog('messageContacts: preload skipped: $e');
+    } finally {
+      svc.close();
     }
   }
 
@@ -126,6 +141,8 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     await _clearStoredSession();
     await _clearCachedProfile();
     unawaited(_chatSocket.disconnect());
+    AiseeInAppMessageController.instance.setCurrentUserId(null);
+    AiseeInAppMessageController.instance.setActiveConversation(null);
     if (!mounted) return;
     setState(() {
       _aiseeProfile = null;
@@ -183,16 +200,19 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
   ) async {
     await AiseeSessionStore.instance.write(resumed.tokens);
     await AiseeProfileCache.instance.write(resumed.profile);
+    unawaited(AiseeAnalyticsService.instance.setUser(resumed.profile));
     await AiseePushService.instance.initAndUploadToken(
       resumed.tokens.accessToken,
     );
     unawaited(_chatSocket.connect(resumed.tokens.accessToken));
+    unawaited(_primeMessageContacts(resumed.tokens.accessToken));
     if (!mounted) return;
     setState(() {
       _aiseeProfile = resumed.profile;
       _profileLoading = false;
       _profileError = null;
     });
+    AiseeInAppMessageController.instance.setCurrentUserId(resumed.profile.id);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       AiseePushService.instance.flushPendingCallNavigation();
@@ -235,6 +255,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       );
       await AiseePushService.instance.initAndUploadToken(stored.accessToken);
       unawaited(_chatSocket.connect(stored.accessToken));
+      unawaited(_primeMessageContacts(stored.accessToken));
       if (!mounted) {
         return;
       }
@@ -243,6 +264,8 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         _profileLoading = false;
         _profileError = null;
       });
+      AiseeInAppMessageController.instance.setCurrentUserId(cachedProfile.id);
+      unawaited(AiseeAnalyticsService.instance.setUser(cachedProfile));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -295,6 +318,8 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
           _profileError = null;
           _aiseeProfile = null;
         });
+        AiseeInAppMessageController.instance.setCurrentUserId(null);
+        AiseeInAppMessageController.instance.setActiveConversation(null);
         if (_toastAfterSignIn) {
           _toastAfterSignIn = false;
           unawaited(AppToast.show('Đã kết nối Google', isError: false));
@@ -311,6 +336,8 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
           _profileError = null;
           _user = null;
         });
+        AiseeInAppMessageController.instance.setCurrentUserId(null);
+        AiseeInAppMessageController.instance.setActiveConversation(null);
         if (showOutToast) {
           unawaited(AppToast.show('Đã đăng xuất', isError: false));
         }
@@ -350,7 +377,10 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       if (!mounted || _user?.id != accountId) return;
       await AiseeSessionStore.instance.write(tokens);
       await AiseeProfileCache.instance.write(profile);
+      unawaited(AiseeAnalyticsService.instance.setUser(profile));
       await AiseePushService.instance.initAndUploadToken(tokens.accessToken);
+      unawaited(_chatSocket.connect(tokens.accessToken));
+      unawaited(_primeMessageContacts(tokens.accessToken));
       _authLog(
         'completeSignIn: GET /users/me xong — gửi role="$role" '
         '→ API profile.role="${profile.role ?? "null"}" '
@@ -361,6 +391,13 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         _profileLoading = false;
         _profileError = null;
       });
+      AiseeInAppMessageController.instance.setCurrentUserId(profile.id);
+      unawaited(
+        AiseeAnalyticsService.instance.track(
+          AiseeAnalyticsEvent.signupCompleted,
+          parameters: <String, Object?>{'role': role},
+        ),
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         AiseePushService.instance.flushPendingCallNavigation();
@@ -376,6 +413,8 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         _profileError = msg;
         _aiseeProfile = null;
       });
+      AiseeInAppMessageController.instance.setCurrentUserId(null);
+      AiseeInAppMessageController.instance.setActiveConversation(null);
       unawaited(AppToast.show(msg, isError: true));
     }
   }
@@ -391,6 +430,8 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       _profileError = null;
       _user = null;
     });
+    AiseeInAppMessageController.instance.setCurrentUserId(null);
+    AiseeInAppMessageController.instance.setActiveConversation(null);
     if (error is GoogleSignInException &&
         error.code == GoogleSignInExceptionCode.canceled) {
       _authLog(
@@ -407,6 +448,9 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
 
   void _onSignInWillStart() {
     _toastAfterSignIn = true;
+    unawaited(
+      AiseeAnalyticsService.instance.track(AiseeAnalyticsEvent.signupStarted),
+    );
   }
 
   Future<void> _signInWithGoogle() async {
@@ -539,11 +583,29 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         ? RoleSelectionScreen(
             googleUser: _user!,
             onSelectRole: (String role) {
+              unawaited(
+                AiseeAnalyticsService.instance.track(
+                  AiseeAnalyticsEvent.roleSelected,
+                  parameters: <String, Object?>{'role': role},
+                ),
+              );
               unawaited(_completeSignInWithRole(role));
             },
             onSignOut: _signOut,
           )
         : PermissionBootstrapGate(
+            onCompleted: () {
+              final String key = _aiseeProfile?.id == null
+                  ? AiseeAnalyticsEvent.onboardingCompleted
+                  : '${AiseeAnalyticsEvent.onboardingCompleted}.${_aiseeProfile!.id}';
+              unawaited(
+                AiseeAnalyticsService.instance.trackOnce(
+                  AiseeAnalyticsEvent.onboardingCompleted,
+                  parameters: <String, Object?>{'role': _aiseeProfile?.role},
+                  key: key,
+                ),
+              );
+            },
             child: _homeForRole(
               googleUser: _user,
               aiseeProfile: _aiseeProfile,

@@ -9,9 +9,11 @@ import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
 import '../services/aisee_call_service.dart';
+import '../services/aisee_analytics_service.dart';
 import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_family_service.dart';
+import '../services/in_app_message_controller.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
@@ -23,11 +25,7 @@ String _avatarUrl(String seed) =>
     'https://api.dicebear.com/9.x/notionists/png?seed=${Uri.encodeComponent(seed)}&size=96&backgroundColor=e8e8e8';
 
 class ContactsTab extends StatefulWidget {
-  const ContactsTab({
-    super.key,
-    this.aiseeProfile,
-    required this.chatSocket,
-  });
+  const ContactsTab({super.key, this.aiseeProfile, required this.chatSocket});
 
   final AiseeUserProfile? aiseeProfile;
   final AiseeChatSocket chatSocket;
@@ -65,8 +63,7 @@ class _ContactsTabState extends State<ContactsTab> {
       _error = null;
     });
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       if (!mounted) return;
       setState(() {
@@ -77,14 +74,15 @@ class _ContactsTabState extends State<ContactsTab> {
     }
 
     try {
-      final List<AiseeFamilyMember> family =
-          await _familyService.fetchFamily(tokens.accessToken);
+      final List<AiseeFamilyMember> family = await _familyService.fetchFamily(
+        tokens.accessToken,
+      );
       int unread = 0;
       try {
-        unread =
-            await _chatService.fetchUnreadCount(tokens.accessToken);
+        unread = await _chatService.fetchUnreadCount(tokens.accessToken);
       } catch (_) {}
       if (!mounted) return;
+      AiseeInAppMessageController.instance.rememberContacts(family);
       setState(() {
         _contacts = family;
         _unreadCount = unread;
@@ -103,27 +101,21 @@ class _ContactsTabState extends State<ContactsTab> {
   }
 
   Future<void> _refreshUnreadCount() async {
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null || !mounted) return;
     try {
-      final int count =
-          await _chatService.fetchUnreadCount(tokens.accessToken);
+      final int count = await _chatService.fetchUnreadCount(tokens.accessToken);
       if (!mounted) return;
       setState(() => _unreadCount = count);
     } catch (_) {}
   }
 
-  Future<void> _startCall(
-    AiseeFamilyMember contact,
-    String callType,
-  ) async {
+  Future<void> _startCall(AiseeFamilyMember contact, String callType) async {
     if (_callingInProgress) return;
     _callingInProgress = true;
     HapticFeedback.lightImpact();
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       _callingInProgress = false;
       return;
@@ -141,22 +133,28 @@ class _ContactsTabState extends State<ContactsTab> {
       }
       await Navigator.of(context).push(
         PageRouteBuilder<void>(
-          pageBuilder: (BuildContext c, Animation<double> a, Animation<double> s) =>
-              CallScreen(
-            callInfo: AiseeCallInfo(
-              roomName: result.roomName,
-              token: result.token,
-              callType: callType,
-              contact: contact,
-            ),
-          ),
-          transitionsBuilder: (BuildContext c, Animation<double> a,
-              Animation<double> s, Widget child) {
-            return FadeTransition(
-              opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
-              child: child,
-            );
-          },
+          pageBuilder:
+              (BuildContext c, Animation<double> a, Animation<double> s) =>
+                  CallScreen(
+                    callInfo: AiseeCallInfo(
+                      roomName: result.roomName,
+                      token: result.token,
+                      callType: callType,
+                      contact: contact,
+                    ),
+                  ),
+          transitionsBuilder:
+              (
+                BuildContext c,
+                Animation<double> a,
+                Animation<double> s,
+                Widget child,
+              ) {
+                return FadeTransition(
+                  opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
+                  child: child,
+                );
+              },
           transitionDuration: const Duration(milliseconds: 300),
           reverseTransitionDuration: const Duration(milliseconds: 200),
         ),
@@ -178,14 +176,19 @@ class _ContactsTabState extends State<ContactsTab> {
     final String? relationship = await _showRelationshipSheet();
     if (relationship == null || relationship.trim().isEmpty) return;
 
-    final AiseeAuthTokens? tokens =
-        await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) return;
 
     try {
       final String code = await _familyService.createInvite(
         tokens.accessToken,
         relationship.trim(),
+      );
+      unawaited(
+        AiseeAnalyticsService.instance.track(
+          AiseeAnalyticsEvent.familyLinkCreated,
+          parameters: <String, Object?>{'source': 'invite_created'},
+        ),
       );
       if (!mounted) return;
       await _showInviteCodeSheet(code);
@@ -208,9 +211,7 @@ class _ContactsTabState extends State<ContactsTab> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
         return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
-          ),
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
           child: Container(
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
@@ -287,8 +288,7 @@ class _ContactsTabState extends State<ContactsTab> {
                     ),
                   ),
                   textInputAction: TextInputAction.done,
-                  onSubmitted: (String v) =>
-                      Navigator.pop(ctx, v),
+                  onSubmitted: (String v) => Navigator.pop(ctx, v),
                 ),
                 const SizedBox(height: 16),
                 // Buttons row
@@ -302,9 +302,7 @@ class _ContactsTabState extends State<ContactsTab> {
                           borderRadius: BorderRadius.circular(12),
                           onTap: () => Navigator.pop(ctx),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Center(
                               child: Text(
                                 'Huỷ',
@@ -326,12 +324,9 @@ class _ContactsTabState extends State<ContactsTab> {
                         borderRadius: BorderRadius.circular(12),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () =>
-                              Navigator.pop(ctx, ctrl.text),
+                          onTap: () => Navigator.pop(ctx, ctrl.text),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Center(
                               child: Text(
                                 'Tạo mã mời',
@@ -411,9 +406,7 @@ class _ContactsTabState extends State<ContactsTab> {
                 decoration: BoxDecoration(
                   color: StyleTokens.background,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: StyleTokens.cardBorder,
-                  ),
+                  border: Border.all(color: StyleTokens.cardBorder),
                 ),
                 child: Center(
                   child: SelectableText(
@@ -442,9 +435,7 @@ class _ContactsTabState extends State<ContactsTab> {
                       AppToast.show('Đã sao chép mã mời');
                     },
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
@@ -516,18 +507,12 @@ class _ContactsTabState extends State<ContactsTab> {
         Expanded(
           child: Text(
             'Nhắn tin và gọi điện người thân.',
-            style: StyleTokens.bodySmall().copyWith(
-              fontSize: 12,
-              height: 1.4,
-            ),
+            style: StyleTokens.bodySmall().copyWith(fontSize: 12, height: 1.4),
           ),
         ),
         if (_unreadCount > 0)
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 4,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: StyleTokens.error,
               borderRadius: BorderRadius.circular(999),
@@ -546,9 +531,7 @@ class _ContactsTabState extends State<ContactsTab> {
       return const Padding(
         padding: EdgeInsets.only(top: 48),
         child: Center(
-          child: CircularProgressIndicator(
-            color: StyleTokens.buttonPrimary,
-          ),
+          child: CircularProgressIndicator(color: StyleTokens.buttonPrimary),
         ),
       );
     }
@@ -651,33 +634,42 @@ class _ContactsTabState extends State<ContactsTab> {
               HapticFeedback.lightImpact();
               await Navigator.of(context).push(
                 PageRouteBuilder<void>(
-                  pageBuilder: (BuildContext c, Animation<double> a,
-                          Animation<double> s) =>
-                      ChatDetailScreen(
-                    contact: _contacts[i],
-                    currentUserId: widget.aiseeProfile?.id ?? '',
-                    chatSocket: widget.chatSocket,
-                    onUnreadCleared: () {
-                      unawaited(_refreshUnreadCount());
-                    },
-                  ),
-                  transitionsBuilder: (BuildContext c,
-                      Animation<double> a, Animation<double> s,
-                      Widget child) {
-                    return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(1, 0),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: a,
-                        curve: Curves.easeOutCubic,
-                      )),
-                      child: child,
-                    );
-                  },
+                  pageBuilder:
+                      (
+                        BuildContext c,
+                        Animation<double> a,
+                        Animation<double> s,
+                      ) => ChatDetailScreen(
+                        contact: _contacts[i],
+                        currentUserId: widget.aiseeProfile?.id ?? '',
+                        chatSocket: widget.chatSocket,
+                        onUnreadCleared: () {
+                          unawaited(_refreshUnreadCount());
+                        },
+                      ),
+                  transitionsBuilder:
+                      (
+                        BuildContext c,
+                        Animation<double> a,
+                        Animation<double> s,
+                        Widget child,
+                      ) {
+                        return SlideTransition(
+                          position:
+                              Tween<Offset>(
+                                begin: const Offset(1, 0),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: a,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                              ),
+                          child: child,
+                        );
+                      },
                   transitionDuration: const Duration(milliseconds: 250),
-                  reverseTransitionDuration:
-                      const Duration(milliseconds: 200),
+                  reverseTransitionDuration: const Duration(milliseconds: 200),
                 ),
               );
               _refreshUnreadCount();
@@ -754,9 +746,7 @@ class _ContactCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: const Color(0xFFE8E8E8),
-                  backgroundImage: NetworkImage(
-                    _avatarUrl(member.id),
-                  ),
+                  backgroundImage: NetworkImage(_avatarUrl(member.id)),
                   onBackgroundImageError: (Object e, StackTrace? st) {},
                 ),
                 const SizedBox(width: 12),

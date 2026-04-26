@@ -11,11 +11,13 @@ import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
 import '../models/agent_state.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/aisee_analytics_service.dart';
 import '../services/assistant_audio_coordinator.dart';
 import '../services/aisee_family_service.dart';
 import '../services/aisee_livekit_voice_session.dart';
 import '../services/aisee_push_service.dart';
 import '../services/aisee_wake_word_service.dart';
+import '../services/in_app_message_controller.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
@@ -121,6 +123,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     );
     debugPrint('');
     debugPrint('[AiSee:UI] UserHomeScreen initState');
+    unawaited(AiseeAnalyticsService.instance.trackScreen('user_home'));
     debugPrint('[AiSee:UI] User: $_displayName');
     debugPrint(
       '[AiSee:UI] aiseeLoading=${widget.aiseeLoading} aiseeError=${widget.aiseeError}',
@@ -134,9 +137,10 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       enableAssistantMic: _liveKitVoice.enableAssistantMic,
       disableAssistantMic: _liveKitVoice.disableAssistantMic,
       switchToAssistantTab: () => _onTabChanged(0),
-      onWakeAcknowledged:
-          _wakeWordEnabled ? _signalWakeAcknowledged : null,
-      onMicReadyAfterWake: _wakeWordEnabled ? _signalAssistantReadyToUser : null,
+      onWakeAcknowledged: _wakeWordEnabled ? _signalWakeAcknowledged : null,
+      onMicReadyAfterWake: _wakeWordEnabled
+          ? _signalAssistantReadyToUser
+          : null,
       log: (String message) => debugPrint('[AiSee:WakeFlow] $message'),
     );
     _liveKitVoice.onMusicUiChanged = _onMusicUiChanged;
@@ -263,6 +267,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       final List<AiseeFamilyMember> family = await svc.fetchFamily(
         tokens.accessToken,
       );
+      AiseeInAppMessageController.instance.rememberContacts(family);
       return family.isNotEmpty;
     } catch (_) {
       return false;
@@ -300,6 +305,12 @@ class _UserHomeScreenState extends State<UserHomeScreen>
         _liveKitConnecting = false;
         _liveKitError = null;
       });
+      unawaited(
+        AiseeAnalyticsService.instance.trackOnce(
+          AiseeAnalyticsEvent.firstAiSessionStarted,
+          parameters: <String, Object?>{'has_family_link': hasLink},
+        ),
+      );
       debugPrint('');
       debugPrint('====================================');
       debugPrint('[AiSee:UI] KET NOI THANH CONG!');
@@ -320,6 +331,13 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       }
     } catch (e, st) {
       debugPrint('LiveKit voice: $e\n$st');
+      unawaited(
+        AiseeAnalyticsService.instance.trackAiSessionError(
+          e,
+          stackTrace: st,
+          reason: 'livekit_connect',
+        ),
+      );
       if (!mounted) return;
       final String msg = e is AiseeApiException
           ? e.message

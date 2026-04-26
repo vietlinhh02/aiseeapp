@@ -66,6 +66,9 @@ dependencies:
   flutter_wake_word: ^0.0.42
   tflite_flutter: ^0.12.1
   image: ^4.5.3
+  chartjs_flutter: ^1.0.0
+  firebase_analytics: ^11.6.0
+  firebase_crashlytics: ^4.3.10
 
 dev_dependencies:
   flutter_test:
@@ -97,6 +100,8 @@ flutter:
     - assets/illustrations/role_family.svg
     - assets/icons/nav/
     - assets/models/
+    - assets/chart.umd.min.js
+    - assets/chart_template.html
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

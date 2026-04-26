@@ -1,4 +1,6 @@
 // lib/screens/family_dashboard_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/aisee_dashboard_models.dart';
 import '../models/aisee_family_member.dart';
+import '../services/aisee_analytics_service.dart';
 import '../services/aisee_dashboard_service.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
@@ -56,8 +59,22 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
       if (!mounted) return;
       if (_currentTab != _tabController.index) {
         setState(() => _currentTab = _tabController.index);
+        unawaited(
+          AiseeAnalyticsService.instance.trackScreen(
+            'family_dashboard_${familyDashboardNavItems[_currentTab].label}',
+          ),
+        );
       }
     });
+    unawaited(AiseeAnalyticsService.instance.trackScreen('family_dashboard'));
+    unawaited(
+      AiseeAnalyticsService.instance.trackOnce(
+        AiseeAnalyticsEvent.firstFamilyDashboardViewed,
+        parameters: <String, Object?>{'member_id': widget.member.id},
+        key:
+            '${AiseeAnalyticsEvent.firstFamilyDashboardViewed}.${widget.member.id}',
+      ),
+    );
     _loadAll();
   }
 
@@ -272,10 +289,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
     );
   }
 
-  Future<void> _onMedAction(
-    String action,
-    DashboardMedication med,
-  ) async {
+  Future<void> _onMedAction(String action, DashboardMedication med) async {
     if (action == 'delete') {
       final confirm = await showDialog<bool>(
         context: context,
@@ -328,6 +342,12 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
         dosage: result['dosage']!,
         times: result['times']!.split(',').map((e) => e.trim()).toList(),
         frequency: result['frequency'] ?? 'daily',
+      );
+      unawaited(
+        AiseeAnalyticsService.instance.track(
+          AiseeAnalyticsEvent.medicationCreated,
+          parameters: <String, Object?>{'source': 'family_dashboard'},
+        ),
       );
       await _loadMeds();
       if (mounted) AppToast.show('Đã thêm thuốc');
@@ -399,10 +419,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
       }
     } catch (_) {
       if (mounted) {
-        AppToast.show(
-          'Không mở được bản đồ. Thử lại sau.',
-          isError: true,
-        );
+        AppToast.show('Không mở được bản đồ. Thử lại sau.', isError: true);
       }
     }
   }
