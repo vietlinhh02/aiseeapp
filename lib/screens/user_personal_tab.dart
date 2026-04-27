@@ -8,6 +8,7 @@ import '../services/aisee_health_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import 'reminders_screen.dart';
+import 'subscription_screen.dart';
 import 'user_sponsor_screen.dart';
 
 class UserPersonalTab extends StatefulWidget {
@@ -72,6 +73,13 @@ class UserPersonalTabState extends State<UserPersonalTab> {
     ).push(MaterialPageRoute<void>(builder: (_) => const UserSponsorScreen()));
   }
 
+  void _openSubscription() {
+    HapticFeedback.lightImpact();
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SubscriptionScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -106,6 +114,13 @@ class UserPersonalTabState extends State<UserPersonalTab> {
             title: 'Nhật ký sức khỏe',
             subtitle: 'Xem chi tiết',
             onTap: () => _openScreen(ReminderFilter.health),
+          ),
+          const SizedBox(height: 10),
+          _MenuCard(
+            iconAsset: 'assets/icons/nav/ic_activity.svg',
+            title: 'Gói AiSee',
+            subtitle: 'Quota và quyền đang có',
+            onTap: _openSubscription,
           ),
           const SizedBox(height: 10),
           _MenuCard(

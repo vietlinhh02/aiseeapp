@@ -221,7 +221,7 @@ class AiseeLiveKitVoiceSession {
     if (lp == null || !lp.isCameraEnabled()) {
       _log(
         'Camera',
-        'syncPreview: camera OFF hoac chua co participant -> null',
+        'syncPreview: camera OFF hoặc chưa có participant -> null',
       );
       _setLocalCameraPreviewTrack(null);
       return;
@@ -234,7 +234,7 @@ class AiseeLiveKitVoiceSession {
       _log('Camera', 'syncPreview: co LocalVideoTrack -> hien preview');
       _setLocalCameraPreviewTrack(t);
     } else {
-      _log('Camera', 'syncPreview: khong co video track -> null');
+      _log('Camera', 'syncPreview: không có video track -> null');
       _setLocalCameraPreviewTrack(null);
     }
   }
@@ -300,7 +300,10 @@ class AiseeLiveKitVoiceSession {
     if (res.statusCode != 200) {
       final String fb = 'Không lấy được token phòng (HTTP ${res.statusCode})';
       if (map != null) {
-        throw AiseeApiException(_messageFromErrorBody(map, fallback: fb));
+        throw AiseeApiException(
+          _messageFromErrorBody(map, fallback: fb),
+          code: _codeFromErrorBody(map),
+        );
       }
       throw AiseeApiException(
         raw.isEmpty
@@ -432,6 +435,15 @@ class AiseeLiveKitVoiceSession {
       if (msg != null && msg.isNotEmpty) return msg;
     }
     return fallback;
+  }
+
+  String? _codeFromErrorBody(Map<String, dynamic> map) {
+    final Object? errObj = map['error'];
+    if (errObj is Map<String, dynamic>) {
+      final String? code = errObj['code'] as String?;
+      if (code != null && code.isNotEmpty) return code;
+    }
+    return null;
   }
 
   /// Android/iOS: hộp thoại hệ thống. Web: trình duyệt tự hỏi khi bật thiết bị.
@@ -1248,6 +1260,17 @@ class AiseeLiveKitVoiceSession {
       );
       _connectCompleter!.complete();
     } catch (e, st) {
+      if (e is AiseeApiException && e.code == 'quota_exceeded') {
+        unawaited(
+          AiseeAnalyticsService.instance.track(
+            AiseeAnalyticsEvent.quotaExceeded,
+            parameters: <String, Object?>{
+              'feature': 'ai_session',
+              'source': 'livekit_token',
+            },
+          ),
+        );
+      }
       _connectCompleter!.completeError(e, st);
       rethrow;
     } finally {
@@ -1270,7 +1293,7 @@ class AiseeLiveKitVoiceSession {
       _fetchWithRefreshIfNeeded(),
     ]);
     final LiveKitJoinCredentials creds = parallel[1] as LiveKitJoinCredentials;
-    _logBlock('Connect', 'Credentials nhan duoc', {
+    _logBlock('Connect', 'Credentials nhận được', {
       'url': creds.url,
       'room': creds.roomName ?? '(server tu gan)',
       'token':
@@ -1341,7 +1364,7 @@ class AiseeLiveKitVoiceSession {
         _log('AgentState', 'Agent state: $raw -> $next');
         agentState.value = next;
       });
-    _log('Connect', 'Dang ket noi room...');
+    _log('Connect', 'Đang kết nối room...');
     await room.connect(creds.url, creds.token);
     _registerRpcMethods();
     bool hasFamilyLink = false;
@@ -1428,7 +1451,7 @@ class AiseeLiveKitVoiceSession {
   }
 
   Future<void> disconnect() async {
-    _log('Disconnect', 'Dang ngat ket noi...');
+    _log('Disconnect', 'Đang ngắt kết nối...');
     _assistantMicEnabled = false;
     _contentGuard?.stop();
     _contentGuard?.classifier.dispose();
@@ -1455,14 +1478,14 @@ class AiseeLiveKitVoiceSession {
         debugPrint('LiveKit dispose: $e\n$st');
       }
     } else {
-      _log('Disconnect', 'Khong co room dang ket noi');
+      _log('Disconnect', 'Không có room đang kết nối');
     }
     try {
       await ensureForegroundStopped();
     } catch (e, st) {
       debugPrint('AiSee foreground stop during disconnect: $e\n$st');
     }
-    _log('Disconnect', 'Da ngat xong.');
+    _log('Disconnect', 'Đã ngắt xong.');
     await _notifyWakeWordCanResume();
   }
 }

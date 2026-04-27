@@ -14,6 +14,10 @@ abstract final class AppEnv {
     'MAPBOX_ACCESS_TOKEN',
     defaultValue: '',
   );
+  static const String _revenueCatApiKeyDefine = String.fromEnvironment(
+    'REVENUECAT_API_KEY',
+    defaultValue: '',
+  );
   static const String _defaultBackendUrl = 'http://192.168.1.10:8081';
 
   /// OAuth Web Client ID — dùng cho web, `serverClientId` Android/iOS (aud `id_token` khớp backend).
@@ -63,5 +67,13 @@ abstract final class AppEnv {
       t = _dotenv('MAPBOX_ACCESS_TOKEN');
     }
     return t;
+  }
+
+  static String get revenueCatApiKey {
+    String key = _revenueCatApiKeyDefine.trim();
+    if (key.isEmpty) {
+      key = _dotenv('REVENUECAT_API_KEY');
+    }
+    return key;
   }
 }

@@ -8,6 +8,7 @@ import '../services/aisee_session_store.dart';
 import '../services/aisee_volunteer_service.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
+import 'subscription_screen.dart';
 import 'user_sponsor_screen.dart';
 
 class FamilyPersonalTab extends StatefulWidget {
@@ -136,6 +137,32 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
     ).push(MaterialPageRoute<void>(builder: (_) => const UserSponsorScreen()));
   }
 
+  void _openSubscription() {
+    HapticFeedback.lightImpact();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SubscriptionScreen(familyFirst: true),
+      ),
+    );
+  }
+
+  void _openPersonalInfo(String joinDate) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return _PersonalInfoSheet(
+          email: widget.profile.email,
+          role: 'Người hỗ trợ',
+          joinDate: joinDate,
+        );
+      },
+    );
+  }
+
   String _formatDate(String? iso) {
     if (iso == null) return '';
     try {
@@ -161,25 +188,19 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
             style: StyleTokens.bodySmall().copyWith(fontSize: 12, height: 1.4),
           ),
           const SizedBox(height: 20),
-          _InfoCard(
+          _ActionCard(
             iconAsset: 'assets/icons/nav/ic_profile.svg',
-            title: 'Email',
-            subtitle: widget.profile.email,
+            title: 'Thông tin cá nhân',
+            subtitle: 'Email, vai trò và ngày tham gia',
+            onTap: () => _openPersonalInfo(joinDate),
           ),
           const SizedBox(height: 10),
-          _InfoCard(
-            iconAsset: 'assets/icons/nav/ic_3user.svg',
-            title: 'Vai trò',
-            subtitle: 'Người hỗ trợ',
+          _ActionCard(
+            iconAsset: 'assets/icons/nav/ic_activity.svg',
+            title: 'Gói AiSee',
+            subtitle: 'Quản lý gói, quota và quyền chăm sóc',
+            onTap: _openSubscription,
           ),
-          if (joinDate.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 10),
-            _InfoCard(
-              iconAsset: 'assets/icons/nav/ic_calendar.svg',
-              title: 'Ngày tham gia',
-              subtitle: joinDate,
-            ),
-          ],
           const SizedBox(height: 10),
           _VolunteerCard(
             statusLoading: _volunteerStatusLoading,
@@ -232,74 +253,153 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
   }
 }
 
-/// Static info card — no tap action, no arrow.
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({
+class _PersonalInfoSheet extends StatelessWidget {
+  const _PersonalInfoSheet({
+    required this.email,
+    required this.role,
+    required this.joinDate,
+  });
+
+  final String email;
+  final String role;
+  final String joinDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: StyleTokens.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 44,
+            height: 4,
+            decoration: BoxDecoration(
+              color: StyleTokens.cardBorder,
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'Thông tin cá nhân',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: StyleTokens.textPrimary,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Đóng',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: StyleTokens.surfaceCard,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: <Widget>[
+                  _PersonalInfoRow(
+                    iconAsset: 'assets/icons/nav/ic_profile.svg',
+                    title: 'Email',
+                    value: email,
+                  ),
+                  const SizedBox(height: 14),
+                  _PersonalInfoRow(
+                    iconAsset: 'assets/icons/nav/ic_3user.svg',
+                    title: 'Vai trò',
+                    value: role,
+                  ),
+                  if (joinDate.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 14),
+                    _PersonalInfoRow(
+                      iconAsset: 'assets/icons/nav/ic_calendar.svg',
+                      title: 'Ngày tham gia',
+                      value: joinDate,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalInfoRow extends StatelessWidget {
+  const _PersonalInfoRow({
     required this.iconAsset,
     required this.title,
-    required this.subtitle,
+    required this.value,
   });
 
   final String iconAsset;
   final String title;
-  final String subtitle;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: StyleTokens.surfaceCard,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: StyleTokens.background,
-                borderRadius: BorderRadius.circular(10),
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: StyleTokens.background,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: SvgPicture.asset(
+              iconAsset,
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(
+                StyleTokens.buttonPrimary,
+                BlendMode.srcIn,
               ),
-              child: Center(
-                child: SvgPicture.asset(
-                  iconAsset,
-                  width: 20,
-                  height: 20,
-                  colorFilter: const ColorFilter.mode(
-                    StyleTokens.buttonPrimary,
-                    BlendMode.srcIn,
-                  ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: StyleTokens.textMuted,
                 ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: StyleTokens.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: StyleTokens.textPrimary,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: StyleTokens.textPrimary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

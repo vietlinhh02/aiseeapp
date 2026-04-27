@@ -18,6 +18,7 @@ import '../services/aisee_chat_socket.dart';
 import '../services/aisee_family_service.dart';
 import '../services/aisee_push_service.dart';
 import '../services/in_app_message_controller.dart';
+import '../services/aisee_revenuecat_service.dart';
 import 'auth_bootstrapping.dart';
 import 'permission_bootstrap_gate.dart';
 import '../services/aisee_profile_cache.dart';
@@ -141,6 +142,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     await _clearStoredSession();
     await _clearCachedProfile();
     unawaited(_chatSocket.disconnect());
+    unawaited(AiseeRevenueCatService.instance.logOut());
     AiseeInAppMessageController.instance.setCurrentUserId(null);
     AiseeInAppMessageController.instance.setActiveConversation(null);
     if (!mounted) return;
@@ -201,6 +203,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     await AiseeSessionStore.instance.write(resumed.tokens);
     await AiseeProfileCache.instance.write(resumed.profile);
     unawaited(AiseeAnalyticsService.instance.setUser(resumed.profile));
+    unawaited(AiseeRevenueCatService.instance.identify(resumed.profile));
     await AiseePushService.instance.initAndUploadToken(
       resumed.tokens.accessToken,
     );
@@ -266,6 +269,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       });
       AiseeInAppMessageController.instance.setCurrentUserId(cachedProfile.id);
       unawaited(AiseeAnalyticsService.instance.setUser(cachedProfile));
+      unawaited(AiseeRevenueCatService.instance.identify(cachedProfile));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -378,6 +382,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       await AiseeSessionStore.instance.write(tokens);
       await AiseeProfileCache.instance.write(profile);
       unawaited(AiseeAnalyticsService.instance.setUser(profile));
+      unawaited(AiseeRevenueCatService.instance.identify(profile));
       await AiseePushService.instance.initAndUploadToken(tokens.accessToken);
       unawaited(_chatSocket.connect(tokens.accessToken));
       unawaited(_primeMessageContacts(tokens.accessToken));
@@ -436,7 +441,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         error.code == GoogleSignInExceptionCode.canceled) {
       _authLog(
         'googleSignIn: canceled by user or Credential Manager. '
-        'Tren Android, day cung co the la dau hieu OAuth config/SHA khong khop.',
+        'Trên Android, đây cũng có thể là dấu hiệu OAuth config/SHA không khớp.',
       );
       return;
     }
@@ -461,7 +466,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         _authLog(
           'googleSignIn.authenticate: canceled by user or Credential Manager. '
-          'Tren Android, day cung co the la dau hieu OAuth config/SHA khong khop.',
+          'Trên Android, đây cũng có thể là dấu hiệu OAuth config/SHA không khớp.',
         );
         return;
       }
