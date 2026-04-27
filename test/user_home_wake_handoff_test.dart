@@ -342,6 +342,19 @@ void main() {
     expect(ops.switchTabCalls, 1);
   });
 
+  test('default conversation grace period keeps session open longer', () {
+    final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
+    final AssistantAudioCoordinator controller = AssistantAudioCoordinator(
+      startWakeListening: ops.startWakeListening,
+      stopWakeListening: ops.stopWakeListening,
+      enableAssistantMic: ops.enableAssistantMic,
+      disableAssistantMic: ops.disableAssistantMic,
+      switchToAssistantTab: ops.switchToAssistantTab,
+    );
+
+    expect(controller.gracePeriod, const Duration(seconds: 90));
+  });
+
   test('agent idle starts grace period and timeout returns to wake', () async {
     final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
     final AssistantAudioCoordinator controller = AssistantAudioCoordinator(
@@ -425,7 +438,7 @@ void main() {
   });
 
   test(
-    'pause restores wake listening and resume avoids redundant restart',
+    'pause during active conversation keeps live mic for background screen-off use',
     () async {
       final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
       final AssistantAudioCoordinator controller = AssistantAudioCoordinator(
@@ -440,16 +453,41 @@ void main() {
       await controller.onWakeDetected();
       await controller.onAppPaused();
 
-      expect(ops.liveMicEnabled, isFalse);
-      expect(ops.wakeListening, isTrue);
-      expect(ops.startWakeListeningCalls, 1);
+      expect(controller.state, AssistantAudioState.conversationActive);
+      expect(ops.liveMicEnabled, isTrue);
+      expect(ops.wakeListening, isFalse);
+      expect(ops.startWakeListeningCalls, 0);
+      expect(ops.disableMicCalls, 0);
 
       await controller.onAppResumed(liveKitConnected: true);
+
+      expect(controller.state, AssistantAudioState.conversationActive);
+      expect(ops.liveMicEnabled, isTrue);
+      expect(ops.wakeListening, isFalse);
+      expect(ops.startWakeListeningCalls, 0);
+    },
+  );
+
+  test(
+    'pause while idle keeps wake listening without touching live mic',
+    () async {
+      final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
+      final AssistantAudioCoordinator controller = AssistantAudioCoordinator(
+        startWakeListening: ops.startWakeListening,
+        stopWakeListening: ops.stopWakeListening,
+        enableAssistantMic: ops.enableAssistantMic,
+        disableAssistantMic: ops.disableAssistantMic,
+        switchToAssistantTab: ops.switchToAssistantTab,
+        gracePeriod: const Duration(milliseconds: 20),
+      );
+
+      await controller.onAppPaused();
 
       expect(controller.state, AssistantAudioState.idleListeningWake);
       expect(ops.liveMicEnabled, isFalse);
       expect(ops.wakeListening, isTrue);
-      expect(ops.startWakeListeningCalls, 1);
+      expect(ops.startWakeListeningCalls, 0);
+      expect(ops.disableMicCalls, 0);
     },
   );
 }
@@ -579,6 +617,7 @@ class _RecordingCoordinatorOps {
   bool wakeListening = true;
   bool liveMicEnabled = false;
   int enableMicCalls = 0;
+  int disableMicCalls = 0;
   int startWakeListeningCalls = 0;
   int switchTabCalls = 0;
 
@@ -600,6 +639,7 @@ class _RecordingCoordinatorOps {
   }
 
   Future<void> disableAssistantMic() async {
+    disableMicCalls += 1;
     liveMicEnabled = false;
   }
 

@@ -21,7 +21,8 @@ class AssistantAudioCoordinator {
     required this.enableAssistantMic,
     required this.disableAssistantMic,
     required this.switchToAssistantTab,
-    this.gracePeriod = const Duration(seconds: 20),
+    this.gracePeriod = const Duration(seconds: 90),
+
     /// Giống chuông `in.wav` trong hello-wakeword: ngay khi wake được chấp nhận,
     /// trước khi tắt engine wake / bật mic LiveKit.
     this.onWakeAcknowledged,
@@ -35,6 +36,7 @@ class AssistantAudioCoordinator {
   final AssistantAudioAsyncAction disableAssistantMic;
   final VoidCallback switchToAssistantTab;
   final VoidCallback? onWakeAcknowledged;
+
   /// Gọi sau khi bật mic LiveKit xong (wake) — rung / a11y để user biết có thể nói.
   final VoidCallback? onMicReadyAfterWake;
   final Duration gracePeriod;
@@ -86,9 +88,7 @@ class AssistantAudioCoordinator {
       // Android thường cần dài hơn iOS; giảm từ 300ms cố định xuống mức vừa phải.
       final int postWakeDelayMs =
           defaultTargetPlatform == TargetPlatform.android ? 200 : 100;
-      await Future<void>.delayed(
-        Duration(milliseconds: postWakeDelayMs),
-      );
+      await Future<void>.delayed(Duration(milliseconds: postWakeDelayMs));
       _log(
         'WakeLatency t=${wakeLatency.elapsedMilliseconds}ms after '
         '${postWakeDelayMs}ms post-wake delay',
@@ -140,15 +140,11 @@ class AssistantAudioCoordinator {
 
   Future<void> onAppPaused() async {
     _cancelGraceTimer(reason: 'app-paused');
-    final bool wasIdleWake = _state == AssistantAudioState.idleListeningWake;
-    await disableAssistantMic();
-    if (!wasIdleWake) {
-      await startWakeListening();
+    if (_state == AssistantAudioState.idleListeningWake) {
+      _log('App paused while idle; wake listening remains active');
+      return;
     }
-    _setState(
-      AssistantAudioState.idleListeningWake,
-      'App paused; wake retained for background',
-    );
+    _log('App paused while $_state; live conversation remains active');
   }
 
   Future<void> onAppResumed({required bool liveKitConnected}) async {
@@ -162,7 +158,7 @@ class AssistantAudioCoordinator {
       return;
     }
 
-    await enterIdleWakeMode(reason: 'app-resumed');
+    _log('Resume while $_state; live conversation remains active');
   }
 
   void dispose() {

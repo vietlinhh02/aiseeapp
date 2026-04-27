@@ -3,11 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:livekit_client/livekit_client.dart' hide AgentState;
-
 import '../models/agent_state.dart';
 import '../theme/style_tokens.dart';
-import '../widgets/assistant_local_camera_preview.dart';
 import '../widgets/assistant_orb.dart';
 
 /// Tab Trợ lý — mặc định trong [UserHomeScreen], không phải route riêng.
@@ -16,39 +13,31 @@ class UserAssistantTab extends StatelessWidget {
     super.key,
     required this.aiseeLoading,
     required this.aiseeError,
-    required this.liveKitConnecting,
-    required this.liveKitError,
-    required this.liveKitConnected,
+    required this.assistantConnecting,
+    required this.assistantError,
+    required this.assistantConnected,
     this.nowPlayingTitle,
     this.assistantWaveEnergy,
     this.agentState,
-    this.localCameraPreviewTrack,
-    required this.onRetryLiveKit,
+    this.assistantCameraPreview,
+    required this.onRetryAssistant,
   });
 
   final bool aiseeLoading;
   final String? aiseeError;
-  final bool liveKitConnecting;
-  final String? liveKitError;
-  final bool liveKitConnected;
+  final bool assistantConnecting;
+  final String? assistantError;
+  final bool assistantConnected;
   final String? nowPlayingTitle;
   final ValueListenable<double>? assistantWaveEnergy;
   final ValueListenable<AgentState>? agentState;
-  final ValueListenable<LocalVideoTrack?>? localCameraPreviewTrack;
-  final Future<void> Function() onRetryLiveKit;
+  final Widget? assistantCameraPreview;
+  final Future<void> Function() onRetryAssistant;
 
   static List<Shadow> _textShadowsOnVideo() {
     return const <Shadow>[
-      Shadow(
-        offset: Offset(0, 1),
-        blurRadius: 6,
-        color: Color(0xCC000000),
-      ),
-      Shadow(
-        offset: Offset(0, 0),
-        blurRadius: 12,
-        color: Color(0x99000000),
-      ),
+      Shadow(offset: Offset(0, 1), blurRadius: 6, color: Color(0xCC000000)),
+      Shadow(offset: Offset(0, 0), blurRadius: 12, color: Color(0x99000000)),
     ];
   }
 
@@ -61,9 +50,7 @@ class UserAssistantTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (aiseeLoading)
-            const Expanded(
-              child: Center(child: CircularProgressIndicator()),
-            )
+            const Expanded(child: Center(child: CircularProgressIndicator()))
           else if (aiseeError != null)
             Expanded(
               child: Center(
@@ -77,18 +64,16 @@ class UserAssistantTab extends StatelessWidget {
                 ),
               ),
             )
-          else if (liveKitConnecting)
-            const Expanded(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (liveKitError != null)
+          else if (assistantConnecting)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else if (assistantError != null)
             Expanded(
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      liveKitError!,
+                      assistantError!,
                       textAlign: TextAlign.center,
                       style: StyleTokens.bodySmall().copyWith(
                         fontSize: 14,
@@ -98,7 +83,7 @@ class UserAssistantTab extends StatelessWidget {
                     const SizedBox(height: 16),
                     TextButton(
                       onPressed: () {
-                        unawaited(onRetryLiveKit());
+                        unawaited(onRetryAssistant());
                       },
                       child: Text(
                         'Thử lại',
@@ -115,25 +100,20 @@ class UserAssistantTab extends StatelessWidget {
             )
           else
             Expanded(
-              child: liveKitConnected && localCameraPreviewTrack != null
-                  ? ValueListenableBuilder<LocalVideoTrack?>(
-                      valueListenable: localCameraPreviewTrack!,
-                      builder: (BuildContext context, LocalVideoTrack? track, _) {
-                        return _AssistantLiveBody(
-                          liveKitConnected: liveKitConnected,
-                          localVideoTrack: track,
-                          assistantWaveEnergy: assistantWaveEnergy,
-                          agentState: agentState,
-                          nowPlayingTitle: nowPlayingTitle,
-                          textShadowsOnVideo: _textShadowsOnVideo,
-                        );
-                      },
+              child: assistantConnected && assistantCameraPreview != null
+                  ? _AssistantLiveBody(
+                      assistantConnected: assistantConnected,
+                      cameraPreview: assistantCameraPreview!,
+                      assistantWaveEnergy: assistantWaveEnergy,
+                      agentState: agentState,
+                      nowPlayingTitle: nowPlayingTitle,
+                      textShadowsOnVideo: _textShadowsOnVideo,
                     )
                   : Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Center(
                         child: _AssistantContentColumn(
-                          liveKitConnected: liveKitConnected,
+                          assistantConnected: assistantConnected,
                           onVideo: false,
                           textShadowsOnVideo: _textShadowsOnVideo,
                           assistantWaveEnergy: assistantWaveEnergy,
@@ -151,27 +131,29 @@ class UserAssistantTab extends StatelessWidget {
   String get _semanticsLabel {
     if (aiseeLoading) return 'Trang Trợ lý AiSee. Đang tải hồ sơ.';
     if (aiseeError != null) return 'Trang Trợ lý AiSee. Có lỗi hồ sơ.';
-    if (liveKitConnecting) return 'Trang Trợ lý AiSee. Đang kết nối trợ lý.';
-    if (liveKitError != null) {
+    if (assistantConnecting) return 'Trang Trợ lý AiSee. Đang kết nối trợ lý.';
+    if (assistantError != null) {
       return 'Trang Trợ lý AiSee. Lỗi kết nối. Chạm Thử lại để thử lại.';
     }
-    if (liveKitConnected) return 'Trang Trợ lý AiSee. Đã kết nối trợ lý giọng nói.';
+    if (assistantConnected) {
+      return 'Trang Trợ lý AiSee. Đã kết nối trợ lý giọng nói.';
+    }
     return 'Trang Trợ lý AiSee.';
   }
 }
 
 class _AssistantLiveBody extends StatelessWidget {
   const _AssistantLiveBody({
-    required this.liveKitConnected,
-    required this.localVideoTrack,
+    required this.assistantConnected,
+    required this.cameraPreview,
     required this.assistantWaveEnergy,
     required this.agentState,
     required this.nowPlayingTitle,
     required this.textShadowsOnVideo,
   });
 
-  final bool liveKitConnected;
-  final LocalVideoTrack? localVideoTrack;
+  final bool assistantConnected;
+  final Widget cameraPreview;
   final ValueListenable<double>? assistantWaveEnergy;
   final ValueListenable<AgentState>? agentState;
   final String? nowPlayingTitle;
@@ -179,15 +161,14 @@ class _AssistantLiveBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool showFullBleed =
-        liveKitConnected && localVideoTrack != null;
+    final bool showFullBleed = assistantConnected;
 
     if (!showFullBleed) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Center(
           child: _AssistantContentColumn(
-            liveKitConnected: liveKitConnected,
+            assistantConnected: assistantConnected,
             onVideo: false,
             textShadowsOnVideo: textShadowsOnVideo,
             assistantWaveEnergy: assistantWaveEnergy,
@@ -198,8 +179,6 @@ class _AssistantLiveBody extends StatelessWidget {
       );
     }
 
-    final LocalVideoTrack track = localVideoTrack!;
-
     return Stack(
       fit: StackFit.expand,
       clipBehavior: Clip.none,
@@ -207,7 +186,7 @@ class _AssistantLiveBody extends StatelessWidget {
         Positioned.fill(
           child: Semantics(
             label: 'Xem trước camera của bạn, toàn màn hình',
-            child: AssistantLiveCameraBackdrop(track: track),
+            child: cameraPreview,
           ),
         ),
         SafeArea(
@@ -217,7 +196,7 @@ class _AssistantLiveBody extends StatelessWidget {
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               child: _AssistantContentColumn(
-                liveKitConnected: liveKitConnected,
+                assistantConnected: assistantConnected,
                 onVideo: true,
                 textShadowsOnVideo: textShadowsOnVideo,
                 assistantWaveEnergy: assistantWaveEnergy,
@@ -234,7 +213,7 @@ class _AssistantLiveBody extends StatelessWidget {
 
 class _AssistantContentColumn extends StatelessWidget {
   const _AssistantContentColumn({
-    required this.liveKitConnected,
+    required this.assistantConnected,
     required this.onVideo,
     required this.textShadowsOnVideo,
     required this.assistantWaveEnergy,
@@ -242,7 +221,7 @@ class _AssistantContentColumn extends StatelessWidget {
     required this.nowPlayingTitle,
   });
 
-  final bool liveKitConnected;
+  final bool assistantConnected;
   final bool onVideo;
   final List<Shadow> Function() textShadowsOnVideo;
   final ValueListenable<double>? assistantWaveEnergy;
@@ -274,13 +253,13 @@ class _AssistantContentColumn extends StatelessWidget {
           )
         else
           Text(
-            liveKitConnected
+            assistantConnected
                 ? 'Đã kết nối trợ lý giọng nói.'
                 : 'Đang chờ kết nối…',
             textAlign: TextAlign.center,
             style: base,
           ),
-        if (liveKitConnected &&
+        if (assistantConnected &&
             assistantWaveEnergy != null &&
             agentState != null) ...[
           const SizedBox(height: 20),
@@ -297,7 +276,9 @@ class _AssistantContentColumn extends StatelessWidget {
             style: StyleTokens.bodySmall().copyWith(
               fontSize: 14,
               height: 1.35,
-              color: onVideo ? const Color(0xFFFFFFFF) : StyleTokens.textSecondary,
+              color: onVideo
+                  ? const Color(0xFFFFFFFF)
+                  : StyleTokens.textSecondary,
               shadows: onVideo ? textShadowsOnVideo() : null,
             ),
           ),
@@ -306,4 +287,3 @@ class _AssistantContentColumn extends StatelessWidget {
     );
   }
 }
-
