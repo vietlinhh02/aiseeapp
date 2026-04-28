@@ -9,20 +9,25 @@ abstract interface class AiseeAiPcmPlayer {
   Future<void> enqueuePcm16(Uint8List bytes);
   Future<void> stop({String reason = 'manual'});
   Future<void> dispose();
+  bool get hasPendingAudio;
 }
 
 class AiseeFlutterPcmAudioPlayer implements AiseeAiPcmPlayer {
   static const int _sampleRate = 24000;
   static const int _channelCount = 1;
-  static const int _feedThresholdFrames = 2400;
+  static const int _feedThresholdFrames = 9600;
 
   final Queue<PcmArrayInt16> _queuedBuffers = Queue<PcmArrayInt16>();
 
   bool _initialized = false;
   bool _disposed = false;
-  bool _feedScheduled = false;
-  int _generation = 0;
   Future<void> _operationQueue = Future<void>.value();
+
+  @override
+  bool get hasPendingAudio => _queuedBuffers.isNotEmpty || _pendingFeedCount > 0;
+
+  int _pendingFeedCount = 0;
+  int _feedGeneration = 0;
 
   @override
   Future<void> enqueuePcm16(Uint8List bytes) async {
@@ -37,17 +42,28 @@ class AiseeFlutterPcmAudioPlayer implements AiseeAiPcmPlayer {
 
       await _ensureInitialized();
       _queuedBuffers.add(_pcmArrayFromBytes(bytes));
+      _pendingFeedCount++;
       FlutterPcmSound.start();
-      _scheduleFeed();
+      final int gen = ++_feedGeneration;
+      scheduleMicrotask(() {
+        unawaited(
+          _runSerial(() => _feedLoop(gen)).catchError((
+            Object error,
+            StackTrace stackTrace,
+          ) {
+            debugPrint('[AiSee:PCM] feed failed: $error\n$stackTrace');
+          }),
+        );
+      });
     });
   }
 
   @override
   Future<void> stop({String reason = 'manual'}) async {
-    _generation += 1;
+    _feedGeneration++;
+    _pendingFeedCount = 0;
     await _runSerial(() async {
       _queuedBuffers.clear();
-      _feedScheduled = false;
       if (_initialized) {
         debugPrint('[AiSee:PCM] release reason=$reason');
         FlutterPcmSound.setFeedCallback(null);
@@ -78,8 +94,18 @@ class AiseeFlutterPcmAudioPlayer implements AiseeAiPcmPlayer {
       if (_disposed) {
         return;
       }
-      if (_queuedBuffers.isNotEmpty || remainingFrames == 0) {
-        _scheduleFeed();
+      if (_queuedBuffers.isNotEmpty || remainingFrames <= 0) {
+        final int gen = ++_feedGeneration;
+        scheduleMicrotask(() {
+          unawaited(
+            _runSerial(() => _feedLoop(gen)).catchError((
+              Object error,
+              StackTrace stackTrace,
+            ) {
+              debugPrint('[AiSee:PCM] feed failed: $error\n$stackTrace');
+            }),
+          );
+        });
       }
     });
     _initialized = true;
@@ -94,37 +120,18 @@ class AiseeFlutterPcmAudioPlayer implements AiseeAiPcmPlayer {
     return next;
   }
 
-  void _scheduleFeed() {
-    if (_feedScheduled || !_initialized || _disposed) {
-      return;
-    }
-    _feedScheduled = true;
-    final int generation = _generation;
-    scheduleMicrotask(() {
-      unawaited(
-        _runSerial(() => _feedNext(generation)).catchError((
-          Object error,
-          StackTrace stackTrace,
-        ) {
-          debugPrint('[AiSee:PCM] feed failed: $error\n$stackTrace');
-        }),
-      );
-    });
-  }
+  Future<void> _feedLoop(int generation) async {
+    while (true) {
+      if (_disposed || !_initialized || generation != _feedGeneration) {
+        return;
+      }
+      if (_queuedBuffers.isEmpty) {
+        return;
+      }
 
-  Future<void> _feedNext(int generation) async {
-    _feedScheduled = false;
-    if (_disposed ||
-        !_initialized ||
-        generation != _generation ||
-        _queuedBuffers.isEmpty) {
-      return;
-    }
-
-    final PcmArrayInt16 chunk = _queuedBuffers.removeFirst();
-    await FlutterPcmSound.feed(chunk);
-    if (_queuedBuffers.isNotEmpty && generation == _generation) {
-      _scheduleFeed();
+      final PcmArrayInt16 chunk = _queuedBuffers.removeFirst();
+      _pendingFeedCount--;
+      await FlutterPcmSound.feed(chunk);
     }
   }
 

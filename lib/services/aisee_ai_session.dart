@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -201,6 +202,9 @@ class AiseeAiSession {
   AiseeAiSessionMediaMode? _outgoingMediaMode;
   bool _audioStreaming = false;
   bool _disposed = false;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  String? _lastAccessToken;
 
   Stream<Uint8List> get assistantAudioBytes => _assistantAudioController.stream;
 
@@ -240,6 +244,9 @@ class AiseeAiSession {
 
   Future<AiseeAiSessionConfig> _doStart(String accessToken) async {
     _disposed = false;
+    _lastAccessToken = accessToken;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     await stop(resetState: false);
     connectionStatus.value = AiseeAiSessionConnectionStatus.starting;
     agentState.value = AgentState.connecting;
@@ -259,6 +266,7 @@ class AiseeAiSession {
 
     socket.pingInterval = _socketPingInterval;
     _socket = socket;
+    _reconnectAttempts = 0;
     _socketSub = socket.stream.listen(
       _onSocketData,
       onError: _onSocketError,
@@ -400,6 +408,8 @@ class AiseeAiSession {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     unawaited(stop());
     agentState.dispose();
     connectionStatus.dispose();
@@ -484,23 +494,30 @@ class AiseeAiSession {
     switch (type) {
       case 'ready':
         connectionStatus.value = AiseeAiSessionConnectionStatus.ready;
+        break;
       case 'agent_state':
         _handleAgentState(eventPayload);
+        break;
       case 'tool_request':
         _handleToolRequest(requestId, eventPayload);
+        break;
       case 'device_command':
         _handleDeviceCommand(requestId, eventPayload);
+        break;
       case 'assistant_audio_interrupted':
         _assistantAudioInterruptedController.add(null);
+        break;
       case 'ping':
         unawaited(
           _sendEnvelope('pong', requestId: requestId, payload: payload),
         );
+        break;
       case 'error':
         if (connectionStatus.value !=
             AiseeAiSessionConnectionStatus.disconnected) {
           connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
         }
+        break;
       default:
         break;
     }
@@ -533,6 +550,7 @@ class AiseeAiSession {
       'command',
     ]);
     if (name.isEmpty) {
+      debugPrint('[AiSee:ToolCall] tool_request skipped: no name in payload keys=${payload.keys}');
       return;
     }
     final Map<String, dynamic> params =
@@ -540,6 +558,7 @@ class AiseeAiSession {
         _mapValue(payload['arguments']) ??
         _mapValue(payload['payload']) ??
         const <String, dynamic>{};
+    debugPrint('[AiSee:ToolCall] received name=$name requestId=$requestId paramKeys=${params.keys.toList()}');
     final AiseeAiToolRequest request = AiseeAiToolRequest(
       requestId: requestId,
       name: name,
@@ -560,6 +579,7 @@ class AiseeAiSession {
     if (name.isEmpty) {
       return;
     }
+    debugPrint('[AiSee:ToolCall] device_command received name=$name requestId=$requestId');
     final Map<String, dynamic> params =
         _mapValue(payload['params']) ??
         _mapValue(payload['arguments']) ??
@@ -580,6 +600,7 @@ class AiseeAiSession {
     if (agentState.value != AgentState.failed) {
       agentState.value = AgentState.failed;
     }
+    _scheduleReconnect();
   }
 
   void _onSocketDone() {
@@ -594,6 +615,32 @@ class AiseeAiSession {
     if (agentState.value != AgentState.failed) {
       agentState.value = AgentState.disconnected;
     }
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed) return;
+    _reconnectTimer?.cancel();
+    final String token = _lastAccessToken ?? '';
+    if (token.isEmpty) return;
+    final int delaySec = min(30, pow(2, _reconnectAttempts).toInt());
+    _reconnectAttempts++;
+    debugPrint(
+      '[AiSee:Session] Reconnect in ${delaySec}s '
+      '(attempt $_reconnectAttempts)',
+    );
+    _reconnectTimer = Timer(
+      Duration(seconds: delaySec),
+      () {
+        unawaited(_doStart(token).then(
+          (_) {},
+          onError: (Object error, StackTrace _) {
+            debugPrint('[AiSee:Session] Reconnect failed: $error');
+            _scheduleReconnect();
+          },
+        ));
+      },
+    );
   }
 
   static Future<AiseeAiSessionSocket> _defaultSocketConnector(Uri uri) async {

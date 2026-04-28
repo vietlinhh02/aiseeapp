@@ -113,9 +113,6 @@ class AiseeAiAssistantController {
     AiseeAssistantForegroundAction? startForeground,
     AiseeAssistantForegroundAction? stopForeground,
     AiseeAudioUplinkGate? audioUplinkGate,
-    Duration micResumeDelayAfterAssistantAudio = const Duration(
-      milliseconds: 900,
-    ),
   }) : _session = session,
        _microphoneInput = microphoneInput,
        _cameraStreamer = cameraStreamer,
@@ -127,8 +124,7 @@ class AiseeAiAssistantController {
            AiseeVoiceAssistantForeground.ensureStartedAfterConnected,
        _stopForeground =
            stopForeground ?? AiseeVoiceAssistantForeground.ensureStopped,
-       _audioUplinkGate = audioUplinkGate ?? AiseeAudioUplinkGate(),
-       _micResumeDelayAfterAssistantAudio = micResumeDelayAfterAssistantAudio {
+        _audioUplinkGate = audioUplinkGate ?? AiseeAudioUplinkGate() {
     _waveDecayTimer = Timer.periodic(
       const Duration(milliseconds: 50),
       (_) => _decayWaveEnergy(),
@@ -144,7 +140,6 @@ class AiseeAiAssistantController {
   final AiseeAssistantForegroundAction _startForeground;
   final AiseeAssistantForegroundAction _stopForeground;
   final AiseeAudioUplinkGate _audioUplinkGate;
-  final Duration _micResumeDelayAfterAssistantAudio;
 
   final ValueNotifier<double> assistantWaveEnergy = ValueNotifier<double>(0);
 
@@ -152,10 +147,8 @@ class AiseeAiAssistantController {
   StreamSubscription<void>? _assistantAudioInterruptedSub;
   StreamSubscription<AiseeAiDeviceCommandRequest>? _deviceCommandSub;
   Timer? _waveDecayTimer;
-  Timer? _micUplinkResumeTimer;
 
   bool _micEnabled = false;
-  bool _assistantOutputActive = false;
   bool _agentStateListenerAttached = false;
   bool _disposed = false;
   double _lastPeak = 0;
@@ -271,8 +264,6 @@ class AiseeAiAssistantController {
       _session.agentState.removeListener(_handleAgentStateChanged);
       _agentStateListenerAttached = false;
     }
-    _micUplinkResumeTimer?.cancel();
-    _micUplinkResumeTimer = null;
     _waveDecayTimer?.cancel();
     _waveDecayTimer = null;
     assistantWaveEnergy.value = 0;
@@ -286,53 +277,24 @@ class AiseeAiAssistantController {
   }
 
   Future<void> _handleAssistantAudio(Uint8List bytes) async {
-    _markAssistantOutputActive();
     await _audioPlayer.enqueuePcm16(bytes);
     _boostWaveEnergy(_pcmPeak(bytes));
   }
 
   Future<void> _handleAssistantAudioInterrupted() async {
-    _assistantOutputActive = false;
-    _micUplinkResumeTimer?.cancel();
-    _micUplinkResumeTimer = null;
     _audioUplinkGate.reset();
     await _audioPlayer.stop(reason: 'assistant-interrupted');
   }
 
-  void _handleAgentStateChanged() {
-    if (_session.agentState.value == AgentState.speaking) {
-      _markAssistantOutputActive();
-    }
-  }
+  void _handleAgentStateChanged() {}
 
   void _handleMicrophoneFrame(Uint8List bytes) {
-    final AiseeAudioUplinkDecision decision = _audioUplinkGate.process(
-      bytes,
-      assistantOutputActive: _assistantOutputActive,
-    );
-    if (decision.bargeIn) {
-      _assistantOutputActive = false;
-      _micUplinkResumeTimer?.cancel();
-      _micUplinkResumeTimer = null;
-      unawaited(_audioPlayer.stop(reason: 'barge-in'));
+    if (_audioPlayer.hasPendingAudio ||
+        _session.agentState.value == AgentState.speaking) {
+      return;
     }
-    for (final Uint8List frame in decision.frames) {
-      unawaited(_session.sendAudioFrame(frame));
-      _boostWaveEnergy(_pcmPeak(frame));
-    }
-  }
-
-  void _markAssistantOutputActive() {
-    _assistantOutputActive = true;
-    _micUplinkResumeTimer?.cancel();
-    _micUplinkResumeTimer = Timer(_micResumeDelayAfterAssistantAudio, () {
-      if (_session.agentState.value == AgentState.speaking) {
-        _markAssistantOutputActive();
-        return;
-      }
-      _assistantOutputActive = false;
-      _micUplinkResumeTimer = null;
-    });
+    unawaited(_session.sendAudioFrame(bytes));
+    _boostWaveEnergy(_pcmPeak(bytes));
   }
 
   Future<void> _handleDeviceCommand(AiseeAiDeviceCommandRequest request) async {
@@ -343,7 +305,9 @@ class AiseeAiAssistantController {
         await disableAssistantMic();
         await _audioPlayer.stop(reason: 'play-audio-command');
       }
+      debugPrint('[AiSee:ToolCall] dispatching name=${request.name} requestId=${request.requestId}');
       result = await _deviceCommandHandler.handle(request);
+      debugPrint('[AiSee:ToolCall] result name=${request.name} status=${result['status']}');
     } on AiseeAssistantDeviceCommandException catch (error) {
       result = <String, Object?>{
         'status': 'error',

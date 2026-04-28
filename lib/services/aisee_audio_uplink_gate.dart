@@ -23,11 +23,14 @@ class AiseeAudioUplinkGate {
     this.preRollFrames = 3,
     this.preRollMinRms = 0.006,
     this.gateWhenAssistantInactive = true,
-  }) : _noiseFloor = initialNoiseFloor.clamp(0.003, 0.040);
+    int bargeInConsecutiveFrames = 3,
+  }) : _noiseFloor = initialNoiseFloor.clamp(0.003, 0.040),
+       _bargeInConsecutiveFrames = bargeInConsecutiveFrames;
 
   AiseeAudioUplinkGate.echoOnly({
-    this.minBargeInRms = 0.075,
-    this.bargeInMultiplier = 4.0,
+    this.minBargeInRms = 0.08,
+    this.bargeInMultiplier = 3.5,
+    int bargeInConsecutiveFrames = 3,
   }) : enabled = true,
        initialNoiseFloor = 0.006,
        minSpeechRms = 0.0,
@@ -38,7 +41,8 @@ class AiseeAudioUplinkGate {
        preRollFrames = 0,
        preRollMinRms = 0,
        gateWhenAssistantInactive = false,
-       _noiseFloor = 0.006;
+       _noiseFloor = 0.006,
+       _bargeInConsecutiveFrames = bargeInConsecutiveFrames;
 
   AiseeAudioUplinkGate.disabled()
     : enabled = false,
@@ -53,7 +57,8 @@ class AiseeAudioUplinkGate {
       preRollFrames = 0,
       preRollMinRms = 0,
       gateWhenAssistantInactive = false,
-      _noiseFloor = 0.006;
+      _noiseFloor = 0.006,
+      _bargeInConsecutiveFrames = 0;
 
   final bool enabled;
   final double initialNoiseFloor;
@@ -67,10 +72,14 @@ class AiseeAudioUplinkGate {
   final int preRollFrames;
   final double preRollMinRms;
   final bool gateWhenAssistantInactive;
+  final int _bargeInConsecutiveFrames;
+
+  int get bargeInConsecutiveFrames => _bargeInConsecutiveFrames;
 
   final Queue<Uint8List> _preRoll = Queue<Uint8List>();
   double _noiseFloor;
   int _hangover = 0;
+  int _consecutiveBargeInFrames = 0;
   bool _speechActive = false;
 
   AiseeAudioUplinkDecision process(
@@ -99,7 +108,15 @@ class AiseeAudioUplinkGate {
         _noiseFloor * bargeInMultiplier,
       );
       if (rms < bargeInThreshold) {
+        _consecutiveBargeInFrames = 0;
         _adaptNoiseFloor(rms);
+        return const AiseeAudioUplinkDecision(
+          frames: <Uint8List>[],
+          bargeIn: false,
+        );
+      }
+      _consecutiveBargeInFrames++;
+      if (_consecutiveBargeInFrames < _bargeInConsecutiveFrames) {
         return const AiseeAudioUplinkDecision(
           frames: <Uint8List>[],
           bargeIn: false,
@@ -155,6 +172,7 @@ class AiseeAudioUplinkGate {
     _preRoll.clear();
     _noiseFloor = initialNoiseFloor.clamp(0.003, 0.040);
     _hangover = 0;
+    _consecutiveBargeInFrames = 0;
     _speechActive = false;
   }
 

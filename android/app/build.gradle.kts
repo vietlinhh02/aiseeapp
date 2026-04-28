@@ -10,6 +10,7 @@ plugins {
 android {
     namespace = "com.aisee.aiseeapp"
     compileSdk = flutter.compileSdkVersion
+    ndkVersion = "29.0.13113456"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

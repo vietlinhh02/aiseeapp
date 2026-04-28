@@ -509,7 +509,6 @@ void main() {
       cameraStreamer: _FakeCameraStreamer(),
       audioPlayer: _FakePcmPlayer(),
       deviceCommandHandler: _FakeDeviceCommandHandler(),
-      micResumeDelayAfterAssistantAudio: const Duration(milliseconds: 20),
     );
 
     await controller.connect('app-token');
@@ -541,7 +540,6 @@ void main() {
       cameraStreamer: _FakeCameraStreamer(),
       audioPlayer: player,
       deviceCommandHandler: _FakeDeviceCommandHandler(),
-      micResumeDelayAfterAssistantAudio: const Duration(milliseconds: 20),
     );
 
     await controller.connect('app-token');
@@ -825,6 +823,8 @@ class _FakePcmPlayer implements AiseeAiPcmPlayer {
   final List<Uint8List> enqueuedChunks = <Uint8List>[];
   final List<String> stopReasons = <String>[];
   int stopCalls = 0;
+  @override
+  bool hasPendingAudio = false;
 
   @override
   Future<void> enqueuePcm16(Uint8List bytes) async {

@@ -176,6 +176,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       enableAssistantMic: _assistantController.enableAssistantMic,
       disableAssistantMic: _assistantController.disableAssistantMic,
       switchToAssistantTab: () => _onTabChanged(0),
+      gracePeriod: const Duration(seconds: 20),
       onWakeAcknowledged: _wakeWordEnabled ? _signalWakeAcknowledged : null,
       onMicReadyAfterWake: _wakeWordEnabled
           ? _signalAssistantReadyToUser
