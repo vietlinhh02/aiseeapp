@@ -344,6 +344,10 @@ class AiseeAiSession {
     );
   }
 
+  Future<void> sendNsfwDetected() {
+    return _sendEnvelope('nsfw_detected');
+  }
+
   Future<void> stopAudioStream() async {
     if (!_audioStreaming) {
       return;

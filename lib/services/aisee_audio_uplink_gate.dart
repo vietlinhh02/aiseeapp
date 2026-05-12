@@ -23,6 +23,7 @@ class AiseeAudioUplinkGate {
     this.preRollFrames = 3,
     this.preRollMinRms = 0.006,
     this.gateWhenAssistantInactive = true,
+    this.allowBargeIn = false,
     int bargeInConsecutiveFrames = 3,
   }) : _noiseFloor = initialNoiseFloor.clamp(0.003, 0.040),
        _bargeInConsecutiveFrames = bargeInConsecutiveFrames;
@@ -30,7 +31,7 @@ class AiseeAudioUplinkGate {
   AiseeAudioUplinkGate.echoOnly({
     this.minBargeInRms = 0.08,
     this.bargeInMultiplier = 3.5,
-    int bargeInConsecutiveFrames = 3,
+    int bargeInConsecutiveFrames = 1,
   }) : enabled = true,
        initialNoiseFloor = 0.006,
        minSpeechRms = 0.0,
@@ -41,6 +42,7 @@ class AiseeAudioUplinkGate {
        preRollFrames = 0,
        preRollMinRms = 0,
        gateWhenAssistantInactive = false,
+       allowBargeIn = false,
        _noiseFloor = 0.006,
        _bargeInConsecutiveFrames = bargeInConsecutiveFrames;
 
@@ -57,6 +59,7 @@ class AiseeAudioUplinkGate {
       preRollFrames = 0,
       preRollMinRms = 0,
       gateWhenAssistantInactive = false,
+      allowBargeIn = false,
       _noiseFloor = 0.006,
       _bargeInConsecutiveFrames = 0;
 
@@ -72,6 +75,7 @@ class AiseeAudioUplinkGate {
   final int preRollFrames;
   final double preRollMinRms;
   final bool gateWhenAssistantInactive;
+  final bool allowBargeIn;
   final int _bargeInConsecutiveFrames;
 
   int get bargeInConsecutiveFrames => _bargeInConsecutiveFrames;
@@ -103,6 +107,14 @@ class AiseeAudioUplinkGate {
     }
 
     if (assistantOutputActive && !gateWhenAssistantInactive) {
+      if (!allowBargeIn) {
+        _adaptNoiseFloor(rms);
+        return const AiseeAudioUplinkDecision(
+          frames: <Uint8List>[],
+          bargeIn: false,
+        );
+      }
+
       final double bargeInThreshold = math.max(
         minBargeInRms,
         _noiseFloor * bargeInMultiplier,
@@ -142,7 +154,8 @@ class AiseeAudioUplinkGate {
     );
     final bool startsSpeech = rms >= speechThreshold;
     final bool continuesSpeech = _speechActive && rms >= continueThreshold;
-    final bool bargeIn = assistantOutputActive && rms >= bargeInThreshold;
+    final bool bargeIn =
+        allowBargeIn && assistantOutputActive && rms >= bargeInThreshold;
     final bool send =
         startsSpeech || continuesSpeech || bargeIn || _hangover > 0;
 

@@ -653,12 +653,15 @@ class AiseeLiveKitVoiceSession {
         ),
       );
       syncLocalCameraPreviewTrack();
-      // Start NSFW content guard.
+      // Start NSFW content guard with 200ms interval for minimal exposure.
       if (_contentGuard == null) {
         final AiseeNsfwClassifier? classifier =
             await AiseeNsfwClassifier.load();
         if (classifier != null) {
-          _contentGuard = AiseeContentGuardService(classifier: classifier);
+          _contentGuard = AiseeContentGuardService(
+            classifier: classifier,
+            checkInterval: const Duration(milliseconds: 200),
+          );
         }
       }
       _contentGuard?.startWithFrameProvider(

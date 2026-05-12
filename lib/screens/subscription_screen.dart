@@ -182,7 +182,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           },
         ),
       );
-      AppToast.show('Gói ${_planName(option.product)} đã được cập nhật.');
+      AppToast.show(
+        'Gói ${planNameForProduct(option.product)} đã được cập nhật.',
+      );
     } else {
       AppToast.show(
         'Giao dịch đã thành công nhưng backend chưa nhận webhook RevenueCat.',
@@ -658,7 +660,7 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
                     ? 'Đang xử lý...'
                     : selected == null
                     ? 'Đang tải gói...'
-                    : 'Tiếp tục với ${_planName(selected.product)}',
+                    : 'Tiếp tục với ${planNameForProduct(selected.product)}',
                 onTap: _buying || selected == null ? () {} : _buySelected,
               ),
               const SizedBox(height: 8),
@@ -838,7 +840,7 @@ class _PlanOptionCard extends StatelessWidget {
       button: true,
       selected: selected,
       label:
-          '${_planName(option.product)} ${_fallbackVndPrice(option.product)}',
+          '${planNameForProduct(option.product)} ${_fallbackVndPrice(option.product)}',
       child: Material(
         color: surface,
         borderRadius: BorderRadius.circular(10),
@@ -866,7 +868,7 @@ class _PlanOptionCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    _planName(option.product),
+                    planNameForProduct(option.product),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.plusJakartaSans(
@@ -1625,14 +1627,14 @@ String _trimNumber(double value) {
   return value.toStringAsFixed(1);
 }
 
-String _planName(AiseeRevenueCatProduct product) {
+String planNameForProduct(AiseeRevenueCatProduct product) {
   switch (product) {
     case AiseeRevenueCatProduct.basic149k:
-      return 'AiSee Basic';
+      return 'Care Basic';
     case AiseeRevenueCatProduct.plus399k:
-      return 'AiSee Plus';
+      return 'Care Plus';
     case AiseeRevenueCatProduct.premium599k:
-      return 'AiSee Premium';
+      return 'Care Premium';
   }
 }
 

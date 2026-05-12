@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/app_env.dart';
 import '../models/aisee_api_models.dart';
+import '../utils/aisee_api_error_parse.dart';
 
 class AiseeAuthService {
   AiseeAuthService({http.Client? httpClient})
@@ -176,18 +177,6 @@ class AiseeAuthService {
     Map<String, dynamic> map, {
     required String fallback,
   }) {
-    final Object? errObj = map['error'];
-    if (errObj is Map<String, dynamic>) {
-      final String? msg = errObj['message'] as String?;
-      final String? code = errObj['code'] as String?;
-      return AiseeApiException(msg ?? fallback, code: code);
-    }
-    // New error format: {"error": "code", "message": "..."}
-    final String? msg = map['message'] as String?;
-    final String? code = errObj is String ? errObj : null;
-    if (msg != null && msg.isNotEmpty) {
-      return AiseeApiException(msg, code: code);
-    }
-    return AiseeApiException(fallback);
+    return aiseeApiExceptionFromJsonMap(map, fallback);
   }
 }

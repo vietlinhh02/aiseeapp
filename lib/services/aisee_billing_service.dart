@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_env.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_billing_models.dart';
+import '../utils/aisee_api_error_parse.dart';
 
 class AiseeBillingService {
   AiseeBillingService({http.Client? httpClient})
@@ -60,14 +61,6 @@ class AiseeBillingService {
     Map<String, dynamic> map, {
     required String fallback,
   }) {
-    final Object? errObj = map['error'];
-    if (errObj is Map<String, dynamic>) {
-      final String? msg = errObj['message'] as String?;
-      final String? code = errObj['code'] as String?;
-      return AiseeApiException(msg ?? fallback, code: code);
-    }
-    final String? msg = map['message'] as String?;
-    final String? code = errObj is String ? errObj : null;
-    return AiseeApiException(msg ?? fallback, code: code);
+    return aiseeApiExceptionFromJsonMap(map, fallback);
   }
 }

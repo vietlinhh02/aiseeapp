@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Cấu hình: ưu tiên `--dart-define=KEY=value`, sau đó [assets/app_config.env] (flutter_dotenv).
@@ -16,6 +17,14 @@ abstract final class AppEnv {
   );
   static const String _revenueCatApiKeyDefine = String.fromEnvironment(
     'REVENUECAT_API_KEY',
+    defaultValue: '',
+  );
+  static const String _revenueCatApiKeyAndroidDefine = String.fromEnvironment(
+    'REVENUECAT_API_KEY_ANDROID',
+    defaultValue: '',
+  );
+  static const String _revenueCatApiKeyIosDefine = String.fromEnvironment(
+    'REVENUECAT_API_KEY_IOS',
     defaultValue: '',
   );
   static const String _defaultBackendUrl = 'http://192.168.1.10:8081';
@@ -69,11 +78,35 @@ abstract final class AppEnv {
     return t;
   }
 
+  /// Public SDK key RevenueCat — ưu tiên key theo nền tảng ([REVENUECAT_API_KEY_ANDROID] / [REVENUECAT_API_KEY_IOS]) rồi mới tới [REVENUECAT_API_KEY].
   static String get revenueCatApiKey {
+    final String platformKey = _platformSpecificRevenueCatApiKey();
+    if (platformKey.isNotEmpty) {
+      return platformKey;
+    }
     String key = _revenueCatApiKeyDefine.trim();
     if (key.isEmpty) {
       key = _dotenv('REVENUECAT_API_KEY');
     }
     return key;
+  }
+
+  static String _platformSpecificRevenueCatApiKey() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        final String fromDefine = _revenueCatApiKeyAndroidDefine.trim();
+        if (fromDefine.isNotEmpty) {
+          return fromDefine;
+        }
+        return _dotenv('REVENUECAT_API_KEY_ANDROID');
+      case TargetPlatform.iOS:
+        final String fromDefine = _revenueCatApiKeyIosDefine.trim();
+        if (fromDefine.isNotEmpty) {
+          return fromDefine;
+        }
+        return _dotenv('REVENUECAT_API_KEY_IOS');
+      default:
+        return '';
+    }
   }
 }

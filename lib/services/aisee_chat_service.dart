@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_env.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_message.dart';
+import '../utils/aisee_api_error_parse.dart';
 
 class AiseeChatService {
   AiseeChatService({http.Client? httpClient})
@@ -135,14 +136,6 @@ class AiseeChatService {
   }
 
   AiseeApiException _error(http.Response res, String fallback) {
-    try {
-      final Map<String, dynamic> map =
-          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      final String? msg = map['message'] as String?;
-      final String? code = map['error'] as String?;
-      return AiseeApiException(msg ?? fallback, code: code);
-    } catch (_) {
-      return AiseeApiException(fallback);
-    }
+    return aiseeApiExceptionFromResponse(res, fallback);
   }
 }

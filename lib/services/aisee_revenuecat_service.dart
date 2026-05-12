@@ -177,6 +177,22 @@ class AiseeRevenueCatService {
         'public SDK key của RevenueCat, ví dụ test_..., goog_... hoặc appl_...',
       );
     }
+    if (defaultTargetPlatform == TargetPlatform.android &&
+        configuredApiKey.startsWith('appl_')) {
+      throw AiseeRevenueCatException(
+        'Trên Android cần public SDK key Google Play (goog_...) từ RevenueCat. '
+        'Key hiện tại có tiền tố appl_ (App Store). Điền goog_... vào '
+        'REVENUECAT_API_KEY_ANDROID hoặc REVENUECAT_API_KEY trong app_config.env.',
+      );
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        configuredApiKey.startsWith('goog_')) {
+      throw AiseeRevenueCatException(
+        'Trên iOS cần public SDK key App Store (appl_...) từ RevenueCat. '
+        'Key hiện tại có tiền tố goog_ (Google Play). Điền appl_... vào '
+        'REVENUECAT_API_KEY_IOS hoặc REVENUECAT_API_KEY trong app_config.env.',
+      );
+    }
 
     await _runRevenueCatCall(() async {
       if (await _client.isConfigured) {
@@ -360,6 +376,15 @@ class AiseeRevenueCatService {
         throw AiseeRevenueCatException(
           'Bạn đã hủy thanh toán.',
           cancelled: true,
+        );
+      }
+      if (code == PurchasesErrorCode.invalidCredentialsError) {
+        debugPrint('[AiSee:RevenueCat] $code ${e.message}\n$stack');
+        throw AiseeRevenueCatException(
+          'RevenueCat báo API key không hợp lệ. Trong Dashboard → Project '
+          'settings → API keys: Android dùng key goog_..., iOS dùng appl_.... '
+          'Có thể đặt REVENUECAT_API_KEY_ANDROID / REVENUECAT_API_KEY_IOS (hoặc '
+          '--dart-define tương ứng) trong assets/app_config.env.',
         );
       }
       debugPrint('[AiSee:RevenueCat] $code ${e.message}\n$stack');

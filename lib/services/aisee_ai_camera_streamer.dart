@@ -4,10 +4,8 @@ import 'dart:io' show File;
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 
-import 'aisee_content_guard_service.dart';
 import 'aisee_nsfw_classifier.dart';
 
 abstract interface class AiseeAiCameraStreamer {
@@ -30,17 +28,14 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
   final FutureOr<void> Function()? onUnsafeContent;
 
   final ValueNotifier<Widget?> _preview = ValueNotifier<Widget?>(null);
-  static const int _maxFrameWidth = 640;
-  static const int _jpegQuality = 68;
 
   CameraController? _controller;
   Timer? _frameTimer;
-  AiseeContentGuardService? _contentGuard;
   AiseeNsfwClassifier? _classifier;
-  Uint8List? _latestJpeg;
   void Function(Uint8List jpeg)? _onFrame;
   bool _capturing = false;
   bool _disposed = false;
+  bool _blocked = false;
 
   @override
   ValueListenable<Widget?> get preview => _preview;
@@ -52,6 +47,7 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
     }
 
     _onFrame = onFrame;
+    _blocked = false;
     if (_controller != null) {
       return;
     }
@@ -87,7 +83,7 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
 
     _controller = controller;
     _preview.value = _AssistantCameraPreview(controller: controller);
-    unawaited(_startContentGuard());
+    unawaited(_loadClassifier());
     await _captureAndSend();
     _frameTimer = Timer.periodic(frameInterval, (_) {
       unawaited(_captureAndSend());
@@ -98,9 +94,6 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
   Future<void> stop() async {
     _frameTimer?.cancel();
     _frameTimer = null;
-    _contentGuard?.stop();
-    _contentGuard = null;
-    _latestJpeg = null;
     _onFrame = null;
 
     final CameraController? controller = _controller;
@@ -123,12 +116,18 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
     _preview.dispose();
   }
 
+  Future<void> _loadClassifier() async {
+    if (_classifier != null) return;
+    _classifier = await AiseeNsfwClassifier.load();
+  }
+
   Future<void> _captureAndSend() async {
     final CameraController? controller = _controller;
     final void Function(Uint8List jpeg)? onFrame = _onFrame;
     if (controller == null ||
         onFrame == null ||
         _capturing ||
+        _blocked ||
         !controller.value.isInitialized ||
         controller.value.isTakingPicture) {
       return;
@@ -138,10 +137,25 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
     try {
       final XFile file = await controller.takePicture();
       final Uint8List bytes = await file.readAsBytes();
-      if (bytes.isNotEmpty) {
-        _latestJpeg = await compute(_prepareJpegForGemini, bytes);
-        onFrame(_latestJpeg!);
+      if (bytes.isEmpty) return;
+
+      final AiseeNsfwClassifier? classifier = _classifier;
+      if (classifier == null) {
+        onFrame(bytes);
+        return;
       }
+
+      final classifyInput = await AiseeNsfwClassifier.decodeAndPrepare(bytes);
+      final score = classifier.runInference(classifyInput.tfliteInput);
+
+      if (score > AiseeNsfwClassifier.defaultThreshold) {
+        _blocked = true;
+        unawaited(_handleUnsafeContent());
+        return;
+      }
+
+      onFrame(classifyInput.jpegForSend);
+
       if (!kIsWeb) {
         unawaited(_deleteCaptureFile(file.path));
       }
@@ -158,33 +172,6 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
     try {
       await File(path).delete();
     } catch (_) {}
-  }
-
-  Future<void> _startContentGuard() async {
-    _classifier ??= await AiseeNsfwClassifier.load();
-    final AiseeNsfwClassifier? classifier = _classifier;
-    if (classifier == null || _controller == null) {
-      return;
-    }
-
-    final AiseeContentGuardService guard = AiseeContentGuardService(
-      classifier: classifier,
-    );
-    _contentGuard = guard;
-    guard.startWithFrameProvider(
-      frameProvider: _latestFrameForGuard,
-      onUnsafeDetected: () {
-        unawaited(_handleUnsafeContent());
-      },
-    );
-  }
-
-  Future<CapturedFrame?> _latestFrameForGuard() async {
-    final Uint8List? jpeg = _latestJpeg;
-    if (jpeg == null || jpeg.isEmpty) {
-      return null;
-    }
-    return compute(_decodeJpegForGuard, jpeg);
   }
 
   Future<void> _handleUnsafeContent() async {
@@ -223,39 +210,4 @@ class _AssistantCameraPreview extends StatelessWidget {
       ),
     );
   }
-}
-
-CapturedFrame? _decodeJpegForGuard(Uint8List jpeg) {
-  final img.Image? decoded = img.decodeJpg(jpeg);
-  if (decoded == null) {
-    return null;
-  }
-  return (
-    pixels: decoded.getBytes(order: img.ChannelOrder.argb),
-    width: decoded.width,
-    height: decoded.height,
-  );
-}
-
-Uint8List _prepareJpegForGemini(Uint8List jpeg) {
-  final img.Image? decoded = img.decodeJpg(jpeg);
-  if (decoded == null) {
-    return jpeg;
-  }
-
-  img.Image output = decoded;
-  if (decoded.width > AiseeCameraPackageStreamer._maxFrameWidth) {
-    output = img.copyResize(
-      decoded,
-      width: AiseeCameraPackageStreamer._maxFrameWidth,
-      interpolation: img.Interpolation.linear,
-    );
-  }
-
-  return Uint8List.fromList(
-    img.encodeJpg(
-      output,
-      quality: AiseeCameraPackageStreamer._jpegQuality,
-    ),
-  );
 }

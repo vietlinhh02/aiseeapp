@@ -141,7 +141,7 @@ void main() {
   });
 
   test(
-    'loud user speech during assistant output barges in and stops playback',
+    'loud user speech during assistant output is ignored until AI finishes',
     () async {
       final _FakeAssistantSession session = _FakeAssistantSession();
       final _FakeMicrophoneInput microphone = _FakeMicrophoneInput();
@@ -167,17 +167,17 @@ void main() {
       microphone.emit(_pcmFrame(5200));
       await pumpEventQueue();
 
-      expect(session.sentAudioFrames, <Uint8List>[_pcmFrame(5200)]);
+      expect(session.sentAudioFrames, isEmpty);
       expect(session.sentControls, isNot(contains('interrupt')));
-      expect(player.stopCalls, 1);
-      expect(player.stopReasons, <String>['barge-in']);
+      expect(player.stopCalls, 0);
+      expect(player.stopReasons, isEmpty);
 
       await controller.dispose();
     },
   );
 
   test(
-    'barge-in suppresses stale assistant audio until user turn advances',
+    'assistant audio continues normally when user speaks over AI output',
     () async {
       final _FakeAssistantSession session = _FakeAssistantSession();
       final _FakeMicrophoneInput microphone = _FakeMicrophoneInput();
@@ -203,8 +203,12 @@ void main() {
       session.emitAssistantAudio(_pcmFrame(1400));
       await pumpEventQueue();
 
-      expect(player.enqueuedChunks, <Uint8List>[_pcmFrame(1200)]);
-      expect(player.stopReasons, <String>['barge-in']);
+      expect(player.enqueuedChunks, <Uint8List>[
+        _pcmFrame(1200),
+        _pcmFrame(1300),
+        _pcmFrame(1400),
+      ]);
+      expect(player.stopReasons, isEmpty);
 
       session.agentState.value = AgentState.listening;
       session.agentState.value = AgentState.speaking;
@@ -213,6 +217,8 @@ void main() {
 
       expect(player.enqueuedChunks, <Uint8List>[
         _pcmFrame(1200),
+        _pcmFrame(1300),
+        _pcmFrame(1400),
         _pcmFrame(1500),
       ]);
 
@@ -274,7 +280,7 @@ void main() {
   });
 
   test(
-    'state churn during assistant output only interrupts on clear speech',
+    'state churn during assistant output never interrupts playback',
     () async {
       final _FakeAssistantSession session = _FakeAssistantSession();
       final _FakeMicrophoneInput microphone = _FakeMicrophoneInput();
@@ -328,12 +334,12 @@ void main() {
     expect(assistantEcho.frames, isEmpty);
     expect(assistantEcho.bargeIn, isFalse);
 
-    final AiseeAudioUplinkDecision userInterrupt = gate.process(
+    final AiseeAudioUplinkDecision loudAssistantOverlap = gate.process(
       _pcmFrame(5200),
       assistantOutputActive: true,
     );
-    expect(userInterrupt.frames, <Uint8List>[_pcmFrame(5200)]);
-    expect(userInterrupt.bargeIn, isTrue);
+    expect(loudAssistantOverlap.frames, isEmpty);
+    expect(loudAssistantOverlap.bargeIn, isFalse);
   });
 
   test(
@@ -530,7 +536,7 @@ void main() {
     await controller.dispose();
   });
 
-  test('speaking state gates echo but allows clear user barge-in', () async {
+  test('speaking state gates all user audio until AI finishes', () async {
     final _FakeAssistantSession session = _FakeAssistantSession();
     final _FakeMicrophoneInput microphone = _FakeMicrophoneInput();
     final _FakePcmPlayer player = _FakePcmPlayer();
@@ -552,8 +558,8 @@ void main() {
 
     microphone.emit(_pcmFrame(3600));
     await pumpEventQueue();
-    expect(session.sentAudioFrames, <Uint8List>[_pcmFrame(3600)]);
-    expect(player.stopReasons, <String>['barge-in']);
+    expect(session.sentAudioFrames, isEmpty);
+    expect(player.stopReasons, isEmpty);
 
     await controller.dispose();
   });
@@ -641,6 +647,7 @@ class _FakeAssistantSession implements AiseeAiAssistantSessionClient {
   final List<Uint8List> sentCameraFrames = <Uint8List>[];
   final List<String> sentControls = <String>[];
   int stopAudioStreamCalls = 0;
+  int sendNsfwDetectedCalls = 0;
   VoidCallback? onToolResult;
   final List<({String requestId, Map<String, Object?> result})> toolResults =
       <({String requestId, Map<String, Object?> result})>[];
@@ -698,6 +705,11 @@ class _FakeAssistantSession implements AiseeAiAssistantSessionClient {
   @override
   Future<void> sendCameraFrame(Uint8List bytes) async {
     sentCameraFrames.add(Uint8List.fromList(bytes));
+  }
+
+  @override
+  Future<void> sendNsfwDetected() async {
+    sendNsfwDetectedCalls += 1;
   }
 
   @override

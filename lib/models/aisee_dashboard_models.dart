@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class DashboardMedication {
   const DashboardMedication({
     required this.id,
@@ -147,6 +149,23 @@ class DashboardHealth {
   }
 }
 
+Map<String, dynamic> _auditParamsFromJson(Object? raw) {
+  if (raw == null) return <String, dynamic>{};
+  if (raw is Map<String, dynamic>) return raw;
+  if (raw is String) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {
+      try {
+        final decoded = jsonDecode(utf8.decode(base64Decode(raw)));
+        if (decoded is Map<String, dynamic>) return decoded;
+      } catch (_) {}
+    }
+  }
+  return <String, dynamic>{};
+}
+
 class AuditLogEntry {
   const AuditLogEntry({
     required this.id,
@@ -164,9 +183,9 @@ class AuditLogEntry {
 
   factory AuditLogEntry.fromJson(Map<String, dynamic> j) {
     return AuditLogEntry(
-      id: j['id'] as String,
+      id: j['id']?.toString() ?? '',
       toolName: j['tool_name'] as String? ?? '',
-      params: j['params'] as Map<String, dynamic>? ?? {},
+      params: _auditParamsFromJson(j['params']),
       result: j['result'] as String?,
       createdAt: DateTime.parse(j['created_at'] as String),
     );

@@ -27,6 +27,7 @@ abstract interface class AiseeAiAssistantSessionClient {
   Future<AiseeAiSessionConfig> start(String accessToken);
   Future<void> sendAudioFrame(Uint8List bytes);
   Future<void> sendCameraFrame(Uint8List bytes);
+  Future<void> sendNsfwDetected();
   Future<void> sendControl(String action);
   Future<void> stopAudioStream();
   Future<void> sendToolResult(String requestId, Object? result);
@@ -78,6 +79,11 @@ class AiseeAiSessionClientAdapter implements AiseeAiAssistantSessionClient {
   }
 
   @override
+  Future<void> sendNsfwDetected() {
+    return _session.sendNsfwDetected();
+  }
+
+  @override
   Future<void> stopAudioStream() {
     return _session.stopAudioStream();
   }
@@ -124,7 +130,7 @@ class AiseeAiAssistantController {
            AiseeVoiceAssistantForeground.ensureStartedAfterConnected,
        _stopForeground =
            stopForeground ?? AiseeVoiceAssistantForeground.ensureStopped,
-        _audioUplinkGate = audioUplinkGate ?? AiseeAudioUplinkGate() {
+       _audioUplinkGate = audioUplinkGate ?? AiseeAudioUplinkGate() {
     _waveDecayTimer = Timer.periodic(
       const Duration(milliseconds: 50),
       (_) => _decayWaveEnergy(),
@@ -289,12 +295,22 @@ class AiseeAiAssistantController {
   void _handleAgentStateChanged() {}
 
   void _handleMicrophoneFrame(Uint8List bytes) {
-    if (_audioPlayer.hasPendingAudio ||
-        _session.agentState.value == AgentState.speaking) {
+    final bool assistantOutputActive =
+        _audioPlayer.hasPendingAudio ||
+        _session.agentState.value == AgentState.speaking;
+    if (assistantOutputActive) {
       return;
     }
-    unawaited(_session.sendAudioFrame(bytes));
-    _boostWaveEnergy(_pcmPeak(bytes));
+
+    final AiseeAudioUplinkDecision decision = _audioUplinkGate.process(
+      bytes,
+      assistantOutputActive: false,
+    );
+
+    for (final Uint8List frame in decision.frames) {
+      unawaited(_session.sendAudioFrame(frame));
+      _boostWaveEnergy(_pcmPeak(frame));
+    }
   }
 
   Future<void> _handleDeviceCommand(AiseeAiDeviceCommandRequest request) async {
@@ -305,9 +321,13 @@ class AiseeAiAssistantController {
         await disableAssistantMic();
         await _audioPlayer.stop(reason: 'play-audio-command');
       }
-      debugPrint('[AiSee:ToolCall] dispatching name=${request.name} requestId=${request.requestId}');
+      debugPrint(
+        '[AiSee:ToolCall] dispatching name=${request.name} requestId=${request.requestId}',
+      );
       result = await _deviceCommandHandler.handle(request);
-      debugPrint('[AiSee:ToolCall] result name=${request.name} status=${result['status']}');
+      debugPrint(
+        '[AiSee:ToolCall] result name=${request.name} status=${result['status']}',
+      );
     } on AiseeAssistantDeviceCommandException catch (error) {
       result = <String, Object?>{
         'status': 'error',
