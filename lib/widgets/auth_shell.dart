@@ -101,6 +101,23 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     _aiseeAuth = widget.authService ?? AiseeAuthService();
     _onboardingStore = widget.onboardingStore ?? AiseeOnboardingStore.instance;
     _ownsAuthService = widget.authService == null;
+    _chatSocket.tokenProvider = () async {
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      return tokens?.accessToken;
+    };
+    _chatSocket.refreshTokenProvider = () async {
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) return null;
+      try {
+        final AiseeAuthTokens rotated = await _aiseeAuth.refreshTokens(
+          tokens.refreshToken,
+        );
+        await AiseeSessionStore.instance.write(rotated);
+        return rotated.accessToken;
+      } catch (_) {
+        return null;
+      }
+    };
     unawaited(_bootstrap());
   }
 

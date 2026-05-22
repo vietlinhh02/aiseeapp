@@ -177,8 +177,29 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _wakeWordEnabled = AiseeWakeWordService.instance.isFeatureEnabledByConfig;
     debugPrint('[AiSee:UI] Wake word enabled=$_wakeWordEnabled');
+    final AiseeAiSession aiSession = AiseeAiSession();
+    aiSession.tokenProvider = () async {
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      return tokens?.accessToken;
+    };
+    aiSession.refreshTokenProvider = () async {
+      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      if (tokens == null) return null;
+      final AiseeAuthService auth = AiseeAuthService();
+      try {
+        final AiseeAuthTokens rotated = await auth.refreshTokens(
+          tokens.refreshToken,
+        );
+        await AiseeSessionStore.instance.write(rotated);
+        return rotated.accessToken;
+      } catch (_) {
+        return null;
+      } finally {
+        auth.close();
+      }
+    };
     _assistantController = AiseeAiAssistantController(
-      session: AiseeAiSessionClientAdapter(AiseeAiSession()),
+      session: AiseeAiSessionClientAdapter(aiSession),
       microphoneInput: AiseeAiRecordMicrophoneInput(),
       cameraStreamer: AiseeCameraPackageStreamer(
         onUnsafeContent: () async {

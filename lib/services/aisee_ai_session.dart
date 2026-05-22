@@ -164,6 +164,8 @@ abstract interface class AiseeAiSessionSocket {
 typedef AiseeAiSessionSocketConnector =
     Future<AiseeAiSessionSocket> Function(Uri uri);
 
+typedef TokenProvider = Future<String?> Function();
+
 class AiseeAiSession {
   AiseeAiSession({
     http.Client? httpClient,
@@ -171,6 +173,9 @@ class AiseeAiSession {
   }) : _http = httpClient ?? http.Client(),
        _ownsHttp = httpClient == null,
        _socketConnector = socketConnector ?? _defaultSocketConnector;
+
+  TokenProvider? tokenProvider;
+  TokenProvider? refreshTokenProvider;
 
   static const Duration _connectTimeout = Duration(seconds: 45);
   static const Duration _socketPingInterval = Duration(seconds: 30);
@@ -652,8 +657,6 @@ class AiseeAiSession {
   void _scheduleReconnect() {
     if (_disposed) return;
     _reconnectTimer?.cancel();
-    final String token = _lastAccessToken ?? '';
-    if (token.isEmpty) return;
 
     if (_reconnectAttempts >= _maxReconnectAttempts) {
       connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
@@ -674,23 +677,58 @@ class AiseeAiSession {
       '(attempt $_reconnectAttempts/$_maxReconnectAttempts)',
     );
     _reconnectTimer = Timer(Duration(seconds: delaySec), () {
-      unawaited(
-        _doStart(token).then(
-          (_) {},
-          onError: (Object error, StackTrace _) {
-            debugPrint('[AiSee:Session] Reconnect failed: $error');
-            final bool shouldRetry =
-                error is! AiseeAiSessionException || error.retryable;
-            if (shouldRetry) {
-              _scheduleReconnect();
-            } else {
-              connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
-              agentState.value = AgentState.failed;
-            }
-          },
-        ),
-      );
+      unawaited(_attemptReconnect());
     });
+  }
+
+  Future<void> _attemptReconnect() async {
+    String? token = _lastAccessToken;
+
+    final TokenProvider? freshProvider = tokenProvider;
+    if (freshProvider != null) {
+      try {
+        final String? fresh = await freshProvider();
+        if (fresh != null && fresh.isNotEmpty) {
+          token = fresh;
+          _lastAccessToken = fresh;
+        }
+      } catch (_) {}
+    }
+
+    if (token == null || token.isEmpty) {
+      connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
+      agentState.value = AgentState.failed;
+      return;
+    }
+
+    try {
+      await _doStart(token);
+    } catch (error) {
+      debugPrint('[AiSee:Session] Reconnect failed: $error');
+
+      if (error is AiseeAiSessionException &&
+          error.statusCode == 401 &&
+          refreshTokenProvider != null) {
+        try {
+          final String? refreshed = await refreshTokenProvider!();
+          if (refreshed != null && refreshed.isNotEmpty) {
+            _lastAccessToken = refreshed;
+            debugPrint('[AiSee:Session] Token refreshed, retrying reconnect');
+            await _doStart(refreshed);
+            return;
+          }
+        } catch (_) {}
+      }
+
+      final bool shouldRetry =
+          error is! AiseeAiSessionException || error.retryable;
+      if (shouldRetry) {
+        _scheduleReconnect();
+      } else {
+        connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
+        agentState.value = AgentState.failed;
+      }
+    }
   }
 
   static Future<AiseeAiSessionSocket> _defaultSocketConnector(Uri uri) async {

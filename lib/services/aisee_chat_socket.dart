@@ -32,6 +32,9 @@ class AiseeChatSocket {
 
   bool get isConnected => _socket != null;
 
+  Future<String?> Function()? tokenProvider;
+  Future<String?> Function()? refreshTokenProvider;
+
   Future<void> connect(String accessToken) async {
     if (_connecting) return;
     _accessToken = accessToken;
@@ -148,7 +151,31 @@ class AiseeChatSocket {
       '[AiSee:WS] Reconnect in ${delaySec}s '
       '(attempt $_reconnectAttempts/$_maxReconnectAttempts)',
     );
-    _reconnectTimer = Timer(Duration(seconds: delaySec), _doConnect);
+    _reconnectTimer = Timer(Duration(seconds: delaySec), () {
+      unawaited(_attemptReconnect());
+    });
+  }
+
+  Future<void> _attemptReconnect() async {
+    final Future<String?> Function()? freshProvider = tokenProvider;
+    if (freshProvider != null) {
+      try {
+        final String? fresh = await freshProvider();
+        if (fresh != null && fresh.isNotEmpty) {
+          _accessToken = fresh;
+        }
+      } catch (_) {}
+    }
+
+    if (_accessToken == null || (_accessToken?.isEmpty ?? true)) {
+      return;
+    }
+
+    try {
+      await _doConnect();
+    } catch (_) {
+      _scheduleReconnect();
+    }
   }
 
   Future<void> disconnect() async {
