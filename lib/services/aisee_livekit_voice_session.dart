@@ -32,6 +32,7 @@ import '../utils/app_toast.dart';
 import 'aisee_analytics_service.dart';
 import 'aisee_content_guard_service.dart';
 import 'aisee_nsfw_classifier.dart';
+import '../config/aisee_locale_controller.dart';
 
 class AiseeCallsTokenUnauthorized implements Exception {
   @override
@@ -1382,11 +1383,11 @@ class AiseeLiveKitVoiceSession {
     await room.localParticipant?.setAttributes(<String, String>{
       'user_name': userName,
       'user_id': userId,
-      'locale': Platform.localeName,
+      'locale': AiseeLocaleController.instance.value.languageCode,
       'accessibility': 'low_vision',
       'has_family_link': hasFamilyLink ? 'true' : 'false',
     });
-    _log('Connect', 'User attributes published: locale=${Platform.localeName}');
+    _log('Connect', 'User attributes published: locale=${AiseeLocaleController.instance.value.languageCode}');
     await completeConnectedSetup();
   }
 
