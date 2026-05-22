@@ -134,16 +134,26 @@ class AiseeAiAssistantController {
        _audioPlayer = audioPlayer,
        _deviceCommandHandler = deviceCommandHandler,
        _onMusicPlaybackStarted = onMusicPlaybackStarted,
-       _startForeground =
-           startForeground ??
-           AiseeVoiceAssistantForeground.ensureStartedAfterConnected,
-       _stopForeground =
-           stopForeground ?? AiseeVoiceAssistantForeground.ensureStopped,
-       _audioUplinkGate = audioUplinkGate ?? AiseeAudioUplinkGate() {
+        _startForeground =
+            startForeground ??
+            AiseeVoiceAssistantForeground.ensureStartedAfterConnected,
+        _stopForeground =
+            stopForeground ?? AiseeVoiceAssistantForeground.ensureStopped,
+        _audioUplinkGate = audioUplinkGate ?? AiseeAudioUplinkGate();
+
+  void _startWaveDecayTimer() {
+    if (_waveDecayTimer != null) return;
     _waveDecayTimer = Timer.periodic(
       const Duration(milliseconds: 50),
       (_) => _decayWaveEnergy(),
     );
+  }
+
+  void _stopWaveDecayTimer() {
+    _waveDecayTimer?.cancel();
+    _waveDecayTimer = null;
+    assistantWaveEnergy.value = 0;
+    _lastPeak = 0;
   }
 
   final AiseeAiAssistantSessionClient _session;
@@ -238,6 +248,7 @@ class AiseeAiAssistantController {
       );
       await _session.sendControl('wake_greeting');
       _micEnabled = true;
+      _startWaveDecayTimer();
     } catch (_) {
       await _microphoneInput.stop();
       await _session.stopAudioStream();
@@ -257,6 +268,7 @@ class AiseeAiAssistantController {
     await _session.stopAudioStream();
     _audioUplinkGate.reset();
     _micEnabled = false;
+    _stopWaveDecayTimer();
     await _stopForeground();
   }
 
@@ -295,9 +307,7 @@ class AiseeAiAssistantController {
       _session.agentState.removeListener(_handleAgentStateChanged);
       _agentStateListenerAttached = false;
     }
-    _waveDecayTimer?.cancel();
-    _waveDecayTimer = null;
-    assistantWaveEnergy.value = 0;
+    _stopWaveDecayTimer();
     assistantWaveEnergy.dispose();
     await _microphoneInput.dispose();
     await _cameraStreamer.dispose();
