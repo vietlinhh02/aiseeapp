@@ -16,10 +16,13 @@ class AiseeReminder {
   final int id;
   final AiseeReminderType type;
   final String title;
+
   /// "07:00", "21:00" — for medication only.
   final List<String>? times;
+
   /// "2026-04-01 09:00" — for appointment only.
   final String? datetime;
+
   /// "daily" — for medication only.
   final String? frequency;
   final DateTime createdAt;

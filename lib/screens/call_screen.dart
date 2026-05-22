@@ -7,9 +7,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:livekit_client/livekit_client.dart';
 
 import '../config/app_env.dart';
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../services/aisee_call_service.dart';
+import '../services/aisee_notification_feedback.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
@@ -18,7 +20,7 @@ String aiseeCallJoinErrorMessage(Object error) {
   if (error case AiseeApiException(:final String message)) {
     return message;
   }
-  return 'Không vào được cuộc gọi. Vui lòng thử lại.';
+  return 'callJoinFailed'; // key — resolved by caller with l10n
 }
 
 bool aiseeShouldEnableSpeakerByDefault(String callType) {
@@ -34,10 +36,25 @@ bool aiseeShouldRefreshLocalVideoUi({
 
 enum _CallState { ringing, connected, ended }
 
+typedef AiseeCallErrorCallback = void Function(String message);
+
 class CallScreen extends StatefulWidget {
-  const CallScreen({super.key, required this.callInfo});
+  const CallScreen({
+    super.key,
+    required this.callInfo,
+    this.outgoingAnswerTimeout,
+    this.onAnswered,
+    this.onNoAnswer,
+    this.onStartFailed,
+    this.onCancelledWhileRinging,
+  });
 
   final AiseeCallInfo callInfo;
+  final Duration? outgoingAnswerTimeout;
+  final VoidCallback? onAnswered;
+  final VoidCallback? onNoAnswer;
+  final AiseeCallErrorCallback? onStartFailed;
+  final VoidCallback? onCancelledWhileRinging;
 
   /// Tránh mở trùng từ [AiseePushService.syncActiveAcceptedCall] + pending.
   static int openRouteCount = 0;
@@ -58,9 +75,14 @@ class _CallScreenState extends State<CallScreen> {
     Duration.zero,
   );
   Timer? _durationTimer;
+  Timer? _answerTimeoutTimer;
   RemoteParticipant? _remoteParticipant;
+  bool _answeredNotified = false;
+  bool _ringingEndNotified = false;
 
   bool get _isVideo => widget.callInfo.callType == 'video';
+
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   static String _formatDuration(Duration d) {
     final int min = d.inMinutes;
@@ -72,11 +94,11 @@ class _CallScreenState extends State<CallScreen> {
   String get _statusText {
     switch (_state) {
       case _CallState.ringing:
-        return 'Đang gọi...';
+        return l10n.callDialing;
       case _CallState.connected:
         return _formatDuration(_duration.value);
       case _CallState.ended:
-        return 'Đã kết thúc';
+        return l10n.callEnded;
     }
   }
 
@@ -107,21 +129,11 @@ class _CallScreenState extends State<CallScreen> {
     listener
       ..on<ParticipantConnectedEvent>((ParticipantConnectedEvent e) {
         if (!mounted) return;
-        setState(() {
-          _remoteParticipant = e.participant;
-          _state = _CallState.connected;
-        });
-        _startDurationTimer();
+        _markAnswered(e.participant);
       })
       ..on<TrackSubscribedEvent>((TrackSubscribedEvent e) {
         if (!mounted) return;
-        setState(() {
-          _remoteParticipant = e.participant;
-          if (_state == _CallState.ringing) {
-            _state = _CallState.connected;
-            _startDurationTimer();
-          }
-        });
+        _markAnswered(e.participant);
       })
       ..on<LocalTrackPublishedEvent>((LocalTrackPublishedEvent e) {
         if (!mounted) return;
@@ -187,11 +199,11 @@ class _CallScreenState extends State<CallScreen> {
       // Check if remote participant already connected
       if (room.remoteParticipants.isNotEmpty && mounted) {
         final RemoteParticipant first = room.remoteParticipants.values.first;
-        setState(() {
-          _remoteParticipant = first;
-          _state = _CallState.connected;
-        });
-        _startDurationTimer();
+        _markAnswered(first);
+      } else if (mounted && _state == _CallState.ringing) {
+        // Outgoing: chưa ai nhấc máy → phát ringback tone + haptic nhẹ.
+        AiseeNotificationFeedback.instance.startOutgoingCallRingback();
+        _startAnswerTimeout();
       }
 
       if (aiseeShouldEnableSpeakerByDefault(widget.callInfo.callType)) {
@@ -199,11 +211,60 @@ class _CallScreenState extends State<CallScreen> {
       }
     } catch (e, st) {
       debugPrint('[AiSee:Call] connect error: $e\n$st');
+      AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
+      _answerTimeoutTimer?.cancel();
+      final String msg;
+      if (e case AiseeApiException(:final String message)) {
+        msg = message;
+      } else {
+        msg = l10n.callJoinFailed;
+      }
+      widget.onStartFailed?.call(msg);
       if (!mounted) return;
-      await AppToast.show(aiseeCallJoinErrorMessage(e), isError: true);
+      await AppToast.show(msg, isError: true);
       if (!mounted) return;
       Navigator.of(context).pop();
     }
+  }
+
+  void _markAnswered(RemoteParticipant participant) {
+    final bool wasRinging = _state == _CallState.ringing;
+    _answerTimeoutTimer?.cancel();
+    if (wasRinging) {
+      AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
+      AiseeNotificationFeedback.instance.playCallConnected();
+    }
+    if (!_answeredNotified) {
+      _answeredNotified = true;
+      widget.onAnswered?.call();
+    }
+    setState(() {
+      _remoteParticipant = participant;
+      _state = _CallState.connected;
+    });
+    _startDurationTimer();
+  }
+
+  void _startAnswerTimeout() {
+    final Duration? timeout = widget.outgoingAnswerTimeout;
+    if (timeout == null) {
+      return;
+    }
+    _answerTimeoutTimer?.cancel();
+    _answerTimeoutTimer = Timer(timeout, _handleNoAnswerTimeout);
+  }
+
+  void _handleNoAnswerTimeout() {
+    if (!mounted || _state != _CallState.ringing) {
+      return;
+    }
+    _ringingEndNotified = true;
+    widget.onNoAnswer?.call();
+    AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
+    setState(() => _state = _CallState.ended);
+    _durationTimer?.cancel();
+    unawaited(_cleanupRoom());
+    Navigator.of(context).pop();
   }
 
   void _startDurationTimer() {
@@ -261,6 +322,12 @@ class _CallScreenState extends State<CallScreen> {
 
   Future<void> _endCall() async {
     if (_state == _CallState.ended) return;
+    AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
+    _answerTimeoutTimer?.cancel();
+    if (_state == _CallState.ringing && !_ringingEndNotified) {
+      _ringingEndNotified = true;
+      widget.onCancelledWhileRinging?.call();
+    }
     setState(() => _state = _CallState.ended);
     _durationTimer?.cancel();
 
@@ -302,6 +369,8 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   void dispose() {
+    AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
+    _answerTimeoutTimer?.cancel();
     CallScreen.openRouteCount = (CallScreen.openRouteCount - 1).clamp(
       0,
       1 << 30,
@@ -373,9 +442,9 @@ class _CallScreenState extends State<CallScreen> {
       valueListenable: _duration,
       builder: (BuildContext context, Duration d, _) {
         final String text = _state == _CallState.ringing
-            ? 'Đang gọi...'
+            ? l10n.callDialing
             : _state == _CallState.ended
-            ? 'Đã kết thúc'
+            ? l10n.callEnded
             : _formatDuration(d);
         return Text(
           text,
@@ -405,7 +474,7 @@ class _CallScreenState extends State<CallScreen> {
               BlendMode.srcIn,
             ),
           ),
-          label: _micEnabled ? 'Tắt mic' : 'Bật mic',
+          label: _micEnabled ? l10n.callMicOff : l10n.callMicOn,
         ),
         const SizedBox(width: 32),
         _buildCircleButton(
@@ -424,7 +493,7 @@ class _CallScreenState extends State<CallScreen> {
               BlendMode.srcIn,
             ),
           ),
-          label: _speakerEnabled ? 'Tắt loa' : 'Bật loa',
+          label: _speakerEnabled ? l10n.callSpeakerOff : l10n.callSpeakerOn,
         ),
         const SizedBox(width: 32),
         _buildCircleButton(
@@ -436,7 +505,7 @@ class _CallScreenState extends State<CallScreen> {
             height: 24,
             colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
-          label: 'Kết thúc cuộc gọi',
+          label: l10n.callEnd,
         ),
       ],
     );
@@ -549,7 +618,7 @@ class _CallScreenState extends State<CallScreen> {
               BlendMode.srcIn,
             ),
           ),
-          label: _micEnabled ? 'Tắt mic' : 'Bật mic',
+          label: _micEnabled ? l10n.callMicOff : l10n.callMicOn,
         ),
         const SizedBox(width: 32),
         _buildCircleButton(
@@ -566,7 +635,7 @@ class _CallScreenState extends State<CallScreen> {
               BlendMode.srcIn,
             ),
           ),
-          label: _cameraEnabled ? 'Tắt camera' : 'Bật camera',
+          label: _cameraEnabled ? l10n.callCameraOff : l10n.callCameraOn,
         ),
         const SizedBox(width: 32),
         _buildCircleButton(
@@ -585,7 +654,7 @@ class _CallScreenState extends State<CallScreen> {
               BlendMode.srcIn,
             ),
           ),
-          label: _speakerEnabled ? 'Tắt loa' : 'Bật loa',
+          label: _speakerEnabled ? l10n.callSpeakerOff : l10n.callSpeakerOn,
         ),
         const SizedBox(width: 32),
         _buildCircleButton(
@@ -597,7 +666,7 @@ class _CallScreenState extends State<CallScreen> {
             height: 24,
             colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
           ),
-          label: 'Kết thúc cuộc gọi',
+          label: l10n.callEnd,
         ),
       ],
     );

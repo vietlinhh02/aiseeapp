@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
+import '../config/aisee_locale_controller.dart';
+import '../generated/l10n/app_localizations.dart';
 import 'aisee_reminder_service.dart';
 import '../models/aisee_reminder.dart';
 
@@ -29,6 +31,7 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
     _running = true;
 
     await _initTts();
+    AiseeLocaleController.instance.addListener(_onLocaleChanged);
     WidgetsBinding.instance.addObserver(this);
     _startTimer();
     debugPrint('[AiSee:Announcer] Started');
@@ -36,14 +39,26 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
 
   void dispose() {
     _stopTimer();
+    AiseeLocaleController.instance.removeListener(_onLocaleChanged);
     WidgetsBinding.instance.removeObserver(this);
     _tts.stop();
     _running = false;
     debugPrint('[AiSee:Announcer] Disposed');
   }
 
+  void _onLocaleChanged() {
+    unawaited(_applyLocaleToTts());
+  }
+
+  Future<void> _applyLocaleToTts() async {
+    final AppLocalizations l = lookupAppLocalizations(
+      AiseeLocaleController.instance.value,
+    );
+    await _tts.setLanguage(l.ttsLanguageTag);
+  }
+
   Future<void> _initTts() async {
-    await _tts.setLanguage('vi-VN');
+    await _applyLocaleToTts();
     await _tts.setSpeechRate(0.5);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
@@ -51,10 +66,7 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
 
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _check(),
-    );
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _check());
     // Also check immediately on start.
     _check();
   }
@@ -77,11 +89,10 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
 
   Future<void> _check() async {
     try {
-      final List<AiseeReminder> reminders =
-          await AiseeReminderService.instance.loadAll();
+      final List<AiseeReminder> reminders = await AiseeReminderService.instance
+          .loadAll();
       final DateTime now = DateTime.now();
-      final String dateKey =
-          '${now.year}-${now.month}-${now.day}';
+      final String dateKey = '${now.year}-${now.month}-${now.day}';
 
       for (final AiseeReminder r in reminders) {
         if (r.type == AiseeReminderType.medication) {
@@ -95,11 +106,7 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
     }
   }
 
-  void _checkMedication(
-    AiseeReminder reminder,
-    DateTime now,
-    String dateKey,
-  ) {
+  void _checkMedication(AiseeReminder reminder, DateTime now, String dateKey) {
     final List<String> times = reminder.times ?? <String>[];
     for (final String time in times) {
       final String key = '${reminder.id}_${time}_$dateKey';
@@ -112,27 +119,26 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
       if (hour < 0 || minute < 0) continue;
 
       final DateTime target = DateTime(
-        now.year, now.month, now.day, hour, minute,
+        now.year,
+        now.month,
+        now.day,
+        hour,
+        minute,
       );
-      final int diffMinutes =
-          now.difference(target).inMinutes.abs();
+      final int diffMinutes = now.difference(target).inMinutes.abs();
 
       if (diffMinutes <= _windowMinutes) {
         _announced.add(key);
-        _speak(
-          'Đến giờ uống thuốc. ${reminder.title}. '
-          'Lúc $time.',
+        final AppLocalizations l = lookupAppLocalizations(
+          AiseeLocaleController.instance.value,
         );
+        _speak(l.announcerMedication(reminder.title, time));
         return; // One announcement at a time.
       }
     }
   }
 
-  void _checkAppointment(
-    AiseeReminder reminder,
-    DateTime now,
-    String dateKey,
-  ) {
+  void _checkAppointment(AiseeReminder reminder, DateTime now, String dateKey) {
     final String? dt = reminder.datetime;
     if (dt == null || dt.isEmpty) return;
 
@@ -140,24 +146,19 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
     if (_announced.contains(key)) return;
 
     try {
-      final DateTime parsed = DateTime.parse(
-        dt.replaceFirst(' ', 'T'),
-      );
-      final int minutesBefore =
-          parsed.difference(now).inMinutes;
+      final DateTime parsed = DateTime.parse(dt.replaceFirst(' ', 'T'));
+      final int minutesBefore = parsed.difference(now).inMinutes;
 
       // Announce when ~30 minutes before (window: 28-32 min).
       if (minutesBefore >= 28 && minutesBefore <= 32) {
         _announced.add(key);
-        _speak(
-          'Bạn có lịch hẹn ${reminder.title} '
-          'sau khoảng 30 phút.',
+        final AppLocalizations l = lookupAppLocalizations(
+          AiseeLocaleController.instance.value,
         );
+        _speak(l.announcerAppointment(reminder.title));
       }
     } catch (e) {
-      debugPrint(
-        '[AiSee:Announcer] Parse appointment datetime error: $e',
-      );
+      debugPrint('[AiSee:Announcer] Parse appointment datetime error: $e');
     }
   }
 

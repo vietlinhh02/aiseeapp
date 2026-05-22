@@ -62,14 +62,11 @@ abstract final class AppToast {
       );
       overlay.insert(entry);
       unawaited(
-        Future<void>.delayed(
-          Duration(seconds: isError ? 3 : 2),
-          () {
-            if (entry.mounted) {
-              entry.remove();
-            }
-          },
-        ),
+        Future<void>.delayed(Duration(seconds: isError ? 3 : 2), () {
+          if (entry.mounted) {
+            entry.remove();
+          }
+        }),
       );
       return Future.value();
     }

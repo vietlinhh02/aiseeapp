@@ -31,10 +31,7 @@ class DashboardMedication {
 }
 
 class MedWithAdherence {
-  const MedWithAdherence({
-    required this.medication,
-    required this.takenToday,
-  });
+  const MedWithAdherence({required this.medication, required this.takenToday});
 
   final DashboardMedication medication;
   final bool takenToday;
@@ -210,8 +207,148 @@ class AuditLogEntry {
       'family_create_medication': 'Người thân thêm thuốc',
       'family_update_medication': 'Người thân sửa thuốc',
       'family_delete_medication': 'Người thân xóa thuốc',
+      'care_export_pdf': 'Xuất báo cáo chăm sóc',
     };
     return labels[toolName] ?? toolName;
+  }
+
+  /// Dòng phụ hiển thị nội dung cụ thể (không chỉ giống tin nhắn đã đọc).
+  String get activitySubtitle {
+    String truncate(String s) {
+      final String t = s.trim();
+      if (t.isEmpty) return '';
+      return t.length > 96 ? '${t.substring(0, 93)}…' : t;
+    }
+
+    String fromKeys(List<String> keys) {
+      for (final String k in keys) {
+        final Object? v = params[k];
+        if (v == null) continue;
+        final String s = truncate(v.toString());
+        if (s.isNotEmpty) return s;
+      }
+      return '';
+    }
+
+    String fromKeysOrFallback(List<String> keys) {
+      final String r = fromKeys(keys);
+      if (r.isNotEmpty) {
+        return r;
+      }
+      return _resultOrParamsFallback(truncate);
+    }
+
+    switch (toolName) {
+      case 'send_chat_message':
+        return fromKeysOrFallback(<String>[
+          'message',
+          'body',
+          'text',
+          'preview',
+          'content',
+        ]);
+      case 'make_voice_call':
+      case 'make_video_call':
+        return fromKeysOrFallback(<String>[
+          'contact_name',
+          'name',
+          'phone',
+          'number',
+          'callee',
+        ]);
+      case 'mark_medication_taken':
+      case 'mark_medication_skipped':
+      case 'set_medication_reminder':
+        return fromKeysOrFallback(<String>[
+          'medication_name',
+          'name',
+          'med_name',
+          'dosage',
+        ]);
+      case 'log_health_symptom':
+        return fromKeysOrFallback(<String>[
+          'symptom',
+          'description',
+          'severity',
+        ]);
+      case 'log_health_metric':
+        return fromKeysOrFallback(<String>[
+          'metric_type',
+          'type',
+          'value',
+          'unit',
+        ]);
+      case 'emergency_alert':
+      case 'escalate_to_family':
+      case 'escalate_to_volunteer':
+        return fromKeysOrFallback(<String>[
+          'reason',
+          'message',
+          'note',
+          'location',
+        ]);
+      case 'navigate_to':
+        return fromKeysOrFallback(<String>[
+          'destination',
+          'address',
+          'query',
+          'place',
+        ]);
+      case 'play_music':
+        return fromKeysOrFallback(<String>[
+          'title',
+          'query',
+          'artist',
+          'track',
+        ]);
+      case 'family_create_medication':
+      case 'family_update_medication':
+      case 'family_delete_medication':
+        return fromKeysOrFallback(<String>[
+          'name',
+          'medication_name',
+          'med_id',
+        ]);
+      case 'care_export_pdf':
+        return fromKeysOrFallback(<String>['report_type', 'cared_user_id']);
+      default:
+        return _resultOrParamsFallback(truncate);
+    }
+  }
+
+  String _resultOrParamsFallback(String Function(String) truncate) {
+    if (result != null && result!.trim().isNotEmpty) {
+      return truncate(result!);
+    }
+    final String generic = _fromParamsGeneric(truncate);
+    if (generic.isNotEmpty) return generic;
+    return 'Không có thêm chi tiết trong nhật ký.';
+  }
+
+  String _fromParamsGeneric(String Function(String) truncate) {
+    const List<String> preferred = <String>[
+      'summary',
+      'detail',
+      'message',
+      'body',
+      'description',
+      'title',
+      'name',
+      'contact_name',
+      'symptom',
+      'value',
+    ];
+    for (final String k in preferred) {
+      final Object? v = params[k];
+      if (v == null) continue;
+      final String s = truncate(v.toString());
+      if (s.isNotEmpty) return s;
+    }
+    for (final MapEntry<String, dynamic> e in params.entries) {
+      final String s = truncate(e.value.toString());
+      if (s.isNotEmpty) return '${e.key}: $s';
+    }
+    return '';
   }
 }
 

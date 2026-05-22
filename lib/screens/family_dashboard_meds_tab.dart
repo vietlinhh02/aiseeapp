@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/aisee_dashboard_models.dart';
 import '../theme/style_tokens.dart';
+import '../generated/l10n/app_localizations.dart';
 
 class FamilyDashboardMedsTab extends StatelessWidget {
   const FamilyDashboardMedsTab({
@@ -21,6 +22,7 @@ class FamilyDashboardMedsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     if (loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -32,7 +34,7 @@ class FamilyDashboardMedsTab extends StatelessWidget {
             const SizedBox(height: 200),
             Center(
               child: Text(
-                'Chưa có thuốc nào',
+                l10n.dashboardMedsEmpty,
                 style: StyleTokens.bodySmall(),
               ),
             ),
@@ -80,9 +82,15 @@ class FamilyDashboardMedsTab extends StatelessWidget {
                 ),
                 PopupMenuButton<String>(
                   onSelected: (action) => onMedAction(action, m.medication),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Sửa')),
-                    PopupMenuItem(value: 'delete', child: Text('Xóa')),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text(l10n.dashboardMedsEdit),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(l10n.dashboardMedsDelete),
+                    ),
                   ],
                 ),
               ],
@@ -114,4 +122,3 @@ Widget _medStatusSvg(MedStatus m) {
     colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
   );
 }
-

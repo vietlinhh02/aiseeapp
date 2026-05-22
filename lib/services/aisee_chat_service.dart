@@ -109,10 +109,7 @@ class AiseeChatService {
     if (res.statusCode != 200) {
       throw _error(res, 'Không lấy được số tin chưa đọc');
     }
-    final Object? decoded = _decodeJson(
-      res,
-      'Không lấy được số tin chưa đọc',
-    );
+    final Object? decoded = _decodeJson(res, 'Không lấy được số tin chưa đọc');
     if (decoded is Map<String, dynamic>) {
       return decoded['count'] as int? ?? 0;
     }
@@ -127,11 +124,8 @@ class AiseeChatService {
     try {
       return jsonDecode(raw);
     } on FormatException {
-      final String preview =
-          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}): $preview',
-      );
+      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../services/aisee_chat_socket.dart';
@@ -46,7 +47,11 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
   /// Tăng mỗi khi tab Gia đình tải lại danh sách — tab Tin nhắn lắng nghe để đồng bộ.
   final ValueNotifier<int> _familyRosterVersion = ValueNotifier<int>(0);
 
-  static const List<String> _tabTitles = ['Gia đình', 'Tin nhắn', 'Cá nhân'];
+  List<String> _tabTitles(AppLocalizations l) => <String>[
+    l.familyTabFamily,
+    l.familyTabMessages,
+    l.familyTabPersonal,
+  ];
 
   @override
   void initState() {
@@ -56,8 +61,8 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
       duration: const Duration(milliseconds: 150),
       value: 1.0,
     );
-    final AiseeCallInfo? pending =
-        AiseePushService.instance.consumePendingCall();
+    final AiseeCallInfo? pending = AiseePushService.instance
+        .consumePendingCall();
     if (pending != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || CallScreen.openRouteCount > 0) return;
@@ -94,7 +99,7 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
       children: [
         Expanded(
           child: Text(
-            _tabTitles[_tabIndex],
+            _tabTitles(AppLocalizations.of(context))[_tabIndex],
             style: GoogleFonts.plusJakartaSans(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -122,7 +127,8 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
       return Scaffold(
         body: Center(
           child: Text(
-            widget.aiseeError ?? 'Không tải được thông tin',
+            widget.aiseeError ??
+                AppLocalizations.of(context).familyHomeProfileFailed,
             style: StyleTokens.bodySmall(),
           ),
         ),
@@ -182,7 +188,9 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
             child: UserLowVisionBottomNav(
               currentIndex: _tabIndex,
               onChanged: _onTabChanged,
-              items: UserLowVisionBottomNav.familyItems,
+              items: UserLowVisionBottomNav.familyItems(
+                AppLocalizations.of(context),
+              ),
             ),
           ),
         ],

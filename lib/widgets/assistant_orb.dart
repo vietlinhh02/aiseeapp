@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/agent_state.dart';
 
 /// Audio visualizer bars — smooth animation driven by a single
@@ -59,7 +60,8 @@ class _AssistantOrbState extends State<AssistantOrb>
     if (dt < 0) dt += 1.0; // handle wrap-around
     _lastTickValue = _tick.value;
 
-    final double dtSeconds = dt; // controller period = 1s, so value delta = seconds
+    final double dtSeconds =
+        dt; // controller period = 1s, so value delta = seconds
 
     // Exponential smoothing: ~12% per frame at 60fps ≈ smooth 120ms settle.
     const double smoothing = 0.12;
@@ -84,7 +86,7 @@ class _AssistantOrbState extends State<AssistantOrb>
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: widget.agentState.value.displayTextVi,
+      label: widget.agentState.value.displayText(AppLocalizations.of(context)),
       child: RepaintBoundary(
         child: AnimatedBuilder(
           animation: _tick,
@@ -134,8 +136,8 @@ class _BarsPainter extends CustomPainter {
       AgentState.listening => 0.85,
       AgentState.idle => 0.5,
       AgentState.thinking => 0.7 + 0.3 * math.sin(thinkingPhase),
-      AgentState.connecting || AgentState.initializing =>
-        0.3 + 0.2 * math.sin(pulsePhase),
+      AgentState.connecting ||
+      AgentState.initializing => 0.3 + 0.2 * math.sin(pulsePhase),
       AgentState.disconnected || AgentState.failed => 0.3,
     };
 
@@ -161,23 +163,25 @@ class _BarsPainter extends CustomPainter {
         AgentState.speaking =>
           minH +
               range *
-                  (energy * (1.0 - dist * 0.4) +
-                          0.12 * math.sin(phase * 2))
+                  (energy * (1.0 - dist * 0.4) + 0.12 * math.sin(phase * 2))
                       .clamp(0.0, 1.0),
         AgentState.listening =>
           minH +
               range *
-                  ((0.3 + 0.2 * math.sin(phase)) * (1.0 - dist * 0.3))
-                      .clamp(0.0, 1.0),
+                  ((0.3 + 0.2 * math.sin(phase)) * (1.0 - dist * 0.3)).clamp(
+                    0.0,
+                    1.0,
+                  ),
         AgentState.thinking =>
           minH +
               range *
-                  (0.25 + 0.35 * math.sin(thinkingPhase + i * 0.7))
-                      .clamp(0.0, 1.0),
-        AgentState.idle =>
-          minH + range * (0.15 + 0.08 * math.sin(phase)),
-        AgentState.connecting || AgentState.initializing =>
-          minH + range * (0.1 + 0.1 * math.sin(phase)),
+                  (0.25 + 0.35 * math.sin(thinkingPhase + i * 0.7)).clamp(
+                    0.0,
+                    1.0,
+                  ),
+        AgentState.idle => minH + range * (0.15 + 0.08 * math.sin(phase)),
+        AgentState.connecting ||
+        AgentState.initializing => minH + range * (0.1 + 0.1 * math.sin(phase)),
         AgentState.disconnected || AgentState.failed => minH,
       };
 

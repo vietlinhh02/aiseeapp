@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../config/mapbox_static_preview.dart';
 import '../models/aisee_dashboard_models.dart';
 import '../theme/style_tokens.dart';
+import '../generated/l10n/app_localizations.dart';
 import 'family_dashboard_format.dart';
 
 class FamilyDashboardLocationTab extends StatelessWidget {
@@ -23,6 +24,7 @@ class FamilyDashboardLocationTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     if (loading) {
       return const ColoredBox(
         color: StyleTokens.background,
@@ -49,7 +51,7 @@ class FamilyDashboardLocationTab extends StatelessWidget {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   Text(
-                    'Vị trí người thân',
+                    l10n.dashboardLocationTitle,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
@@ -59,7 +61,7 @@ class FamilyDashboardLocationTab extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Xem nhanh trên bản đồ Mapbox (ảnh tĩnh). Chạm nút bên dưới để mở Google Maps.',
+                    l10n.dashboardLocationSubtitle,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
@@ -91,6 +93,7 @@ class _EmptyLocationState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     return ColoredBox(
       color: StyleTokens.background,
       child: RefreshIndicator(
@@ -117,7 +120,7 @@ class _EmptyLocationState extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Chưa có vị trí',
+                      l10n.dashboardLocationNoLocation,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 18,
@@ -127,7 +130,7 @@ class _EmptyLocationState extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Kéo xuống để thử tải lại.',
+                      l10n.dashboardLocationPullHint,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
@@ -160,10 +163,19 @@ class _MapPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final mq = MediaQuery.of(context);
-    final wPx = ((mq.size.width - 32) * mq.devicePixelRatio).round().clamp(400, 1280);
+    final wPx = ((mq.size.width - 32) * mq.devicePixelRatio).round().clamp(
+      400,
+      1280,
+    );
     final hPx = (wPx * 0.56).round().clamp(240, 1280);
-    final uri = MapboxStaticPreview.previewUri(lng, lat, widthPx: wPx, heightPx: hPx);
+    final uri = MapboxStaticPreview.previewUri(
+      lng,
+      lat,
+      widthPx: wPx,
+      heightPx: hPx,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -190,7 +202,7 @@ class _MapPreviewCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Tọa độ',
+                  l10n.dashboardLocationCoordinates,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -210,7 +222,9 @@ class _MapPreviewCard extends StatelessWidget {
                 if (updatedAt != null) ...[
                   const SizedBox(height: 10),
                   Text(
-                    'Cập nhật: ${formatFamilyDashboardTime(updatedAt!)}',
+                    l10n.dashboardLocationUpdated(
+                      formatFamilyDashboardTime(updatedAt!),
+                    ),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: StyleTokens.textSecondary,
@@ -247,7 +261,7 @@ class _MapPreviewCard extends StatelessWidget {
                   ),
                 ),
                 label: Text(
-                  'Mở Google Maps',
+                  l10n.dashboardLocationOpenMaps,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -263,17 +277,15 @@ class _MapPreviewCard extends StatelessWidget {
 }
 
 class _MapboxNetworkPreview extends StatelessWidget {
-  const _MapboxNetworkPreview({
-    required this.uri,
-    super.key,
-  });
+  const _MapboxNetworkPreview({required this.uri, super.key});
 
   final Uri uri;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     return Semantics(
-      label: 'Bản đồ Mapbox, ghim tại vị trí người thân',
+      label: l10n.dashboardLocationMapSemantics,
       child: Image.network(
         uri.toString(),
         fit: BoxFit.cover,
@@ -291,7 +303,7 @@ class _MapboxNetworkPreview extends StatelessWidget {
                   color: StyleTokens.buttonPrimary,
                   value: progress.expectedTotalBytes != null
                       ? progress.cumulativeBytesLoaded /
-                          progress.expectedTotalBytes!
+                            progress.expectedTotalBytes!
                       : null,
                 ),
               ),
@@ -311,6 +323,7 @@ class _MapboxMissingTokenPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     return ColoredBox(
       color: StyleTokens.background,
       child: Center(
@@ -330,7 +343,7 @@ class _MapboxMissingTokenPlaceholder extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Chưa cấu hình Mapbox',
+                l10n.dashboardLocationMapboxMissing,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
@@ -340,8 +353,7 @@ class _MapboxMissingTokenPlaceholder extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Thêm MAPBOX_ACCESS_TOKEN (pk.*) vào assets/app_config.env '
-                'hoặc --dart-define=MAPBOX_ACCESS_TOKEN=... rồi chạy lại app.',
+                l10n.dashboardLocationMapboxHint,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
@@ -362,13 +374,14 @@ class _MapLoadErrorPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     return ColoredBox(
       color: StyleTokens.background,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Text(
-            'Không tải được bản đồ. Kiểm tra mạng hoặc token Mapbox.',
+            l10n.dashboardLocationMapError,
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 13,

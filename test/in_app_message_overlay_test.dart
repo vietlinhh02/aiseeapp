@@ -1,3 +1,4 @@
+import 'package:aiseeapp/generated/l10n/app_localizations.dart';
 import 'package:aiseeapp/models/aisee_message.dart';
 import 'package:aiseeapp/models/aisee_family_member.dart';
 import 'package:aiseeapp/services/in_app_message_controller.dart';
@@ -97,6 +98,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: InAppMessageOverlayHost(
           controller: controller,
           child: const Scaffold(body: SizedBox.expand()),
@@ -129,6 +133,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: InAppMessageOverlayHost(
           controller: controller,
           child: const Scaffold(body: SizedBox.expand()),
@@ -163,6 +170,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         builder: (BuildContext context, Widget? child) {
           return InAppMessageOverlayHost(
             controller: controller,

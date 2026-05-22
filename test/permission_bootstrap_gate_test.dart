@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:aiseeapp/generated/l10n/app_localizations.dart';
 import 'package:aiseeapp/widgets/permission_bootstrap_gate.dart';
 
 void main() {
@@ -15,6 +16,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: PermissionBootstrapGate(
           ensurePermissions: () => completer.future,
           child: const Text('home ready'),

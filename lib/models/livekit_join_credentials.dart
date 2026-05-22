@@ -7,6 +7,7 @@ class LiveKitJoinCredentials {
   });
 
   final String token;
+
   /// WebSocket URL (ví dụ `wss://...`).
   final String url;
   final String? roomName;

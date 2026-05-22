@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -39,7 +42,9 @@ dependencies:
   google_fonts: ^8.0.2
   fluttertoast: ^9.0.0
   flutter_svg: ^2.2.4
+  lottie: ^3.3.3
   animations: ^2.1.2
+  smooth_page_indicator: ^1.2.1
   http: ^1.6.0
   http_parser: 4.1.2
   flutter_secure_storage: ^10.0.0
@@ -74,6 +79,7 @@ dependencies:
   flutter_pcm_sound: ^3.3.3
   camera: ^0.12.0+1
   flutter_nnnoiseless: ^1.0.1
+  country_flags: ^4.1.2
 
 dev_dependencies:
   flutter_test:
@@ -93,6 +99,9 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
+  # Generate AppLocalizations from ARB bundles in lib/l10n/.
+  generate: true
+
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
@@ -103,6 +112,10 @@ flutter:
     - assets/branding/google_g.svg
     - assets/illustrations/role_user.svg
     - assets/illustrations/role_family.svg
+    - assets/illustrations/family_group_heart.svg
+    - assets/audio/ringback_gsm.wav
+    - assets/audio/incoming_ring.wav
+    - assets/lottie/
     - assets/icons/nav/
     - assets/models/
     - assets/chart.umd.min.js

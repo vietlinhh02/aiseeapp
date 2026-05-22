@@ -27,7 +27,16 @@ abstract final class AppEnv {
     'REVENUECAT_API_KEY_IOS',
     defaultValue: '',
   );
+  static const String _revenueCatEnabledDefine = String.fromEnvironment(
+    'BILLING_REVENUECAT_ENABLED',
+    defaultValue: '',
+  );
+  static const String _careWebBaseDefine = String.fromEnvironment(
+    'CARE_WEB_BASE_URL',
+    defaultValue: '',
+  );
   static const String _defaultBackendUrl = 'http://192.168.1.10:8081';
+  static const String _defaultCareWebBaseUrl = 'https://aaisee.me';
 
   /// OAuth Web Client ID — dùng cho web, `serverClientId` Android/iOS (aud `id_token` khớp backend).
   static const String googleWebClientId = String.fromEnvironment(
@@ -48,6 +57,34 @@ abstract final class AppEnv {
       return '';
     }
     return dotenv.maybeGet(key, fallback: '')?.trim() ?? '';
+  }
+
+  /// Gốc web xem báo cáo / timeline Care (`CARE_WEB_BASE_URL` hoặc `--dart-define=CARE_WEB_BASE_URL=`).
+  /// App mở đường dẫn cố định `/family/care` trên host này (query `user_id`, `section`).
+  static String get careWebBaseUrl {
+    String u = _careWebBaseDefine.trim();
+    if (u.isEmpty) {
+      u = _dotenv('CARE_WEB_BASE_URL');
+    }
+    if (u.isEmpty) {
+      u = _defaultCareWebBaseUrl;
+    }
+    return u.endsWith('/') ? u.substring(0, u.length - 1) : u;
+  }
+
+  /// `section`: `timeline` | `weekly` | `incident` | `export` — web đọc query và hiển thị đúng màn.
+  static Uri familyCareWebUri(String caredUserId, String section) {
+    final Uri base = Uri.parse(careWebBaseUrl);
+    return Uri(
+      scheme: base.scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: '/family/care',
+      queryParameters: <String, String>{
+        'user_id': caredUserId,
+        'section': section,
+      },
+    );
   }
 
   static String get apiBaseUrl {
@@ -89,6 +126,25 @@ abstract final class AppEnv {
       key = _dotenv('REVENUECAT_API_KEY');
     }
     return key;
+  }
+
+  /// Kill-switch tạm cho flow bán/restore/manage qua RevenueCat.
+  static bool get billingRevenueCatEnabled {
+    final String raw = _revenueCatEnabledDefine.trim().isNotEmpty
+        ? _revenueCatEnabledDefine.trim()
+        : _dotenv('BILLING_REVENUECAT_ENABLED');
+    if (raw.isEmpty) {
+      return true;
+    }
+    switch (raw.toLowerCase()) {
+      case '0':
+      case 'false':
+      case 'no':
+      case 'off':
+        return false;
+      default:
+        return true;
+    }
   }
 
   static String _platformSpecificRevenueCatApiKey() {

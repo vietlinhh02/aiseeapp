@@ -6,12 +6,14 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 
 import '../config/aisee_navigator_key.dart';
+import '../config/aisee_locale_controller.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_incoming_call.dart';
 import '../screens/call_screen.dart';
 import '../utils/app_toast.dart';
 import 'aisee_call_service.dart';
+import 'aisee_assistant_incoming_call_bridge.dart';
 import 'aisee_family_service.dart';
 import 'incoming_call_controller.dart';
 import 'aisee_session_store.dart';
@@ -163,7 +165,7 @@ class AiseePushService {
     final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
     final String type = _stringField(data, const ['type']);
 
-    if (type == 'incoming_call') {
+    if (type == 'incoming_call' || type == 'volunteer_match') {
       handleIncomingCallPayload(data, source: AiseeIncomingCallSource.fcm);
       return;
     }
@@ -184,6 +186,9 @@ class AiseePushService {
       'Incoming call: source=$source room=${call.roomName} '
       'type=${call.callType} foreground=${_incomingCalls.isAppForeground}',
     );
+    unawaited(
+      AiseeAssistantIncomingCallBridge.instance.notifyIncomingCall(call),
+    );
     if (_incomingCalls.isAppForeground) {
       _incomingCalls.showIncomingCall(call);
       return;
@@ -197,6 +202,9 @@ class AiseePushService {
     final String roomName = _roomNameFromPayload(payload);
     if (roomName.isNotEmpty) {
       _incomingCalls.hideIncomingCallForRoom(roomName);
+      unawaited(
+        AiseeAssistantIncomingCallBridge.instance.clearPendingForRoom(roomName),
+      );
     }
   }
 
@@ -258,6 +266,11 @@ class AiseePushService {
     );
     _log('Incoming native UI: name=${call.callerName} room=${call.roomName}');
 
+    final String languageCode =
+        AiseeLocaleController.instance.value.languageCode;
+    final String textAccept = languageCode == 'en' ? 'Answer' : 'Nghe';
+    final String textDecline = languageCode == 'en' ? 'Decline' : 'Từ chối';
+
     final CallKitParams params = CallKitParams(
       id: call.callId,
       nameCaller: call.callerName,
@@ -265,8 +278,8 @@ class AiseePushService {
       handle: call.callerName,
       type: call.isVideo ? 1 : 0,
       duration: 45000,
-      textAccept: 'Nghe',
-      textDecline: 'Từ chối',
+      textAccept: textAccept,
+      textDecline: textDecline,
       extra: <String, dynamic>{
         'caller_id': call.callerId,
         'caller_name': call.callerName,
@@ -384,6 +397,7 @@ class AiseePushService {
       );
       return;
     }
+    AiseeAssistantIncomingCallBridge.instance.clearPending();
     _navigateToCall(call.toCallInfo());
   }
 
@@ -401,9 +415,11 @@ class AiseePushService {
     _incomingCalls.hideIncomingCall();
     final String room = call.roomName;
     if (room.isEmpty) {
+      AiseeAssistantIncomingCallBridge.instance.clearPending();
       return;
     }
 
+    AiseeAssistantIncomingCallBridge.instance.clearPending();
     final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
       return;

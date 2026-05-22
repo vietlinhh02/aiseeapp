@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
 
@@ -57,6 +58,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     final String? name = widget.googleUser.displayName?.trim();
     final String line = (name != null && name.isNotEmpty)
         ? name
@@ -71,7 +73,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
           TextButton(
             onPressed: widget.onSignOut,
             child: Text(
-              'Thoát',
+              l.roleAppBarExit,
               style: StyleTokens.bodySmall().copyWith(
                 color: StyleTokens.textMuted,
                 fontWeight: FontWeight.w600,
@@ -85,139 +87,135 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-                child: Column(
-                  children: [
-                    Text(
-                      'Chọn cách bạn dùng AiSee',
-                      style: StyleTokens.titleScreen(),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      line,
-                      style: StyleTokens.bodySmall().copyWith(
-                        color: StyleTokens.textMuted,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Dùng hai chấm bên dưới để đổi trang, hoặc vuốt ngang khi không cuộn dọc.',
-                      style: StyleTokens.legalMuted(),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (ScrollNotification n) {
-                    if (n.metrics.axis != Axis.vertical) return false;
-                    if (n is ScrollStartNotification) {
-                      if (!_lockPageSwipe) {
-                        setState(() => _lockPageSwipe = true);
-                      }
-                    } else if (n is ScrollEndNotification) {
-                      if (_lockPageSwipe) {
-                        setState(() => _lockPageSwipe = false);
-                      }
-                    }
-                    return false;
-                  },
-                  child: PageView(
-                    controller: _pageController,
-                    physics: _lockPageSwipe
-                        ? const NeverScrollableScrollPhysics()
-                        : const PageScrollPhysics(),
-                    onPageChanged: (int i) => setState(() => _pageIndex = i),
-                    children: [
-                  _RoleSlide(
-                    illustrationScale: _illustrationScale,
-                    illustrationAsset: 'assets/illustrations/role_user.svg',
-                    badgeLabel: 'Miễn phí hoàn toàn',
-                    badgeBackground: _userBadgeBg,
-                    badgeTextColor: StyleTokens.textPrimary,
-                    title: 'Người dùng',
-                    subtitle: 'Dành cho bạn trực tiếp dùng AiSee bằng giọng nói.',
-                    bulletPoints: const [
-                      'Giao diện ưu tiên giọng nói và thao tác ít nhìn màn hình, phù hợp người suy giảm thị lực.',
-                      'Gói người dùng: không phí đăng ký, không hiển thị quảng cáo — trải nghiệm miễn phí cho người dùng chính.',
-                      'Dữ liệu bạn cung cấp chỉ phục vụ điều khiển ứng dụng và cải thiện trợ lý theo chính sách quyền riêng tư.',
-                    ],
-                    accentNote: null,
-                    ctaLabel: 'Tiếp tục với tư cách người dùng',
-                    onCta: () {
-                      _logSelect('user');
-                      widget.onSelectRole('user');
-                    },
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+              child: Column(
+                children: [
+                  Text(
+                    l.roleSelectionTitle,
+                    style: StyleTokens.titleScreen(),
+                    textAlign: TextAlign.center,
                   ),
-                  _RoleSlide(
-                    illustrationScale: _illustrationScale,
-                    illustrationAsset: 'assets/illustrations/role_family.svg',
-                    badgeLabel: 'Có thể có quảng cáo',
-                    badgeBackground: _pomSoft,
-                    badgeTextColor: _pomText,
-                    title: 'Người thân / hỗ trợ',
-                    subtitle:
-                        'Dành cho người nhà, tình nguyện viên hoặc người đồng hành chăm sóc.',
-                    bulletPoints: const [
-                      'Bảng điều khiển: theo dõi trạng thái, nhắc lịch, hỗ trợ thiết lập và điều phối từ xa an toàn hơn.',
-                      'Gói này có thể hiển thị quảng cáo để góp phần duy trì máy chủ và phát triển tính năng — bạn xác nhận điều này khi chọn vai trò này.',
-                      'AiSee hỗ trợ sinh hoạt hằng ngày, không thay cho tư vấn y tế; trường hợp khẩn cấp hãy liên hệ cơ sở y tế.',
-                    ],
-                    accentNote:
-                        'Quảng cáo (nếu có) sẽ được đặt sao cho ít ảnh hưởng luồng chăm sóc; bạn vẫn có thể hỗ trợ dự án bằng cách xem quảng cáo có chủ đích.',
-                    ctaLabel: 'Tiếp tục với tư cách người thân / hỗ trợ',
-                    onCta: () {
-                      _logSelect('family');
-                      widget.onSelectRole('family');
-                    },
+                  const SizedBox(height: 6),
+                  Text(
+                    line,
+                    style: StyleTokens.bodySmall().copyWith(
+                      color: StyleTokens.textMuted,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    l.roleSelectionHelp,
+                    style: StyleTokens.legalMuted(),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-          ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List<Widget>.generate(2, (int i) {
-                  final bool active = i == _pageIndex;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: GestureDetector(
-                      onTap: () {
-                        _pageController.animateToPage(
-                          i,
-                          duration: const Duration(milliseconds: 320),
-                          curve: Curves.easeOutCubic,
-                        );
+            Expanded(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (ScrollNotification n) {
+                  if (n.metrics.axis != Axis.vertical) return false;
+                  if (n is ScrollStartNotification) {
+                    if (!_lockPageSwipe) {
+                      setState(() => _lockPageSwipe = true);
+                    }
+                  } else if (n is ScrollEndNotification) {
+                    if (_lockPageSwipe) {
+                      setState(() => _lockPageSwipe = false);
+                    }
+                  }
+                  return false;
+                },
+                child: PageView(
+                  controller: _pageController,
+                  physics: _lockPageSwipe
+                      ? const NeverScrollableScrollPhysics()
+                      : const PageScrollPhysics(),
+                  onPageChanged: (int i) => setState(() => _pageIndex = i),
+                  children: [
+                    _RoleSlide(
+                      illustrationScale: _illustrationScale,
+                      illustrationAsset: 'assets/illustrations/role_user.svg',
+                      badgeLabel: l.roleUserBadge,
+                      badgeBackground: _userBadgeBg,
+                      badgeTextColor: StyleTokens.textPrimary,
+                      title: l.roleUserTitle,
+                      subtitle: l.roleUserSubtitle,
+                      bulletPoints: <String>[
+                        l.roleUserBullet1,
+                        l.roleUserBullet2,
+                        l.roleUserBullet3,
+                      ],
+                      accentNote: null,
+                      ctaLabel: l.roleUserCta,
+                      onCta: () {
+                        _logSelect('user');
+                        widget.onSelectRole('user');
                       },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        width: active ? 22 : 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          color: active
-                              ? StyleTokens.textPrimary
-                              : StyleTokens.textMuted.withValues(alpha: 0.45),
-                        ),
-                      ),
                     ),
-                  );
-                }),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 10, bottom: 12),
-                child: Text(
-                  _pageIndex == 0
-                      ? 'Trang 1 / 2 — Người dùng'
-                      : 'Trang 2 / 2 — Người thân / hỗ trợ',
-                  style: StyleTokens.legalMuted(),
-                  textAlign: TextAlign.center,
+                    _RoleSlide(
+                      illustrationScale: _illustrationScale,
+                      illustrationAsset: 'assets/illustrations/role_family.svg',
+                      badgeLabel: l.roleFamilyBadge,
+                      badgeBackground: _pomSoft,
+                      badgeTextColor: _pomText,
+                      title: l.roleFamilyTitle,
+                      subtitle: l.roleFamilySubtitle,
+                      bulletPoints: <String>[
+                        l.roleFamilyBullet1,
+                        l.roleFamilyBullet2,
+                        l.roleFamilyBullet3,
+                      ],
+                      accentNote: l.roleFamilyAccentNote,
+                      ctaLabel: l.roleFamilyCta,
+                      onCta: () {
+                        _logSelect('family');
+                        widget.onSelectRole('family');
+                      },
+                    ),
+                  ],
                 ),
               ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List<Widget>.generate(2, (int i) {
+                final bool active = i == _pageIndex;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: GestureDetector(
+                    onTap: () {
+                      _pageController.animateToPage(
+                        i,
+                        duration: const Duration(milliseconds: 320),
+                        curve: Curves.easeOutCubic,
+                      );
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: active ? 22 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: active
+                            ? StyleTokens.textPrimary
+                            : StyleTokens.textMuted.withValues(alpha: 0.45),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 12),
+              child: Text(
+                _pageIndex == 0 ? l.rolePagerUserPage : l.rolePagerFamilyPage,
+                style: StyleTokens.legalMuted(),
+                textAlign: TextAlign.center,
+              ),
+            ),
           ],
         ),
       ),
@@ -265,130 +263,130 @@ class _RoleSlide extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: SizedBox(
-                      width: maxW,
-                      height: illoH,
-                      child: SvgPicture.asset(
-                        illustrationAsset,
-                        fit: BoxFit.contain,
-                      ),
+              Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    width: maxW,
+                    height: illoH,
+                    child: SvgPicture.asset(
+                      illustrationAsset,
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: badgeBackground,
-                      borderRadius: BorderRadius.circular(999),
-                      border: badgeBackground == const Color(0xFFEEEEEE)
-                          ? Border.all(color: const Color(0xFFE0E0E0))
-                          : null,
-                    ),
-                    child: Text(
-                      badgeLabel,
-                      style: StyleTokens.bodySmall().copyWith(
-                        color: badgeTextColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                        letterSpacing: -0.3,
-                      ),
+              ),
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badgeBackground,
+                    borderRadius: BorderRadius.circular(999),
+                    border: badgeBackground == const Color(0xFFEEEEEE)
+                        ? Border.all(color: const Color(0xFFE0E0E0))
+                        : null,
+                  ),
+                  child: Text(
+                    badgeLabel,
+                    style: StyleTokens.bodySmall().copyWith(
+                      color: badgeTextColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: StyleTokens.titleScreen().copyWith(fontSize: 22),
-                ),
-                const SizedBox(height: 18),
-                Material(
-                  color: StyleTokens.buttonPrimary,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: StyleTokens.titleScreen().copyWith(fontSize: 22),
+              ),
+              const SizedBox(height: 18),
+              Material(
+                color: StyleTokens.buttonPrimary,
+                borderRadius: BorderRadius.circular(31),
+                child: InkWell(
                   borderRadius: BorderRadius.circular(31),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(31),
-                    onTap: onCta,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 20,
-                      ),
-                      child: Center(
-                        child: Text(
-                          ctaLabel,
-                          style: StyleTokens.socialLabel(),
-                          textAlign: TextAlign.center,
-                        ),
+                  onTap: onCta,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 20,
+                    ),
+                    child: Center(
+                      child: Text(
+                        ctaLabel,
+                        style: StyleTokens.socialLabel(),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 22),
-                Text(
-                  subtitle,
-                  style: StyleTokens.bodySmall().copyWith(
-                    color: StyleTokens.textSecondary,
-                    fontSize: 13,
-                    height: 1.45,
-                  ),
+              ),
+              const SizedBox(height: 22),
+              Text(
+                subtitle,
+                style: StyleTokens.bodySmall().copyWith(
+                  color: StyleTokens.textSecondary,
+                  fontSize: 13,
+                  height: 1.45,
                 ),
-                const SizedBox(height: 16),
-                ...bulletPoints.map(
-                  (String line) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text.rich(
-                      TextSpan(
-                        style: StyleTokens.bodySmall().copyWith(
-                          fontSize: 13,
-                          height: 1.45,
-                          color: StyleTokens.textSecondary,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '•  ',
-                            style: StyleTokens.bodySmall().copyWith(
-                              fontSize: 13,
-                              height: 1.45,
-                              color: StyleTokens.textPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          TextSpan(text: line),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                if (accentNote != null) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F0F0),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                    ),
-                    child: Text(
-                      accentNote!,
+              ),
+              const SizedBox(height: 16),
+              ...bulletPoints.map(
+                (String line) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text.rich(
+                    TextSpan(
                       style: StyleTokens.bodySmall().copyWith(
-                        color: StyleTokens.textMuted,
-                        fontSize: 12,
-                        height: 1.5,
+                        fontSize: 13,
+                        height: 1.45,
+                        color: StyleTokens.textSecondary,
                       ),
+                      children: [
+                        TextSpan(
+                          text: '•  ',
+                          style: StyleTokens.bodySmall().copyWith(
+                            fontSize: 13,
+                            height: 1.45,
+                            color: StyleTokens.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        TextSpan(text: line),
+                      ],
                     ),
                   ),
-                ],
+                ),
+              ),
+              if (accentNote != null) ...[
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F0F0),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE0E0E0)),
+                  ),
+                  child: Text(
+                    accentNote!,
+                    style: StyleTokens.bodySmall().copyWith(
+                      color: StyleTokens.textMuted,
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
               ],
-            ),
+            ],
+          ),
         );
       },
     );

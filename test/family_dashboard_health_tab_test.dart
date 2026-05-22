@@ -1,3 +1,4 @@
+import 'package:aiseeapp/generated/l10n/app_localizations.dart';
 import 'package:aiseeapp/models/aisee_dashboard_models.dart';
 import 'package:aiseeapp/screens/family_dashboard_health_tab.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +41,9 @@ void main() {
     );
 
     return MaterialApp(
+      locale: const Locale('vi'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: FamilyDashboardHealthTab(
           loading: false,

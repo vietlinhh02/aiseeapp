@@ -713,7 +713,10 @@ class _FakeAssistantSession implements AiseeAiAssistantSessionClient {
   }
 
   @override
-  Future<void> sendControl(String action) async {
+  Future<void> sendControl(
+    String action, {
+    Map<String, Object?>? payload,
+  }) async {
     sentControls.add(action);
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import 'auth_bootstrapping.dart';
 import 'auth_shell.dart';
 
@@ -28,7 +29,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
       future: _prefsReady,
       builder: (BuildContext context, AsyncSnapshot<void> snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const AuthBootstrapping(title: 'Đang tải ứng dụng…');
+          return AuthBootstrapping(
+            title: AppLocalizations.of(context).bootstrapLoadingApp,
+          );
         }
         return const AuthShell();
       },

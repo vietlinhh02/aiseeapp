@@ -337,10 +337,13 @@ class AiseeAiSession {
     socket.add(Uint8List.fromList(bytes));
   }
 
-  Future<void> sendControl(String action) {
+  Future<void> sendControl(
+    String action, {
+    Map<String, Object?> payload = const <String, Object?>{},
+  }) {
     return _sendEnvelope(
       'control',
-      payload: <String, Object?>{'action': action},
+      payload: <String, Object?>{'action': action, ...payload},
     );
   }
 
@@ -554,7 +557,9 @@ class AiseeAiSession {
       'command',
     ]);
     if (name.isEmpty) {
-      debugPrint('[AiSee:ToolCall] tool_request skipped: no name in payload keys=${payload.keys}');
+      debugPrint(
+        '[AiSee:ToolCall] tool_request skipped: no name in payload keys=${payload.keys}',
+      );
       return;
     }
     final Map<String, dynamic> params =
@@ -562,7 +567,9 @@ class AiseeAiSession {
         _mapValue(payload['arguments']) ??
         _mapValue(payload['payload']) ??
         const <String, dynamic>{};
-    debugPrint('[AiSee:ToolCall] received name=$name requestId=$requestId paramKeys=${params.keys.toList()}');
+    debugPrint(
+      '[AiSee:ToolCall] received name=$name requestId=$requestId paramKeys=${params.keys.toList()}',
+    );
     final AiseeAiToolRequest request = AiseeAiToolRequest(
       requestId: requestId,
       name: name,
@@ -583,7 +590,9 @@ class AiseeAiSession {
     if (name.isEmpty) {
       return;
     }
-    debugPrint('[AiSee:ToolCall] device_command received name=$name requestId=$requestId');
+    debugPrint(
+      '[AiSee:ToolCall] device_command received name=$name requestId=$requestId',
+    );
     final Map<String, dynamic> params =
         _mapValue(payload['params']) ??
         _mapValue(payload['arguments']) ??
@@ -633,18 +642,17 @@ class AiseeAiSession {
       '[AiSee:Session] Reconnect in ${delaySec}s '
       '(attempt $_reconnectAttempts)',
     );
-    _reconnectTimer = Timer(
-      Duration(seconds: delaySec),
-      () {
-        unawaited(_doStart(token).then(
+    _reconnectTimer = Timer(Duration(seconds: delaySec), () {
+      unawaited(
+        _doStart(token).then(
           (_) {},
           onError: (Object error, StackTrace _) {
             debugPrint('[AiSee:Session] Reconnect failed: $error');
             _scheduleReconnect();
           },
-        ));
-      },
-    );
+        ),
+      );
+    });
   }
 
   static Future<AiseeAiSessionSocket> _defaultSocketConnector(Uri uri) async {

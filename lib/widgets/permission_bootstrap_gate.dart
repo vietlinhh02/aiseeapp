@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../services/aisee_permission_bootstrap_service.dart';
 import 'auth_bootstrapping.dart';
 
@@ -38,8 +39,8 @@ class _PermissionBootstrapGateState extends State<PermissionBootstrapGate> {
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const AuthBootstrapping(
-            title: 'Đang chuẩn bị quyền truy cập…',
+          return AuthBootstrapping(
+            title: AppLocalizations.of(context).permissionBootstrapTitle,
           );
         }
         if (!_reportedCompletion && !snapshot.hasError) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../services/in_app_message_controller.dart';
 import '../theme/style_tokens.dart';
 
@@ -118,7 +119,7 @@ class _InAppMessageBanner extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Semantics(
-                        label: 'Đóng',
+                        label: AppLocalizations.of(context).closeAction,
                         button: true,
                         child: IconButton(
                           onPressed: onDismiss,

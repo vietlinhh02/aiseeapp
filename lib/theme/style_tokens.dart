@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-
 abstract final class StyleTokens {
   static const Color background = Color(0xFFF6F6F6);
   static const Color textPrimary = Color(0xFF060913);
@@ -29,8 +28,10 @@ abstract final class StyleTokens {
   static const Color navSelectedOnPill = Color(0xFFFFFFFF);
   static const Color navUnselectedIcon = Color(0xFF999999);
   static const Color navInactivePill = Color(0xFFEEEEEE);
+
   /// Nền thanh nav: trắng.
   static const Color navBarBackground = Color(0xFFFFFFFF);
+
   /// Viền thanh nav: navy 60%.
   static Color navBarBorder = const Color(0xFF1A3263).withValues(alpha: 0.6);
   static const Color navGlassTint = Color(0xEAF0F0F0);

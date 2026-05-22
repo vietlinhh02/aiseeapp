@@ -6,14 +6,17 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_dashboard_models.dart';
 import '../models/aisee_family_member.dart';
 import '../services/aisee_analytics_service.dart';
 import '../services/aisee_dashboard_service.dart';
+import '../services/aisee_family_context_store.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import '../widgets/app_wordmark.dart';
 import '../widgets/user_low_vision_bottom_nav.dart';
+import 'family_care_tab.dart';
 import 'family_dashboard_audit_tab.dart';
 import 'family_dashboard_health_tab.dart';
 import 'family_dashboard_location_tab.dart';
@@ -51,10 +54,15 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
   bool _loadingLogs = true;
   bool _loadingLocation = true;
 
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    unawaited(
+      AiseeFamilyContextStore.instance.writeLastCaredUserId(widget.member.id),
+    );
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
       if (!mounted) return;
       if (_currentTab != _tabController.index) {
@@ -180,7 +188,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    familyDashboardNavItems[_currentTab].label,
+                    familyDashboardNavItemsLocalized(l10n)[_currentTab].label,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -217,6 +225,10 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
+                FamilyCareTab(
+                  accessToken: widget.accessToken,
+                  caredUserId: widget.member.id,
+                ),
                 FamilyDashboardHealthTab(
                   loading: _loadingHealth,
                   health: _health,
@@ -252,13 +264,15 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
               onChanged: (i) {
                 _tabController.animateTo(i);
               },
-              items: familyDashboardNavItems,
+              items: familyDashboardNavItemsLocalized(
+                AppLocalizations.of(context),
+              ),
               showLabel: false,
             ),
           ),
         ],
       ),
-      floatingActionButton: _currentTab == 1
+      floatingActionButton: _currentTab == 2
           ? Padding(
               padding: EdgeInsets.only(bottom: 74 + bottomInset),
               child: FloatingActionButton.extended(
@@ -277,7 +291,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
                   ),
                 ),
                 label: Text(
-                  'Thêm thuốc',
+                  l10n.dashboardMedFormAddTitle,
                   style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -295,21 +309,24 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
         context: context,
         builder: (_) => AlertDialog(
           title: Text(
-            'Xóa thuốc',
+            l10n.dashboardMedsDelete,
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
           ),
           content: Text(
-            'Bạn có chắc muốn xóa ${med.name}?',
+            l10n.familyDashboardMedDeleteConfirm(med.name),
             style: GoogleFonts.plusJakartaSans(),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Hủy'),
+              child: Text(l10n.familyDashboardCancel),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+              child: Text(
+                l10n.dashboardMedsDelete,
+                style: const TextStyle(color: Colors.red),
+              ),
             ),
           ],
         ),
@@ -322,7 +339,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
           med.id,
         );
         await _loadMeds();
-        if (mounted) AppToast.show('Đã xóa ${med.name}');
+        if (mounted) AppToast.show(l10n.familyDashboardMedDeleted(med.name));
       } catch (e) {
         if (mounted) AppToast.show(e.toString(), isError: true);
       }
@@ -350,7 +367,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
         ),
       );
       await _loadMeds();
-      if (mounted) AppToast.show('Đã thêm thuốc');
+      if (mounted) AppToast.show(l10n.familyDashboardMedAdded);
     } catch (e) {
       if (mounted) AppToast.show(e.toString(), isError: true);
     }
@@ -375,7 +392,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
         frequency: result['frequency'] ?? 'daily',
       );
       await _loadMeds();
-      if (mounted) AppToast.show('Đã cập nhật thuốc');
+      if (mounted) AppToast.show(l10n.familyDashboardMedUpdated);
     } catch (e) {
       if (mounted) AppToast.show(e.toString(), isError: true);
     }
@@ -412,14 +429,11 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
         mode: LaunchMode.externalApplication,
       );
       if (!launched && mounted) {
-        AppToast.show(
-          'Không mở được Google Maps. Hãy cài Maps hoặc trình duyệt.',
-          isError: true,
-        );
+        AppToast.show(l10n.familyDashboardCannotOpenMaps, isError: true);
       }
     } catch (_) {
       if (mounted) {
-        AppToast.show('Không mở được bản đồ. Thử lại sau.', isError: true);
+        AppToast.show(l10n.familyDashboardCannotOpenAppMaps, isError: true);
       }
     }
   }

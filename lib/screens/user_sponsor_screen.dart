@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
+import '../generated/l10n/app_localizations.dart';
 
 typedef SponsorUrlLauncher = Future<bool> Function(Uri url, {LaunchMode mode});
 
@@ -28,41 +29,41 @@ class UserSponsorScreen extends StatelessWidget {
 
   final SponsorUrlLauncher launchUrlFn;
 
-  static final _SponsorInfo _davo = _SponsorInfo(
-    name: 'DAVO',
-    websiteLabel: 'davoice.io',
-    websiteUri: Uri.parse('https://davoice.io/'),
-    logoUrl: 'https://davoice.io/logo%20new%2096px.jpg',
-    description:
-        'DAVO phát triển công nghệ voice AI chạy trực tiếp trên thiết bị, gồm '
-        'wake word, speaker recognition, VAD, STT và TTS, ưu tiên tốc độ và '
-        'quyền riêng tư.',
-  );
+  _SponsorInfo _getDavo(AppLocalizations l10n) {
+    return _SponsorInfo(
+      name: 'DAVO',
+      websiteLabel: 'davoice.io',
+      websiteUri: Uri.parse('https://davoice.io/'),
+      logoUrl: 'https://davoice.io/logo%20new%2096px.jpg',
+      description: l10n.sponsorsDavoDescription,
+    );
+  }
 
-  Future<void> _openSponsorWebsite() async {
+  Future<void> _openSponsorWebsite(BuildContext context) async {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final _SponsorInfo davo = _getDavo(l10n);
     try {
       final bool launched = await launchUrlFn(
-        _davo.websiteUri,
+        davo.websiteUri,
         mode: LaunchMode.externalApplication,
       );
       if (!launched) {
-        await AppToast.show(
-          'Không mở được website nhà tài trợ.',
-          isError: true,
-        );
+        await AppToast.show(l10n.sponsorsCannotOpen, isError: true);
       }
     } catch (_) {
-      await AppToast.show('Không mở được website nhà tài trợ.', isError: true);
+      await AppToast.show(l10n.sponsorsCannotOpen, isError: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final _SponsorInfo davo = _getDavo(l10n);
     return Scaffold(
       backgroundColor: StyleTokens.background,
       appBar: AppBar(
         title: Text(
-          'Nhà tài trợ',
+          l10n.sponsorsTitle,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -74,7 +75,7 @@ class UserSponsorScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         children: <Widget>[
           Text(
-            'Những đơn vị đang đồng hành cùng AiSee.',
+            l10n.personalSponsorsSubtitle,
             style: StyleTokens.bodySmall().copyWith(
               fontSize: 14,
               color: StyleTokens.textSecondary,
@@ -83,7 +84,8 @@ class UserSponsorScreen extends StatelessWidget {
           const SizedBox(height: 20),
           Semantics(
             container: true,
-            label: 'Nhà tài trợ ${_davo.name}. Website ${_davo.websiteLabel}.',
+            label:
+                '${l10n.sponsorsTitle} ${davo.name}. Website ${davo.websiteLabel}.',
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -105,12 +107,12 @@ class UserSponsorScreen extends StatelessWidget {
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: Image.network(
-                          _davo.logoUrl,
+                          davo.logoUrl,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) {
                             return Center(
                               child: Text(
-                                _davo.name,
+                                davo.name,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -128,7 +130,7 @@ class UserSponsorScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(
-                              _davo.name,
+                              davo.name,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -137,7 +139,7 @@ class UserSponsorScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _davo.websiteLabel,
+                              davo.websiteLabel,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -150,15 +152,15 @@ class UserSponsorScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text(_davo.description, style: StyleTokens.bodySmall()),
+                  Text(davo.description, style: StyleTokens.bodySmall()),
                   const SizedBox(height: 16),
                   Semantics(
                     button: true,
-                    label: 'Mở website DAVO',
+                    label: l10n.sponsorsOpenDavo,
                     child: SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: _openSponsorWebsite,
+                        onPressed: () => _openSponsorWebsite(context),
                         style: FilledButton.styleFrom(
                           backgroundColor: StyleTokens.buttonPrimary,
                           foregroundColor: StyleTokens.buttonOnPrimary,
@@ -168,7 +170,7 @@ class UserSponsorScreen extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          'Mở website',
+                          l10n.sponsorsOpenWebsite,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,

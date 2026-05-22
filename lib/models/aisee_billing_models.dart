@@ -297,6 +297,71 @@ class AiseeBillingOverview {
   }
 }
 
+/// Phản hồi `GET /api/v1/me/usage` (chi tiết kỳ + top usage).
+class AiseeUsageTopEntry {
+  const AiseeUsageTopEntry({
+    required this.usageType,
+    required this.quantity,
+    required this.unit,
+  });
+
+  final String usageType;
+  final double quantity;
+  final String unit;
+
+  factory AiseeUsageTopEntry.fromJson(Map<String, dynamic> json) {
+    return AiseeUsageTopEntry(
+      usageType: json['usage_type'] as String? ?? '',
+      quantity: _asDouble(json['quantity']),
+      unit: json['unit'] as String? ?? '',
+    );
+  }
+}
+
+class AiseeMeUsageResponse {
+  const AiseeMeUsageResponse({
+    required this.plan,
+    required this.quotas,
+    required this.topUsage,
+    this.periodStart,
+    this.periodEnd,
+    this.asOf,
+  });
+
+  final AiseeBillingPlan plan;
+  final Map<String, AiseeUsageQuota> quotas;
+  final List<AiseeUsageTopEntry> topUsage;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
+  final DateTime? asOf;
+
+  factory AiseeMeUsageResponse.fromJson(Map<String, dynamic> json) {
+    final Map<String, AiseeUsageQuota> quotas = <String, AiseeUsageQuota>{};
+    final Object? qRaw = json['quotas'];
+    if (qRaw is Map<String, dynamic>) {
+      for (final MapEntry<String, dynamic> e in qRaw.entries) {
+        final Object? v = e.value;
+        if (v is Map<String, dynamic>) {
+          quotas[e.key] = AiseeUsageQuota.fromJson(v);
+        }
+      }
+    }
+    final List<dynamic> top = json['top_usage'] as List<dynamic>? ?? [];
+    return AiseeMeUsageResponse(
+      plan: AiseeBillingPlan.fromJson(
+        json['plan'] as Map<String, dynamic>? ?? <String, dynamic>{},
+      ),
+      quotas: quotas,
+      topUsage: top
+          .map((e) => AiseeUsageTopEntry.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      periodStart: _asDate(json['period_start']),
+      periodEnd: _asDate(json['period_end']),
+      asOf: _asDate(json['as_of']),
+    );
+  }
+}
+
 int _asInt(Object? value) {
   if (value is int) return value;
   if (value is num) return value.toInt();

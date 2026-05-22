@@ -7,10 +7,18 @@ import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:volume_controller/volume_controller.dart';
 
+import '../models/aisee_incoming_call.dart';
 import '../services/aisee_location_service.dart';
 import 'aisee_ai_session.dart';
+import 'aisee_assistant_incoming_call_bridge.dart';
 
 typedef AiseeAssistantCameraCommand =
+    Future<Map<String, Object?>> Function(Map<String, dynamic> params);
+typedef AiseeAssistantStartCallCommand =
+    Future<Map<String, Object?>> Function(Map<String, dynamic> params);
+typedef AiseeAssistantAnswerIncomingCommand =
+    Future<Map<String, Object?>> Function(Map<String, dynamic> params);
+typedef AiseeAssistantDeclineIncomingCommand =
     Future<Map<String, Object?>> Function(Map<String, dynamic> params);
 
 class AiseeAssistantDeviceCommandException implements Exception {
@@ -42,11 +50,20 @@ class AiseeDefaultAssistantDeviceCommandHandler
   AiseeDefaultAssistantDeviceCommandHandler({
     AiseeAssistantCameraCommand? onEnableCamera,
     AiseeAssistantCameraCommand? onDisableCamera,
+    AiseeAssistantStartCallCommand? onStartCall,
+    AiseeAssistantAnswerIncomingCommand? onAnswerIncomingCall,
+    AiseeAssistantDeclineIncomingCommand? onDeclineIncomingCall,
   }) : _onEnableCamera = onEnableCamera,
-       _onDisableCamera = onDisableCamera;
+       _onDisableCamera = onDisableCamera,
+       _onStartCall = onStartCall,
+       _onAnswerIncomingCall = onAnswerIncomingCall,
+       _onDeclineIncomingCall = onDeclineIncomingCall;
 
   final AiseeAssistantCameraCommand? _onEnableCamera;
   final AiseeAssistantCameraCommand? _onDisableCamera;
+  final AiseeAssistantStartCallCommand? _onStartCall;
+  final AiseeAssistantAnswerIncomingCommand? _onAnswerIncomingCall;
+  final AiseeAssistantDeclineIncomingCommand? _onDeclineIncomingCall;
 
   final ValueNotifier<String?> _nowPlayingTitle = ValueNotifier<String?>(null);
   AudioPlayer? _musicPlayer;
@@ -62,6 +79,9 @@ class AiseeDefaultAssistantDeviceCommandHandler
     return switch (request.name) {
       'enable_camera' => _handleEnableCamera(request.params),
       'disable_camera' => _handleDisableCamera(request.params),
+      'start_call' => _handleStartCall(request.params),
+      'answer_incoming_call' => _handleAnswerIncomingCall(request.params),
+      'decline_incoming_call' => _handleDeclineIncomingCall(request.params),
       'play_audio' => _handlePlayAudio(request.params),
       'control_audio' => _handleControlAudio(request.params),
       'get_location' => _handleGetLocation(),
@@ -106,6 +126,66 @@ class AiseeDefaultAssistantDeviceCommandHandler
       return const <String, Object?>{'status': 'ok'};
     }
     return callback(params);
+  }
+
+  Future<Map<String, Object?>> _handleStartCall(
+    Map<String, dynamic> params,
+  ) async {
+    final AiseeAssistantStartCallCommand? callback = _onStartCall;
+    if (callback == null) {
+      return const <String, Object?>{
+        'status': 'unavailable',
+        'message': 'Calling is not available in this assistant build.',
+      };
+    }
+    return callback(params);
+  }
+
+  Future<Map<String, Object?>> _handleAnswerIncomingCall(
+    Map<String, dynamic> params,
+  ) async {
+    final AiseeAssistantAnswerIncomingCommand? callback = _onAnswerIncomingCall;
+    if (callback == null) {
+      return const <String, Object?>{
+        'status': 'unavailable',
+        'message': 'Answering incoming calls is not wired in this build.',
+      };
+    }
+    final Map<String, dynamic> merged = <String, dynamic>{...params};
+    final AiseeIncomingCall? pending =
+        AiseeAssistantIncomingCallBridge.instance.pendingCall;
+    if (pending != null) {
+      merged.putIfAbsent('room_name', () => pending.roomName);
+      merged.putIfAbsent('token', () => pending.token);
+      merged.putIfAbsent('caller_id', () => pending.callerId);
+      merged.putIfAbsent('caller_name', () => pending.callerName);
+      merged.putIfAbsent('call_type', () => pending.callType);
+      if (pending.callerAvatarUrl != null) {
+        merged.putIfAbsent('caller_avatar_url', () => pending.callerAvatarUrl);
+      }
+    }
+    return callback(merged);
+  }
+
+  Future<Map<String, Object?>> _handleDeclineIncomingCall(
+    Map<String, dynamic> params,
+  ) async {
+    final AiseeAssistantDeclineIncomingCommand? callback =
+        _onDeclineIncomingCall;
+    if (callback == null) {
+      return const <String, Object?>{
+        'status': 'unavailable',
+        'message': 'Declining incoming calls is not wired in this build.',
+      };
+    }
+    final Map<String, dynamic> merged = <String, dynamic>{...params};
+    final AiseeIncomingCall? pending =
+        AiseeAssistantIncomingCallBridge.instance.pendingCall;
+    if (pending != null) {
+      merged.putIfAbsent('room_name', () => pending.roomName);
+      merged.putIfAbsent('caller_id', () => pending.callerId);
+    }
+    return callback(merged);
   }
 
   Future<Map<String, Object?>> _handlePlayAudio(

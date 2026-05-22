@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/agent_state.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/assistant_orb.dart';
@@ -43,9 +44,10 @@ class UserAssistantTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Semantics(
       container: true,
-      label: _semanticsLabel,
+      label: _semanticsLabel(l),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -86,7 +88,7 @@ class UserAssistantTab extends StatelessWidget {
                         unawaited(onRetryAssistant());
                       },
                       child: Text(
-                        'Thử lại',
+                        l.assistantTabRetry,
                         style: StyleTokens.bodySmall().copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -128,17 +130,13 @@ class UserAssistantTab extends StatelessWidget {
     );
   }
 
-  String get _semanticsLabel {
-    if (aiseeLoading) return 'Trang Trợ lý AiSee. Đang tải hồ sơ.';
-    if (aiseeError != null) return 'Trang Trợ lý AiSee. Có lỗi hồ sơ.';
-    if (assistantConnecting) return 'Trang Trợ lý AiSee. Đang kết nối trợ lý.';
-    if (assistantError != null) {
-      return 'Trang Trợ lý AiSee. Lỗi kết nối. Chạm Thử lại để thử lại.';
-    }
-    if (assistantConnected) {
-      return 'Trang Trợ lý AiSee. Đã kết nối trợ lý giọng nói.';
-    }
-    return 'Trang Trợ lý AiSee.';
+  String _semanticsLabel(AppLocalizations l) {
+    if (aiseeLoading) return l.assistantTabSemanticsLoading;
+    if (aiseeError != null) return l.assistantTabSemanticsError;
+    if (assistantConnecting) return l.assistantTabSemanticsConnecting;
+    if (assistantError != null) return l.assistantTabSemanticsConnectError;
+    if (assistantConnected) return l.assistantTabSemanticsConnected;
+    return l.assistantTabSemanticsDefault;
   }
 }
 
@@ -185,7 +183,7 @@ class _AssistantLiveBody extends StatelessWidget {
       children: [
         Positioned.fill(
           child: Semantics(
-            label: 'Xem trước camera của bạn, toàn màn hình',
+            label: AppLocalizations.of(context).assistantTabCameraPreviewLabel,
             child: cameraPreview,
           ),
         ),
@@ -230,6 +228,7 @@ class _AssistantContentColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     final TextStyle base = StyleTokens.bodySmall().copyWith(
       fontSize: 16,
       height: 1.4,
@@ -245,7 +244,7 @@ class _AssistantContentColumn extends StatelessWidget {
             valueListenable: agentState!,
             builder: (BuildContext context, AgentState state, _) {
               return Text(
-                state.displayTextVi,
+                state.displayText(AppLocalizations.of(context)),
                 textAlign: TextAlign.center,
                 style: base,
               );
@@ -254,8 +253,8 @@ class _AssistantContentColumn extends StatelessWidget {
         else
           Text(
             assistantConnected
-                ? 'Đã kết nối trợ lý giọng nói.'
-                : 'Đang chờ kết nối…',
+                ? l.assistantTabConnected
+                : l.assistantTabConnecting,
             textAlign: TextAlign.center,
             style: base,
           ),
@@ -271,7 +270,7 @@ class _AssistantContentColumn extends StatelessWidget {
         if (nowPlayingTitle != null && nowPlayingTitle!.trim().isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(
-            'Đang phát: ${nowPlayingTitle!.trim()}',
+            l.assistantTabNowPlaying(nowPlayingTitle!.trim()),
             textAlign: TextAlign.center,
             style: StyleTokens.bodySmall().copyWith(
               fontSize: 14,

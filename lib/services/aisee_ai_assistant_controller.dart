@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/agent_state.dart';
+import '../models/aisee_incoming_call.dart';
 import 'aisee_ai_camera_streamer.dart';
 import 'aisee_ai_microphone_input.dart';
 import 'aisee_ai_session.dart';
-import 'aisee_audio_uplink_gate.dart';
 import 'aisee_assistant_device_command_handler.dart';
+import 'aisee_assistant_incoming_call_bridge.dart';
+import 'aisee_audio_uplink_gate.dart';
 import 'aisee_pcm_audio_player.dart';
 import 'aisee_voice_audio_session.dart';
 import 'aisee_voice_foreground.dart';
@@ -28,7 +30,7 @@ abstract interface class AiseeAiAssistantSessionClient {
   Future<void> sendAudioFrame(Uint8List bytes);
   Future<void> sendCameraFrame(Uint8List bytes);
   Future<void> sendNsfwDetected();
-  Future<void> sendControl(String action);
+  Future<void> sendControl(String action, {Map<String, Object?> payload});
   Future<void> stopAudioStream();
   Future<void> sendToolResult(String requestId, Object? result);
   Future<void> stop({bool resetState, int? closeCode, String? reason});
@@ -74,8 +76,11 @@ class AiseeAiSessionClientAdapter implements AiseeAiAssistantSessionClient {
   }
 
   @override
-  Future<void> sendControl(String action) {
-    return _session.sendControl(action);
+  Future<void> sendControl(
+    String action, {
+    Map<String, Object?> payload = const <String, Object?>{},
+  }) {
+    return _session.sendControl(action, payload: payload);
   }
 
   @override
@@ -195,6 +200,15 @@ class AiseeAiAssistantController {
     ) {
       unawaited(_handleDeviceCommand(request));
     });
+    AiseeAssistantIncomingCallBridge.instance.registerHandlers(
+      announce: _announceIncomingCallToAgent,
+      clear: _announceIncomingCallClearedToAgent,
+    );
+    final AiseeIncomingCall? pending =
+        AiseeAssistantIncomingCallBridge.instance.pendingCall;
+    if (pending != null) {
+      unawaited(_announceIncomingCallToAgent(pending));
+    }
   }
 
   Future<void> enableAssistantMic() async {
@@ -259,6 +273,7 @@ class AiseeAiAssistantController {
     }
     _disposed = true;
 
+    AiseeAssistantIncomingCallBridge.instance.unregisterHandlers();
     await disableAssistantMic();
     await _assistantAudioSub?.cancel();
     await _assistantAudioInterruptedSub?.cancel();
@@ -315,11 +330,17 @@ class AiseeAiAssistantController {
 
   Future<void> _handleDeviceCommand(AiseeAiDeviceCommandRequest request) async {
     final bool isMusicPlaybackCommand = request.name == 'play_audio';
+    final bool isStartCallCommand = request.name == 'start_call';
+    final bool micWasEnabledBeforeCall = isStartCallCommand && _micEnabled;
     Map<String, Object?> result;
     try {
       if (isMusicPlaybackCommand) {
         await disableAssistantMic();
         await _audioPlayer.stop(reason: 'play-audio-command');
+      }
+      if (isStartCallCommand) {
+        await disableAssistantMic();
+        await _audioPlayer.stop(reason: 'start-call-command');
       }
       debugPrint(
         '[AiSee:ToolCall] dispatching name=${request.name} requestId=${request.requestId}',
@@ -347,6 +368,60 @@ class AiseeAiAssistantController {
       if (isMusicPlaybackCommand) {
         await _resumeWakeAfterMusicPlayback();
       }
+      if (isStartCallCommand && micWasEnabledBeforeCall) {
+        await _resumeAssistantAfterCall();
+      }
+    }
+  }
+
+  Future<void> _resumeAssistantAfterCall() async {
+    try {
+      await enableAssistantMic();
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[AiSee:Call] Failed to resume assistant mic after call: $error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _announceIncomingCallToAgent(AiseeIncomingCall call) async {
+    if (!isConnected) {
+      debugPrint(
+        '[AiSee:IncomingBridge] Session not connected; '
+        'skip announce for room=${call.roomName}',
+      );
+      return;
+    }
+    try {
+      await _session.sendControl(
+        'incoming_call',
+        payload: <String, Object?>{
+          'room_name': call.roomName,
+          'caller_name': call.callerName,
+          'caller_id': call.callerId,
+          'call_type': call.callType,
+        },
+      );
+    } catch (error, stack) {
+      debugPrint(
+        '[AiSee:IncomingBridge] sendControl incoming_call failed: $error\n$stack',
+      );
+    }
+  }
+
+  Future<void> _announceIncomingCallClearedToAgent(String roomName) async {
+    if (!isConnected) {
+      return;
+    }
+    try {
+      await _session.sendControl(
+        'incoming_call_cleared',
+        payload: <String, Object?>{'room_name': roomName},
+      );
+    } catch (error, stack) {
+      debugPrint(
+        '[AiSee:IncomingBridge] sendControl incoming_call_cleared failed: $error\n$stack',
+      );
     }
   }
 

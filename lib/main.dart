@@ -6,8 +6,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'config/aisee_locale_controller.dart';
 import 'debug/aisee_debug_hud.dart';
 import 'debug/aisee_performance_debug.dart';
+import 'generated/l10n/app_localizations.dart';
 import 'models/aisee_reminder.dart';
 import 'screens/reminders_screen.dart';
 import 'services/aisee_analytics_service.dart';
@@ -28,7 +30,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   debugPrint('[AiSee:Push] Background message: ${message.data}');
   final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
-  if (data['type'] == 'incoming_call') {
+  if (data['type'] == 'incoming_call' || data['type'] == 'volunteer_match') {
     await AiseePushService.showIncomingCallUi(data);
   } else if (data['type'] == 'call_ended') {
     await AiseePushService.endIncomingCallUi(data);
@@ -65,6 +67,7 @@ Future<void> main() async {
         return true;
       };
       await dotenv.load(fileName: 'assets/app_config.env');
+      await AiseeLocaleController.instance.load();
       await AiseeReminderService.instance.init();
       await AiseeReminderAnnouncer.instance.start();
       assert(() {
@@ -125,36 +128,44 @@ class _AiseeAppState extends State<AiseeApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: aiseeNavigatorKey,
-      title: 'aisee',
-      theme: StyleTokens.lightTheme(),
-      showPerformanceOverlay: AiseeDebugConfig.showPerformanceOverlay,
-      navigatorObservers: <NavigatorObserver>[
-        AiseeAnalyticsService.instance.navigatorObserver,
-      ],
-      builder: (BuildContext context, Widget? child) {
-        final Widget content = child ?? const SizedBox.shrink();
-        final Widget decorated = !AiseeDebugConfig.enabled
-            ? content
-            : Stack(
-                alignment: Alignment.center,
-                fit: StackFit.expand,
-                clipBehavior: Clip.none,
-                children: <Widget>[content, const AiseeDebugHud()],
-              );
-        final Widget messageOverlay = InAppMessageOverlayHost(
-          controller: AiseeInAppMessageController.instance,
-          child: decorated,
-        );
-        return IncomingCallOverlayHost(
-          controller: AiseeIncomingCallController.instance,
-          onAccept: AiseePushService.instance.acceptIncomingCall,
-          onDecline: AiseePushService.instance.declineIncomingCall,
-          child: messageOverlay,
+    return ValueListenableBuilder<Locale>(
+      valueListenable: AiseeLocaleController.instance,
+      builder: (BuildContext context, Locale locale, _) {
+        return MaterialApp(
+          navigatorKey: aiseeNavigatorKey,
+          title: 'aisee',
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AiseeLocaleController.supportedLocales,
+          theme: StyleTokens.lightTheme(),
+          showPerformanceOverlay: AiseeDebugConfig.showPerformanceOverlay,
+          navigatorObservers: <NavigatorObserver>[
+            AiseeAnalyticsService.instance.navigatorObserver,
+          ],
+          builder: (BuildContext context, Widget? child) {
+            final Widget content = child ?? const SizedBox.shrink();
+            final Widget decorated = !AiseeDebugConfig.enabled
+                ? content
+                : Stack(
+                    alignment: Alignment.center,
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.none,
+                    children: <Widget>[content, const AiseeDebugHud()],
+                  );
+            final Widget messageOverlay = InAppMessageOverlayHost(
+              controller: AiseeInAppMessageController.instance,
+              child: decorated,
+            );
+            return IncomingCallOverlayHost(
+              controller: AiseeIncomingCallController.instance,
+              onAccept: AiseePushService.instance.acceptIncomingCall,
+              onDecline: AiseePushService.instance.declineIncomingCall,
+              child: messageOverlay,
+            );
+          },
+          home: const AppBootstrap(),
         );
       },
-      home: const AppBootstrap(),
     );
   }
 

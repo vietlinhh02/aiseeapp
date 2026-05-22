@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/style_tokens.dart';
+import '../generated/l10n/app_localizations.dart';
 
 class FamilyDashboardMedFormSheet extends StatefulWidget {
   const FamilyDashboardMedFormSheet({
@@ -22,7 +23,8 @@ class FamilyDashboardMedFormSheet extends StatefulWidget {
       _FamilyDashboardMedFormSheetState();
 }
 
-class _FamilyDashboardMedFormSheetState extends State<FamilyDashboardMedFormSheet> {
+class _FamilyDashboardMedFormSheetState
+    extends State<FamilyDashboardMedFormSheet> {
   late final TextEditingController nameC;
   late final TextEditingController dosageC;
   late final TextEditingController timesC;
@@ -75,8 +77,10 @@ class _FamilyDashboardMedFormSheetState extends State<FamilyDashboardMedFormShee
             hintStyle: StyleTokens.inputHint(),
             filled: true,
             fillColor: StyleTokens.background,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: StyleTokens.cardBorder),
@@ -97,6 +101,7 @@ class _FamilyDashboardMedFormSheetState extends State<FamilyDashboardMedFormShee
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: EdgeInsets.only(
         left: 24,
@@ -117,7 +122,9 @@ class _FamilyDashboardMedFormSheetState extends State<FamilyDashboardMedFormShee
           ),
           const SizedBox(height: 20),
           Text(
-            widget.name.isEmpty ? 'Thêm thuốc' : 'Sửa thuốc',
+            widget.name.isEmpty
+                ? l10n.dashboardMedFormAddTitle
+                : l10n.dashboardMedFormEditTitle,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -125,13 +132,29 @@ class _FamilyDashboardMedFormSheetState extends State<FamilyDashboardMedFormShee
             ),
           ),
           const SizedBox(height: 20),
-          _buildTextField(nameC, 'Tên thuốc', 'VD: Paracetamol'),
+          _buildTextField(
+            nameC,
+            l10n.dashboardMedFormNameLabel,
+            l10n.dashboardMedFormNameHint,
+          ),
           const SizedBox(height: 12),
-          _buildTextField(dosageC, 'Liều lượng', 'VD: 1 viên'),
+          _buildTextField(
+            dosageC,
+            l10n.dashboardMedFormDosageLabel,
+            l10n.dashboardMedFormDosageHint,
+          ),
           const SizedBox(height: 12),
-          _buildTextField(timesC, 'Giờ uống', 'VD: 07:00, 21:00'),
+          _buildTextField(
+            timesC,
+            l10n.dashboardMedFormTimesLabel,
+            l10n.dashboardMedFormTimesHint,
+          ),
           const SizedBox(height: 12),
-          _buildTextField(freqC, 'Tần suất', 'VD: daily'),
+          _buildTextField(
+            freqC,
+            l10n.dashboardMedFormFreqLabel,
+            l10n.dashboardMedFormFreqHint,
+          ),
           const SizedBox(height: 24),
           Row(
             children: [
@@ -146,7 +169,7 @@ class _FamilyDashboardMedFormSheetState extends State<FamilyDashboardMedFormShee
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       alignment: Alignment.center,
                       child: Text(
-                        'Hủy',
+                        l10n.dashboardMedFormCancel,
                         style: GoogleFonts.plusJakartaSans(
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,
@@ -176,7 +199,7 @@ class _FamilyDashboardMedFormSheetState extends State<FamilyDashboardMedFormShee
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       alignment: Alignment.center,
                       child: Text(
-                        'Lưu',
+                        l10n.dashboardMedFormSave,
                         style: GoogleFonts.plusJakartaSans(
                           fontWeight: FontWeight.w600,
                           color: Colors.white,

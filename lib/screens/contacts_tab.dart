@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
@@ -43,6 +44,7 @@ class _ContactsTabState extends State<ContactsTab> {
   List<AiseeFamilyMember> _contacts = <AiseeFamilyMember>[];
   int _unreadCount = 0;
   bool _callingInProgress = false;
+  bool _groupActionBusy = false;
 
   @override
   void initState() {
@@ -68,7 +70,7 @@ class _ContactsTabState extends State<ContactsTab> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Chưa đăng nhập. Vui lòng đăng nhập lại.';
+        _error = AppLocalizations.of(context).contactsNotLoggedIn;
       });
       return;
     }
@@ -92,7 +94,7 @@ class _ContactsTabState extends State<ContactsTab> {
       if (!mounted) return;
       final String msg = e is AiseeApiException
           ? e.message
-          : 'Không tải được danh sách liên lạc.';
+          : AppLocalizations.of(context).contactsLoadFailed;
       setState(() {
         _loading = false;
         _error = msg;
@@ -163,53 +165,77 @@ class _ContactsTabState extends State<ContactsTab> {
       if (!mounted) return;
       final String msg = e is AiseeApiException
           ? e.message
-          : 'Không tạo được cuộc gọi';
+          : AppLocalizations.of(context).contactsCallCreateFailed;
       AppToast.show(msg, isError: true);
     } finally {
       _callingInProgress = false;
     }
   }
 
-  // ─── Invite flow ───────────────────────────────────────────
-
-  Future<void> _showInviteFlow() async {
-    final String? relationship = await _showRelationshipSheet();
-    if (relationship == null || relationship.trim().isEmpty) return;
-
+  Future<void> _leaveGroup() async {
+    if (_groupActionBusy) return;
+    final AppLocalizations l = AppLocalizations.of(context);
     final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) return;
-
+    if (!mounted) return;
+    if (tokens == null) {
+      AppToast.show(l.contactsSessionExpired, isError: true);
+      return;
+    }
+    setState(() => _groupActionBusy = true);
     try {
-      final String code = await _familyService.createInvite(
-        tokens.accessToken,
-        relationship.trim(),
-      );
-      unawaited(
-        AiseeAnalyticsService.instance.track(
-          AiseeAnalyticsEvent.familyLinkCreated,
-          parameters: <String, Object?>{'source': 'invite_created'},
-        ),
-      );
+      await _familyService.leaveGroup(tokens.accessToken);
       if (!mounted) return;
-      await _showInviteCodeSheet(code);
-      // Reload contacts in case someone joined while sheet was open.
-      _loadData();
+      AppToast.show(l.contactsLeftGroup);
+      await _loadData();
     } catch (e) {
       if (!mounted) return;
       final String msg = e is AiseeApiException
           ? e.message
-          : 'Không tạo được mã mời.';
+          : l.contactsLeaveGroupFailed;
       AppToast.show(msg, isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _groupActionBusy = false);
+      }
     }
   }
 
-  Future<String?> _showRelationshipSheet() {
+  Future<void> _confirmLeaveGroup() async {
+    final AppLocalizations l = AppLocalizations.of(context);
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(l.contactsLeaveGroupTitle),
+          content: Text(l.contactsLeaveGroupBody),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l.contactsCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l.contactsLeaveGroupAction),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed == true) {
+      await _leaveGroup();
+    }
+  }
+
+  // ─── Join group flow ────────────────────────────────────────
+
+  Future<void> _showJoinGroupFlow() {
     final TextEditingController ctrl = TextEditingController();
-    return showModalBottomSheet<String>(
+    return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
+        final AppLocalizations l = AppLocalizations.of(ctx);
         return Padding(
           padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
           child: Container(
@@ -222,7 +248,6 @@ class _ContactsTabState extends State<ContactsTab> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                // Handle bar
                 Container(
                   width: 40,
                   height: 4,
@@ -233,7 +258,7 @@ class _ContactsTabState extends State<ContactsTab> {
                   ),
                 ),
                 Text(
-                  'Mời người thân',
+                  l.contactsJoinGroupTitle,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -242,7 +267,7 @@ class _ContactsTabState extends State<ContactsTab> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Nhập mối quan hệ để tạo mã mời',
+                  l.contactsJoinGroupHint,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w400,
@@ -250,17 +275,21 @@ class _ContactsTabState extends State<ContactsTab> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // Input
                 TextField(
                   controller: ctrl,
                   autofocus: true,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  maxLength: 6,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
+                    letterSpacing: 6,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'VD: Con, Bố, Mẹ, Anh, Chị...',
+                    hintText: '123456',
+                    counterText: '',
                     hintStyle: StyleTokens.inputHint(),
                     filled: true,
                     fillColor: StyleTokens.background,
@@ -287,11 +316,8 @@ class _ContactsTabState extends State<ContactsTab> {
                       ),
                     ),
                   ),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (String v) => Navigator.pop(ctx, v),
                 ),
                 const SizedBox(height: 16),
-                // Buttons row
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -305,7 +331,7 @@ class _ContactsTabState extends State<ContactsTab> {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Center(
                               child: Text(
-                                'Huỷ',
+                                l.contactsCancel,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -324,12 +350,56 @@ class _ContactsTabState extends State<ContactsTab> {
                         borderRadius: BorderRadius.circular(12),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () => Navigator.pop(ctx, ctrl.text),
+                          onTap: () async {
+                            final String code = ctrl.text.trim();
+                            if (code.isEmpty) {
+                              AppToast.show(
+                                l.contactsPleaseEnterCode,
+                                isError: true,
+                              );
+                              return;
+                            }
+                            final AiseeAuthTokens? tokens =
+                                await AiseeSessionStore.instance.read();
+                            if (tokens == null) {
+                              if (ctx.mounted) {
+                                AppToast.show(
+                                  l.contactsSessionExpired,
+                                  isError: true,
+                                );
+                              }
+                              return;
+                            }
+                            try {
+                              await _familyService.joinFamily(
+                                tokens.accessToken,
+                                code,
+                              );
+                              unawaited(
+                                AiseeAnalyticsService.instance.track(
+                                  AiseeAnalyticsEvent.familyLinkCreated,
+                                  parameters: <String, Object?>{
+                                    'source': 'invite_joined_user',
+                                  },
+                                ),
+                              );
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                              AppToast.show(l.contactsJoinedGroup);
+                              _loadData();
+                            } catch (e) {
+                              if (!ctx.mounted) return;
+                              final String msg = e is AiseeApiException
+                                  ? e.message
+                                  : l.contactsJoinFailed;
+                              AppToast.show(msg, isError: true);
+                            }
+                          },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Center(
                               child: Text(
-                                'Tạo mã mời',
+                                l.contactsJoinAction,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -351,162 +421,31 @@ class _ContactsTabState extends State<ContactsTab> {
     );
   }
 
-  Future<void> _showInviteCodeSheet(String code) {
-    return showModalBottomSheet<void>(
-      context: context,
-      isDismissible: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext ctx) {
-        return Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-          decoration: BoxDecoration(
-            color: StyleTokens.surfaceCard,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: StyleTokens.cardBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Mã mời đã tạo',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: StyleTokens.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Gửi mã này cho người thân để kết nối',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: StyleTokens.textMuted,
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Code display
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 18,
-                ),
-                decoration: BoxDecoration(
-                  color: StyleTokens.background,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: StyleTokens.cardBorder),
-                ),
-                child: Center(
-                  child: SelectableText(
-                    code,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: StyleTokens.buttonPrimary,
-                      letterSpacing: 4,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Copy button
-              SizedBox(
-                width: double.infinity,
-                child: Material(
-                  color: StyleTokens.buttonPrimary,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Clipboard.setData(ClipboardData(text: code));
-                      AppToast.show('Đã sao chép mã mời');
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          SvgPicture.asset(
-                            'assets/icons/nav/ic_document.svg',
-                            width: 18,
-                            height: 18,
-                            colorFilter: const ColorFilter.mode(
-                              StyleTokens.buttonOnPrimary,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Sao chép mã',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: StyleTokens.buttonOnPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              // Close text
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(
-                  'Đóng',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: StyleTokens.textMuted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   // ─── Build ─────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Semantics(
       container: true,
-      label: 'Liên lạc. Nhắn tin và gọi điện người thân.',
+      label: l.contactsTabSemantics,
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
-          _buildHeader(),
+          _buildHeader(l),
           const SizedBox(height: 20),
-          _buildBody(),
+          _buildBody(l),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l) {
     return Row(
       children: <Widget>[
         Expanded(
           child: Text(
-            'Nhắn tin và gọi điện người thân.',
+            l.contactsTabIntro,
             style: StyleTokens.bodySmall().copyWith(fontSize: 12, height: 1.4),
           ),
         ),
@@ -526,7 +465,7 @@ class _ContactsTabState extends State<ContactsTab> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(AppLocalizations l) {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.only(top: 48),
@@ -535,12 +474,12 @@ class _ContactsTabState extends State<ContactsTab> {
         ),
       );
     }
-    if (_error != null) return _buildErrorState();
-    if (_contacts.isEmpty) return _buildEmptyState();
-    return _buildContactsList();
+    if (_error != null) return _buildErrorState(l);
+    if (_contacts.isEmpty) return _buildEmptyState(l);
+    return _buildContactsList(l);
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(AppLocalizations l) {
     return Padding(
       padding: const EdgeInsets.only(top: 32),
       child: Column(
@@ -556,7 +495,7 @@ class _ContactsTabState extends State<ContactsTab> {
           const SizedBox(height: 16),
           Semantics(
             button: true,
-            label: 'Thử lại tải danh sách liên lạc',
+            label: l.contactsRetryLabel,
             child: Material(
               color: StyleTokens.buttonPrimary,
               borderRadius: BorderRadius.circular(31),
@@ -572,7 +511,7 @@ class _ContactsTabState extends State<ContactsTab> {
                     vertical: 12,
                   ),
                   child: Text(
-                    'Thử lại',
+                    l.contactsRetry,
                     style: StyleTokens.socialLabel().copyWith(fontSize: 14),
                   ),
                 ),
@@ -584,7 +523,7 @@ class _ContactsTabState extends State<ContactsTab> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(AppLocalizations l) {
     return Column(
       children: <Widget>[
         Material(
@@ -606,7 +545,7 @@ class _ContactsTabState extends State<ContactsTab> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Chưa có người thân.\nMời qua mã mời bên dưới.',
+                  l.contactsEmpty,
                   style: StyleTokens.bodySmall().copyWith(
                     fontSize: 13,
                     height: 1.5,
@@ -618,12 +557,12 @@ class _ContactsTabState extends State<ContactsTab> {
           ),
         ),
         const SizedBox(height: 16),
-        _buildInviteButton(),
+        _buildJoinGroupButton(l),
       ],
     );
   }
 
-  Widget _buildContactsList() {
+  Widget _buildContactsList(AppLocalizations l) {
     return Column(
       children: <Widget>[
         for (int i = 0; i < _contacts.length; i++) ...<Widget>[
@@ -679,15 +618,65 @@ class _ContactsTabState extends State<ContactsTab> {
           ),
         ],
         const SizedBox(height: 16),
-        _buildInviteButton(),
+        Material(
+          color: StyleTokens.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  l.contactsWantSwitchGroup,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: StyleTokens.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(l.contactsSwitchGroupHint, style: StyleTokens.bodySmall()),
+                const SizedBox(height: 12),
+                Material(
+                  color: StyleTokens.background,
+                  borderRadius: BorderRadius.circular(31),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(31),
+                    onTap: _groupActionBusy ? null : _confirmLeaveGroup,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: _groupActionBusy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              l.contactsLeaveCurrentGroup,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: StyleTokens.textPrimary,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildInviteButton() {
+  Widget _buildJoinGroupButton(AppLocalizations l) {
     return Semantics(
       button: true,
-      label: 'Mời người thân vào danh sách liên lạc',
+      label: l.contactsEnterCodeButton,
       child: Material(
         color: StyleTokens.buttonPrimary,
         borderRadius: BorderRadius.circular(31),
@@ -695,13 +684,13 @@ class _ContactsTabState extends State<ContactsTab> {
           borderRadius: BorderRadius.circular(31),
           onTap: () {
             HapticFeedback.lightImpact();
-            _showInviteFlow();
+            _showJoinGroupFlow();
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Center(
               child: Text(
-                'Mời người thân',
+                l.contactsEnterCodeButton,
                 style: StyleTokens.socialLabel().copyWith(fontSize: 14),
               ),
             ),
@@ -729,9 +718,10 @@ class _ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Semantics(
       button: true,
-      label: '${member.label}. Chạm để nhắn tin.',
+      label: '${member.label}. ${l.contactsTapToChat}',
       child: Material(
         color: StyleTokens.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -765,7 +755,7 @@ class _ContactCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Chạm để nhắn tin',
+                        l.contactsTapToChat,
                         style: StyleTokens.bodySmall().copyWith(
                           fontSize: 11,
                           color: StyleTokens.textMuted,
@@ -776,7 +766,7 @@ class _ContactCard extends StatelessWidget {
                 ),
                 Semantics(
                   button: true,
-                  label: 'Gọi thoại ${member.label}',
+                  label: l.contactsVoiceCallLabel(member.label),
                   child: IconButton(
                     icon: SvgPicture.asset(
                       'assets/icons/nav/ic_voice.svg',
@@ -787,13 +777,13 @@ class _ContactCard extends StatelessWidget {
                         BlendMode.srcIn,
                       ),
                     ),
-                    tooltip: 'Gọi thoại',
+                    tooltip: l.contactsVoiceCallTooltip,
                     onPressed: onVoiceCall,
                   ),
                 ),
                 Semantics(
                   button: true,
-                  label: 'Gọi video ${member.label}',
+                  label: l.contactsVideoCallLabel(member.label),
                   child: IconButton(
                     icon: SvgPicture.asset(
                       'assets/icons/nav/ic_camera.svg',
@@ -804,7 +794,7 @@ class _ContactCard extends StatelessWidget {
                         BlendMode.srcIn,
                       ),
                     ),
-                    tooltip: 'Gọi video',
+                    tooltip: l.contactsVideoCallTooltip,
                     onPressed: onVideoCall,
                   ),
                 ),

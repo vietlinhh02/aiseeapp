@@ -145,9 +145,13 @@ class RevenueCatSdkClient implements AiseeRevenueCatClient {
 }
 
 class AiseeRevenueCatService {
-  AiseeRevenueCatService({AiseeRevenueCatClient? client, String? apiKey})
-    : _client = client ?? const RevenueCatSdkClient(),
-      _apiKeyOverride = apiKey;
+  AiseeRevenueCatService({
+    AiseeRevenueCatClient? client,
+    String? apiKey,
+    bool? enabled,
+  }) : _client = client ?? const RevenueCatSdkClient(),
+       _apiKeyOverride = apiKey,
+       _enabledOverride = enabled;
 
   static final AiseeRevenueCatService instance = AiseeRevenueCatService();
 
@@ -155,11 +159,16 @@ class AiseeRevenueCatService {
 
   final AiseeRevenueCatClient _client;
   final String? _apiKeyOverride;
+  final bool? _enabledOverride;
   String? _identifiedUserId;
 
   String get apiKey => (_apiKeyOverride ?? AppEnv.revenueCatApiKey).trim();
+  bool get isEnabled => _enabledOverride ?? AppEnv.billingRevenueCatEnabled;
 
   Future<void> identify(AiseeUserProfile profile, {String? careGroupId}) async {
+    if (!isEnabled) {
+      return;
+    }
     final String userId = profile.id.trim();
     if (userId.isEmpty) {
       throw AiseeRevenueCatException('Không xác định được tài khoản AiSee.');
@@ -221,6 +230,10 @@ class AiseeRevenueCatService {
   }
 
   Future<void> logOut() async {
+    if (!isEnabled) {
+      _identifiedUserId = null;
+      return;
+    }
     if (!await _client.isConfigured) {
       _identifiedUserId = null;
       return;
@@ -230,7 +243,10 @@ class AiseeRevenueCatService {
   }
 
   Future<CustomerInfo> customerInfo() {
-    return _runRevenueCatCall(_client.getCustomerInfo);
+    return _runRevenueCatCall(
+      _client.getCustomerInfo,
+      allowWhenDisabled: false,
+    );
   }
 
   Future<Offerings> offerings({bool syncAttributes = false}) {
@@ -238,11 +254,15 @@ class AiseeRevenueCatService {
       syncAttributes
           ? _client.syncAttributesAndOfferingsIfNeeded
           : _client.getOfferings,
+      allowWhenDisabled: false,
     );
   }
 
   Future<CustomerInfo> restorePurchases() {
-    return _runRevenueCatCall(_client.restorePurchases);
+    return _runRevenueCatCall(
+      _client.restorePurchases,
+      allowWhenDisabled: false,
+    );
   }
 
   Future<CustomerInfo> refreshPurchasesForCurrentPlatform({
@@ -250,6 +270,7 @@ class AiseeRevenueCatService {
   }) async {
     final TargetPlatform resolvedPlatform = platform ?? defaultTargetPlatform;
     if (resolvedPlatform == TargetPlatform.android) {
+      await _runRevenueCatCall(_client.syncPurchases, allowWhenDisabled: false);
       return customerInfo();
     }
     return restorePurchases();
@@ -295,11 +316,15 @@ class AiseeRevenueCatService {
     return _runRevenueCatCall(
       () =>
           _client.presentPaywallIfNeeded(proEntitlementId, offering: offering),
+      allowWhenDisabled: false,
     );
   }
 
   Future<void> presentCustomerCenter() {
-    return _runRevenueCatCall(_client.presentCustomerCenter);
+    return _runRevenueCatCall(
+      _client.presentCustomerCenter,
+      allowWhenDisabled: false,
+    );
   }
 
   static bool hasAiSeePro(CustomerInfo customerInfo) {
@@ -367,7 +392,15 @@ class AiseeRevenueCatService {
     return result.customerInfo;
   }
 
-  Future<T> _runRevenueCatCall<T>(Future<T> Function() call) async {
+  Future<T> _runRevenueCatCall<T>(
+    Future<T> Function() call, {
+    bool allowWhenDisabled = true,
+  }) async {
+    if (!allowWhenDisabled && !isEnabled) {
+      throw AiseeRevenueCatException(
+        'Tính năng thanh toán tạm thời không khả dụng. Vui lòng thử lại sau.',
+      );
+    }
     try {
       return await call();
     } on PlatformException catch (e, stack) {

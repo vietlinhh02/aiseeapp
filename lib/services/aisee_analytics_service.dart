@@ -32,6 +32,13 @@ class AiseeAnalyticsEvent {
   static const String quotaExceeded = 'quota_exceeded';
   static const String featureGateSeen = 'feature_gate_seen';
 
+  static const String usageValueOpened = 'usage_value_opened';
+
+  static const String careExportRequested = 'care_export_requested';
+  static const String incidentReportOpened = 'incident_report_opened';
+  static const String careAlertAcknowledged = 'care_alert_acknowledged';
+  static const String careAlertResolved = 'care_alert_resolved';
+
   static const String aiSessionError = 'ai_session_error';
   static const String toolCallSucceeded = 'tool_call_succeeded';
   static const String toolCallFailed = 'tool_call_failed';

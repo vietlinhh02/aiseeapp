@@ -7,34 +7,62 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/aisee_api_models.dart';
 import '../models/aisee_billing_models.dart';
+import '../models/aisee_family_group.dart';
 import '../services/aisee_analytics_service.dart';
 import '../services/aisee_billing_service.dart';
+import '../services/aisee_family_service.dart';
 import '../services/aisee_profile_cache.dart';
 import '../services/aisee_revenuecat_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import '../widgets/app_wordmark.dart';
+import '../generated/l10n/app_localizations.dart';
 
 class SubscriptionScreen extends StatefulWidget {
-  const SubscriptionScreen({super.key, this.familyFirst = false});
+  const SubscriptionScreen({
+    super.key,
+    this.familyFirst = false,
+    this.careGroupId,
+    this.caredUserId,
+    this.billingService,
+    this.familyService,
+    this.readTokens,
+  });
 
   final bool familyFirst;
+  final String? careGroupId;
+  final String? caredUserId;
+  final AiseeBillingService? billingService;
+  final AiseeFamilyService? familyService;
+  final Future<AiseeAuthTokens?> Function()? readTokens;
 
   @override
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  final AiseeBillingService _billingService = AiseeBillingService();
+  late final AiseeBillingService _billingService;
+  late final AiseeFamilyService _familyService;
+  late final Future<AiseeAuthTokens?> Function() _readTokens;
+  late final bool _ownsBillingService;
+  late final bool _ownsFamilyService;
   AiseeBillingOverview? _overview;
   bool _loading = true;
   bool _revenueCatBusy = false;
   String? _error;
+  bool get _revenueCatEnabled => AiseeRevenueCatService.instance.isEnabled;
+
+  AppLocalizations get l10n => AppLocalizations.of(context);
 
   @override
   void initState() {
     super.initState();
+    _billingService = widget.billingService ?? AiseeBillingService();
+    _familyService = widget.familyService ?? AiseeFamilyService();
+    _readTokens = widget.readTokens ?? AiseeSessionStore.instance.read;
+    _ownsBillingService = widget.billingService == null;
+    _ownsFamilyService = widget.familyService == null;
     unawaited(AiseeAnalyticsService.instance.trackScreen('subscription'));
     unawaited(
       AiseeAnalyticsService.instance.track(AiseeAnalyticsEvent.pricingViewed),
@@ -44,7 +72,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   @override
   void dispose() {
-    _billingService.close();
+    if (_ownsBillingService) {
+      _billingService.close();
+    }
+    if (_ownsFamilyService) {
+      _familyService.close();
+    }
     super.dispose();
   }
 
@@ -54,12 +87,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       _error = null;
     });
     try {
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+      final AiseeAuthTokens? tokens = await _readTokens();
       if (tokens == null) {
-        throw AiseeApiException('Phiên đăng nhập hết hạn');
+        throw AiseeApiException(l10n.subscriptionSessionExpired);
       }
+      final _BillingScreenContext billingContext = await _resolveBillingContext(
+        tokens.accessToken,
+      );
       final AiseeBillingOverview overview = await _billingService
-          .fetchBillingOverview(tokens.accessToken);
+          .fetchBillingOverview(
+            tokens.accessToken,
+            careGroupId: billingContext.careGroupId,
+            caredUserId: billingContext.caredUserId,
+          );
       if (overview.subscription?.cancelAtPeriodEnd ?? false) {
         unawaited(
           AiseeAnalyticsService.instance.trackOnce(
@@ -86,7 +126,35 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
+  Future<_BillingScreenContext> _resolveBillingContext(
+    String accessToken,
+  ) async {
+    if (widget.careGroupId != null || widget.caredUserId != null) {
+      return _BillingScreenContext(
+        careGroupId: widget.careGroupId,
+        caredUserId: widget.caredUserId,
+      );
+    }
+    final AiseeCurrentGroup? currentGroup = await _familyService
+        .fetchCurrentGroup(accessToken);
+    if (currentGroup == null) {
+      return const _BillingScreenContext();
+    }
+    return _BillingScreenContext(careGroupId: currentGroup.id);
+  }
+
   Future<void> _openStoreManagement(AiseeBillingOverview overview) async {
+    if (!_revenueCatEnabled) {
+      AppToast.show(l10n.subscriptionTemporaryUnavailable);
+      return;
+    }
+    if (!canManageSubscriptionForGroup(
+      overview,
+      familyFirst: widget.familyFirst,
+    )) {
+      AppToast.show(l10n.subscriptionOnlyGroupOwner);
+      return;
+    }
     HapticFeedback.lightImpact();
     final String? url = overview.storeManagement.manageUrl;
     if (url == null || url.isEmpty) {
@@ -95,11 +163,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      AppToast.show('Không mở được trang quản lý gói', isError: true);
+      AppToast.show(l10n.subscriptionCannotOpenManagement, isError: true);
     }
   }
 
   Future<void> _startUpgrade(AiseeBillingOverview overview) async {
+    if (!_revenueCatEnabled) {
+      AppToast.show(l10n.subscriptionTemporaryUnavailable);
+      return;
+    }
     HapticFeedback.mediumImpact();
     await AiseeAnalyticsService.instance.track(
       AiseeAnalyticsEvent.upgradeClicked,
@@ -108,7 +180,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         'care_group_id': overview.careGroup.id,
       },
     );
-    if (!overview.careGroup.canManageBilling) {
+    if (!canManageSubscriptionForGroup(
+      overview,
+      familyFirst: widget.familyFirst,
+    )) {
       unawaited(
         AiseeAnalyticsService.instance.track(
           AiseeAnalyticsEvent.featureGateSeen,
@@ -119,13 +194,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           },
         ),
       );
-      AppToast.show('Chỉ chủ nhóm hoặc quản trị thanh toán mới nâng gói.');
+      AppToast.show(l10n.subscriptionOnlyGroupOwnerPurchase);
       return;
     }
     if (_revenueCatBusy) return;
     final AiseeUserProfile? profile = await AiseeProfileCache.instance.read();
     if (profile == null) {
-      AppToast.show('Phiên đăng nhập hết hạn', isError: true);
+      AppToast.show(l10n.subscriptionSessionExpired, isError: true);
       return;
     }
     setState(() => _revenueCatBusy = true);
@@ -169,7 +244,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _handlePurchasedPackage(
     AiseeRevenueCatPackageOption option,
   ) async {
-    AppToast.show('Thanh toán thành công. AiSee đang đồng bộ gói.');
+    AppToast.show(l10n.subscriptionPaymentSuccess);
     final bool synced = await _waitForBillingSync(option.product);
     if (!mounted) return;
     if (synced) {
@@ -183,27 +258,31 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       );
       AppToast.show(
-        'Gói ${planNameForProduct(option.product)} đã được cập nhật.',
+        l10n.subscriptionPlanUpdated(planNameForProduct(option.product)),
       );
     } else {
-      AppToast.show(
-        'Giao dịch đã thành công nhưng backend chưa nhận webhook RevenueCat.',
-        isError: true,
-      );
+      AppToast.show(l10n.subscriptionSyncInProgress);
     }
   }
 
   Future<bool> _waitForBillingSync(AiseeRevenueCatProduct product) async {
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+    final AiseeAuthTokens? tokens = await _readTokens();
     if (tokens == null) return false;
+    final _BillingScreenContext billingContext = await _resolveBillingContext(
+      tokens.accessToken,
+    );
     final String expectedPlanCode = _planCodeForProduct(product);
-    for (int attempt = 0; attempt < 8; attempt++) {
+    for (int attempt = 0; attempt < 15; attempt++) {
       if (attempt > 0) {
         await Future<void>.delayed(const Duration(seconds: 2));
       }
       try {
         final AiseeBillingOverview next = await _billingService
-            .fetchBillingOverview(tokens.accessToken);
+            .fetchBillingOverview(
+              tokens.accessToken,
+              careGroupId: billingContext.careGroupId,
+              caredUserId: billingContext.caredUserId,
+            );
         if (!mounted) return false;
         setState(() => _overview = next);
         if (next.effectivePlan.code == expectedPlanCode &&
@@ -219,10 +298,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Future<void> _restorePurchases(AiseeBillingOverview overview) async {
     HapticFeedback.lightImpact();
+    if (!_revenueCatEnabled) {
+      AppToast.show(l10n.subscriptionTemporaryUnavailable);
+      return;
+    }
+    if (!canManageSubscriptionForGroup(
+      overview,
+      familyFirst: widget.familyFirst,
+    )) {
+      AppToast.show(l10n.subscriptionOnlyGroupOwner);
+      return;
+    }
     if (_revenueCatBusy) return;
     final AiseeUserProfile? profile = await AiseeProfileCache.instance.read();
     if (profile == null) {
-      AppToast.show('Phiên đăng nhập hết hạn', isError: true);
+      AppToast.show(l10n.subscriptionSessionExpired, isError: true);
       return;
     }
     setState(() => _revenueCatBusy = true);
@@ -235,10 +325,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           .refreshPurchasesForCurrentPlatform();
       if (!mounted) return;
       if (AiseeRevenueCatService.hasAiSeePro(customerInfo)) {
-        AppToast.show('Đã đồng bộ AiSee Pro. AiSee đang cập nhật gói.');
-        await _load();
+        AppToast.show(l10n.subscriptionProSynced);
+        final bool synced = await _waitForBillingSync(
+          _recommendedRestoreProduct(overview),
+        );
+        if (!mounted) return;
+        if (!synced) {
+          await _load();
+          AppToast.show(l10n.subscriptionStoreEntitlement);
+        }
       } else {
-        AppToast.show('Chưa tìm thấy gói AiSee Pro trên tài khoản này.');
+        AppToast.show(l10n.subscriptionNoProFound);
       }
     } on AiseeRevenueCatException catch (e) {
       if (!mounted || e.cancelled) return;
@@ -250,10 +347,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Future<void> _openCustomerCenter(AiseeBillingOverview overview) async {
     HapticFeedback.lightImpact();
+    if (!_revenueCatEnabled) {
+      AppToast.show(l10n.subscriptionTemporaryUnavailable);
+      return;
+    }
+    if (!canManageSubscriptionForGroup(
+      overview,
+      familyFirst: widget.familyFirst,
+    )) {
+      AppToast.show(l10n.subscriptionOnlyGroupOwner);
+      return;
+    }
     if (_revenueCatBusy) return;
     final AiseeUserProfile? profile = await AiseeProfileCache.instance.read();
     if (profile == null) {
-      AppToast.show('Phiên đăng nhập hết hạn', isError: true);
+      AppToast.show(l10n.subscriptionSessionExpired, isError: true);
       return;
     }
     setState(() => _revenueCatBusy = true);
@@ -283,7 +391,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           children: <Widget>[
             Expanded(
               child: Text(
-                'Gói AiSee',
+                l10n.subscriptionTitle,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -316,7 +424,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 style: StyleTokens.bodySmall(),
               ),
               const SizedBox(height: 16),
-              _PrimaryButton(label: 'Thử lại', onTap: _load),
+              _PrimaryButton(label: l10n.subscriptionRetry, onTap: _load),
             ],
           ),
         ),
@@ -330,8 +438,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         children: <Widget>[
           _CurrentPlanCard(
             overview: overview,
+            familyFirst: widget.familyFirst,
+            revenueCatEnabled: _revenueCatEnabled,
             onUpgrade: () => _startUpgrade(overview),
           ),
+          if (!_revenueCatEnabled) ...<Widget>[
+            const SizedBox(height: 12),
+            const _RevenueCatDisabledCard(),
+          ],
           if (_shouldSuggestUpgrade(overview)) ...<Widget>[
             const SizedBox(height: 12),
             _UpgradeHintCard(onTap: () => _startUpgrade(overview)),
@@ -345,8 +459,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           const SizedBox(height: 12),
           _HistoryCard(events: overview.events),
           const SizedBox(height: 12),
+          _InvoicePlaceholderCard(
+            overview: overview,
+            revenueCatEnabled: _revenueCatEnabled,
+          ),
+          const SizedBox(height: 12),
           _StoreCard(
             overview: overview,
+            revenueCatEnabled: _revenueCatEnabled,
+            canManageStore: canShowRevenueCatStoreActions(
+              overview,
+              familyFirst: widget.familyFirst,
+              revenueCatEnabled: _revenueCatEnabled,
+            ),
             onManage: () => _openStoreManagement(overview),
             onCustomerCenter: () => _openCustomerCenter(overview),
             onRestore: () => _restorePurchases(overview),
@@ -357,7 +482,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   bool _shouldSuggestUpgrade(AiseeBillingOverview overview) {
-    if (!widget.familyFirst || !overview.careGroup.canManageBilling) {
+    if (!_revenueCatEnabled) {
+      return false;
+    }
+    if (!canManageSubscriptionForGroup(
+      overview,
+      familyFirst: widget.familyFirst,
+    )) {
+      return false;
+    }
+    if (!hasAvailableSubscriptionUpgrade(overview)) {
       return false;
     }
     if (overview.effectivePlan.isFree) return true;
@@ -369,29 +503,161 @@ AiseeRevenueCatPackageOption? _recommendedOption(
   AiseeBillingOverview overview,
   List<AiseeRevenueCatPackageOption> options,
 ) {
-  AiseeRevenueCatProduct target = AiseeRevenueCatProduct.basic149k;
-  switch (overview.effectivePlan.code) {
-    case 'basic_149k':
-      target = AiseeRevenueCatProduct.basic149k;
-    case 'plus_399k':
-      target = AiseeRevenueCatProduct.plus399k;
-    case 'premium_599k':
-      target = AiseeRevenueCatProduct.premium599k;
+  final List<AiseeRevenueCatPackageOption> upgradable =
+      options
+          .where(
+            (AiseeRevenueCatPackageOption option) =>
+                canUpgradeToSubscriptionProduct(overview, option.product),
+          )
+          .toList()
+        ..sort(
+          (AiseeRevenueCatPackageOption a, AiseeRevenueCatPackageOption b) =>
+              _subscriptionPlanRankForProduct(
+                a.product,
+              ).compareTo(_subscriptionPlanRankForProduct(b.product)),
+        );
+  if (upgradable.isEmpty) {
+    return null;
   }
-  for (final AiseeRevenueCatPackageOption option in options) {
-    if (option.product == target) return option;
+  final int currentRank = subscriptionPlanRankForCode(
+    _currentPlanCode(overview),
+  );
+  for (final AiseeRevenueCatPackageOption option in upgradable) {
+    if (_subscriptionPlanRankForProduct(option.product) == currentRank + 1) {
+      return option;
+    }
+  }
+  return upgradable.first;
+}
+
+String _currentPlanCode(AiseeBillingOverview overview) {
+  return overview.subscription?.planCode ?? overview.effectivePlan.code;
+}
+
+bool _isDefaultPlusTrial(AiseeBillingOverview overview) {
+  return overview.effectivePlan.code == 'plus_399k' &&
+      ((overview.subscription?.status == 'trialing') ||
+          overview.effectivePlan.name == 'Trial 1 tháng' ||
+          overview.effectivePlan.name == 'AiSee Plus Trial');
+}
+
+String _displayedPlanName(AiseeBillingOverview overview) {
+  if (_isDefaultPlusTrial(overview)) {
+    return 'AiSee Plus Trial';
+  }
+  return overview.effectivePlan.name;
+}
+
+String _displayedPlanPrice(
+  AiseeBillingOverview overview,
+  AppLocalizations l10n,
+) {
+  if (_isDefaultPlusTrial(overview)) {
+    return l10n.subscriptionFreeTrial;
+  }
+  return _formatPrice(overview.effectivePlan, l10n);
+}
+
+bool hasAvailableSubscriptionUpgrade(AiseeBillingOverview overview) {
+  return subscriptionPlanRankForCode(_currentPlanCode(overview)) <
+      subscriptionPlanRankForCode('premium_599k');
+}
+
+int subscriptionPlanRankForCode(String? planCode) {
+  switch ((planCode ?? '').trim().toLowerCase()) {
+    case 'basic_149k':
+      return 1;
+    case 'plus_399k':
+      return 2;
+    case 'premium_599k':
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+int _subscriptionPlanRankForProduct(AiseeRevenueCatProduct product) {
+  return subscriptionPlanRankForCode(_planCodeForProduct(product));
+}
+
+bool canUpgradeToSubscriptionProduct(
+  AiseeBillingOverview overview,
+  AiseeRevenueCatProduct product,
+) {
+  return _subscriptionPlanRankForProduct(product) >
+      subscriptionPlanRankForCode(_currentPlanCode(overview));
+}
+
+String? _planOptionHintLocalized(
+  AiseeBillingOverview overview,
+  AiseeRevenueCatProduct product,
+  AppLocalizations l10n,
+) {
+  if (_isCurrentPlan(overview, product)) {
+    return l10n.subscriptionUsing;
+  }
+  if (!canUpgradeToSubscriptionProduct(overview, product)) {
+    return l10n.subscriptionNoDowngrade;
   }
   return null;
 }
 
+String _planPickerActionLabel(
+  AiseeBillingOverview overview,
+  AiseeRevenueCatPackageOption? selected, {
+  required bool buying,
+  required String processingLabel,
+  required String chooseToContinueLabel,
+  required String alreadyHighestLabel,
+  required String alreadyUsingLabel,
+  required String upgradeOnlyLabel,
+  required String continueWithTemplate,
+}) {
+  if (buying) {
+    return processingLabel;
+  }
+  if (selected == null) {
+    return hasAvailableSubscriptionUpgrade(overview)
+        ? chooseToContinueLabel
+        : alreadyHighestLabel;
+  }
+  if (!canUpgradeToSubscriptionProduct(overview, selected.product)) {
+    return _isCurrentPlan(overview, selected.product)
+        ? alreadyUsingLabel
+        : upgradeOnlyLabel;
+  }
+  return continueWithTemplate.replaceAll(
+    '{plan}',
+    planNameForProduct(selected.product),
+  );
+}
+
+bool _canSubmitSelectedPlan(
+  AiseeBillingOverview overview,
+  AiseeRevenueCatPackageOption? selected, {
+  required bool buying,
+}) {
+  return !buying &&
+      selected != null &&
+      canUpgradeToSubscriptionProduct(overview, selected.product);
+}
+
 class _CurrentPlanCard extends StatelessWidget {
-  const _CurrentPlanCard({required this.overview, required this.onUpgrade});
+  const _CurrentPlanCard({
+    required this.overview,
+    required this.familyFirst,
+    required this.revenueCatEnabled,
+    required this.onUpgrade,
+  });
 
   final AiseeBillingOverview overview;
+  final bool familyFirst;
+  final bool revenueCatEnabled;
   final VoidCallback onUpgrade;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final AiseeSubscription? subscription = overview.subscription;
     return _SectionCard(
       child: Column(
@@ -399,17 +665,18 @@ class _CurrentPlanCard extends StatelessWidget {
         children: <Widget>[
           _SectionTitle(
             icon: Icons.workspace_premium,
-            title: 'Gói hiện tại',
+            title: l10n.subscriptionCurrentPlan,
             trailing: _StatusPill(
               label: subscription?.status ?? 'free',
               positive:
                   subscription?.status == 'active' ||
+                  subscription?.status == 'trialing' ||
                   overview.effectivePlan.isFree,
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            overview.effectivePlan.name,
+            _displayedPlanName(overview),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -418,40 +685,91 @@ class _CurrentPlanCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            _formatPrice(overview.effectivePlan),
+            _displayedPlanPrice(overview, l10n),
             style: StyleTokens.bodySmall().copyWith(
               color: StyleTokens.textSecondary,
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            '${overview.careGroup.name} · '
-            '${overview.careGroup.caredUserCount} người được chăm sóc · '
-            '${overview.careGroup.memberCount} người thân',
+            l10n.subscriptionGroupInfo(
+              overview.careGroup.name,
+              overview.careGroup.caredUserCount,
+              overview.careGroup.memberCount,
+            ),
             style: StyleTokens.bodySmall().copyWith(fontSize: 12),
           ),
           if (subscription?.cancelAtPeriodEnd ?? false) ...<Widget>[
             const SizedBox(height: 10),
             Text(
-              'Gói sẽ dừng gia hạn ở cuối chu kỳ hiện tại.',
+              subscription?.currentPeriodEnd != null
+                  ? l10n.subscriptionRenewalOffEndDate(
+                      _formatDate(subscription!.currentPeriodEnd!),
+                    )
+                  : l10n.subscriptionRenewalOff,
               style: StyleTokens.bodySmall().copyWith(
                 color: StyleTokens.textSecondary,
               ),
             ),
           ],
-          if (overview.careGroup.canManageBilling ||
-              overview.effectivePlan.isFree) ...<Widget>[
+          if (canShowSubscriptionPurchaseCta(
+            overview,
+            familyFirst: familyFirst,
+            revenueCatEnabled: revenueCatEnabled,
+          )) ...<Widget>[
             const SizedBox(height: 16),
             _PrimaryButton(
               label: overview.effectivePlan.isFree
-                  ? 'Xem gói để mua'
-                  : 'Xem gói phù hợp',
+                  ? l10n.subscriptionViewPlansToBuy
+                  : l10n.subscriptionViewSuitablePlans,
               onTap: onUpgrade,
             ),
           ],
         ],
       ),
     );
+  }
+}
+
+bool canManageSubscriptionForGroup(
+  AiseeBillingOverview overview, {
+  required bool familyFirst,
+}) {
+  return familyFirst && overview.careGroup.currentUserRole == 'owner';
+}
+
+bool canShowSubscriptionPurchaseCta(
+  AiseeBillingOverview overview, {
+  required bool familyFirst,
+  bool revenueCatEnabled = true,
+}) {
+  return revenueCatEnabled &&
+      canManageSubscriptionForGroup(overview, familyFirst: familyFirst) &&
+      hasAvailableSubscriptionUpgrade(overview);
+}
+
+bool canShowRevenueCatStoreActions(
+  AiseeBillingOverview overview, {
+  required bool familyFirst,
+  bool revenueCatEnabled = true,
+}) {
+  return revenueCatEnabled &&
+      canManageSubscriptionForGroup(overview, familyFirst: familyFirst);
+}
+
+AiseeRevenueCatProduct _recommendedRestoreProduct(
+  AiseeBillingOverview overview,
+) {
+  final String activePlanCode = _currentPlanCode(overview);
+  switch (activePlanCode) {
+    case 'premium_599k':
+      return AiseeRevenueCatProduct.premium599k;
+    case 'plus_399k':
+      return AiseeRevenueCatProduct.plus399k;
+    case 'basic_149k':
+      return AiseeRevenueCatProduct.basic149k;
+    default:
+      return AiseeRevenueCatProduct.basic149k;
   }
 }
 
@@ -462,9 +780,10 @@ class _UpgradeHintCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Semantics(
       button: true,
-      label: 'Gợi ý nâng gói. Chạm để xem gói phù hợp.',
+      label: l10n.subscriptionSuggestUpgrade,
       child: Material(
         color: StyleTokens.buttonPrimary.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
@@ -479,7 +798,7 @@ class _UpgradeHintCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Nhóm đang dùng gần hết quota. Nâng gói giúp gia đình theo dõi ổn định hơn.',
+                    l10n.subscriptionQuotaLowWarning,
                     style: StyleTokens.bodySmall().copyWith(
                       color: StyleTokens.textPrimary,
                     ),
@@ -489,6 +808,39 @@ class _UpgradeHintCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RevenueCatDisabledCard extends StatelessWidget {
+  const _RevenueCatDisabledCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return _SectionCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.info_outline,
+              color: StyleTokens.buttonPrimary,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              l10n.subscriptionTemporaryUnavailable,
+              style: StyleTokens.bodySmall().copyWith(
+                color: StyleTokens.textPrimary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -514,6 +866,8 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
   AiseeRevenueCatPackageOption? _selected;
   String? _error;
   bool _buying = false;
+
+  AppLocalizations get l10n => AppLocalizations.of(context);
 
   @override
   void initState() {
@@ -548,7 +902,7 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
       if (AiseeRevenueCatService.hasAiSeePro(customerInfo)) {
         await widget.onPurchased(selected);
       } else {
-        AppToast.show('Giao dịch đã ghi nhận. AiSee đang đồng bộ.');
+        AppToast.show(l10n.subscriptionTransactionRecorded);
       }
     } on AiseeRevenueCatException catch (e) {
       if (!mounted || e.cancelled) return;
@@ -565,6 +919,12 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
     final double bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final List<AiseeRevenueCatPackageOption>? options = _options;
     final AiseeRevenueCatPackageOption? selected = _selected;
+    final bool canSubmit = _canSubmitSelectedPlan(
+      widget.overview,
+      selected,
+      buying: _buying,
+    );
+    final AppLocalizations l10n = this.l10n;
     return SizedBox(
       height: MediaQuery.sizeOf(context).height,
       child: Container(
@@ -592,7 +952,7 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          'Chọn gói chăm sóc',
+                          l10n.subscriptionChooseCarePlan,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 19,
                             fontWeight: FontWeight.w800,
@@ -601,14 +961,16 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${widget.overview.careGroup.name} · thanh toán qua cửa hàng ứng dụng',
+                          l10n.subscriptionStorePaymentInfo(
+                            widget.overview.careGroup.name,
+                          ),
                           style: StyleTokens.bodySmall(),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Đóng',
+                    tooltip: l10n.subscriptionClose,
                     onPressed: _buying
                         ? null
                         : () => Navigator.of(context).pop(),
@@ -632,7 +994,21 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
                         child: _PlanOptionCard(
                           option: options[index],
                           selected: options[index] == selected,
-                          onTap: _buying
+                          enabled: canUpgradeToSubscriptionProduct(
+                            widget.overview,
+                            options[index].product,
+                          ),
+                          hint: _planOptionHintLocalized(
+                            widget.overview,
+                            options[index].product,
+                            l10n,
+                          ),
+                          onTap:
+                              _buying ||
+                                  !canUpgradeToSubscriptionProduct(
+                                    widget.overview,
+                                    options[index].product,
+                                  )
                               ? null
                               : () {
                                   HapticFeedback.selectionClick();
@@ -656,16 +1032,23 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
               ),
               const SizedBox(height: 12),
               _PrimaryButton(
-                label: _buying
-                    ? 'Đang xử lý...'
-                    : selected == null
-                    ? 'Đang tải gói...'
-                    : 'Tiếp tục với ${planNameForProduct(selected.product)}',
-                onTap: _buying || selected == null ? () {} : _buySelected,
+                label: _planPickerActionLabel(
+                  widget.overview,
+                  selected,
+                  buying: _buying,
+                  processingLabel: l10n.subscriptionProcessing,
+                  chooseToContinueLabel: l10n.subscriptionChooseToContinue,
+                  alreadyHighestLabel: l10n.subscriptionAlreadyHighest,
+                  alreadyUsingLabel: l10n.subscriptionAlreadyUsing,
+                  upgradeOnlyLabel: l10n.subscriptionUpgradeOnly,
+                  continueWithTemplate: l10n.subscriptionContinueWith('{plan}'),
+                ),
+                onTap: canSubmit ? _buySelected : () {},
+                enabled: canSubmit,
               ),
               const SizedBox(height: 8),
               Text(
-                'Giá VND theo bảng gói AiSee. Thanh toán, gia hạn và hủy gói vẫn được xử lý qua cửa hàng ứng dụng.',
+                l10n.subscriptionPriceNoteVND,
                 textAlign: TextAlign.center,
                 style: StyleTokens.bodySmall().copyWith(fontSize: 11),
               ),
@@ -685,13 +1068,14 @@ class _ExpandedPlanDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           _SectionTitle(
             icon: Icons.checklist,
-            title: 'Tính năng trong gói',
+            title: l10n.subscriptionFeaturesInPlan,
             trailing: _PlanDetailBadges(
               current: current,
               popular: _isPopular(product),
@@ -704,6 +1088,7 @@ class _ExpandedPlanDetails extends StatelessWidget {
                 children: <Widget>[
                   for (final _PlanFeatureLine feature in _planExpandedFeatures(
                     product,
+                    l10n,
                   ))
                     _PlanFeatureToggle(feature: feature),
                 ],
@@ -731,13 +1116,14 @@ class _PlanDetailBadges extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     if (!current && !popular) return const SizedBox.shrink();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        if (current) const _SmallPill(label: 'Đang dùng'),
+        if (current) _SmallPill(label: l10n.subscriptionUsing),
         if (current && popular) const SizedBox(width: 6),
-        if (popular) const _SmallPill(label: 'Phù hợp'),
+        if (popular) _SmallPill(label: l10n.subscriptionSuitable),
       ],
     );
   }
@@ -821,15 +1207,20 @@ class _PlanOptionCard extends StatelessWidget {
   const _PlanOptionCard({
     required this.option,
     required this.selected,
+    required this.enabled,
     required this.onTap,
+    this.hint,
   });
 
   final AiseeRevenueCatPackageOption option;
   final bool selected;
+  final bool enabled;
   final VoidCallback? onTap;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final Color border = selected
         ? StyleTokens.buttonPrimary
         : StyleTokens.cardBorder;
@@ -839,10 +1230,11 @@ class _PlanOptionCard extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
+      enabled: enabled,
       label:
           '${planNameForProduct(option.product)} ${_fallbackVndPrice(option.product)}',
       child: Material(
-        color: surface,
+        color: enabled ? surface : surface.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
@@ -861,21 +1253,41 @@ class _PlanOptionCard extends StatelessWidget {
                       ? Icons.radio_button_checked
                       : Icons.radio_button_unchecked,
                   size: 22,
-                  color: selected
+                  color: !enabled
+                      ? StyleTokens.textMuted.withValues(alpha: 0.7)
+                      : selected
                       ? StyleTokens.buttonPrimary
                       : StyleTokens.textMuted,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    planNameForProduct(option.product),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: StyleTokens.textPrimary,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        planNameForProduct(option.product),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: enabled
+                              ? StyleTokens.textPrimary
+                              : StyleTokens.textSecondary,
+                        ),
+                      ),
+                      if (hint != null) ...<Widget>[
+                        const SizedBox(height: 3),
+                        Text(
+                          hint!,
+                          style: StyleTokens.bodySmall().copyWith(
+                            fontSize: 11,
+                            color: StyleTokens.textMuted,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -889,11 +1301,13 @@ class _PlanOptionCard extends StatelessWidget {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: StyleTokens.buttonPrimary,
+                        color: enabled
+                            ? StyleTokens.buttonPrimary
+                            : StyleTokens.textMuted,
                       ),
                     ),
                     Text(
-                      '/ tháng',
+                      l10n.subscriptionPriceMonthSuffix,
                       style: StyleTokens.bodySmall().copyWith(fontSize: 12),
                     ),
                   ],
@@ -1047,22 +1461,26 @@ class _QuotaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final List<AiseeUsageQuota> sorted = <AiseeUsageQuota>[...quotas]
       ..sort((a, b) => a.usageType.compareTo(b.usageType));
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const _SectionTitle(icon: Icons.speed, title: 'Quota còn lại'),
+          _SectionTitle(
+            icon: Icons.speed,
+            title: l10n.subscriptionQuotaRemaining,
+          ),
           const SizedBox(height: 8),
           if (sorted.isEmpty)
-            Text('Chưa có quota sử dụng.', style: StyleTokens.bodySmall())
+            Text(l10n.subscriptionNoQuota, style: StyleTokens.bodySmall())
           else
             for (final AiseeUsageQuota quota in sorted)
               _InfoRow(
-                title: _quotaLabel(quota.usageType),
+                title: _quotaLabel(quota.usageType, l10n),
                 value: quota.unlimited
-                    ? 'Không giới hạn hợp lý'
+                    ? l10n.subscriptionUnlimitedReasonable
                     : '${_trimNumber(quota.remaining)} / '
                           '${_trimNumber(quota.limit + quota.granted)} '
                           '${quota.unit ?? ''}',
@@ -1082,14 +1500,17 @@ class _EntitlementsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<_FeatureLine> features = _knownFeatures
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final List<_FeatureLine> features = _getKnownFeatures(l10n)
         .where(
           (feature) => overview.entitlementEnabled(feature.key) == showEnabled,
         )
         .toList();
     return _CollapsibleSectionCard(
       icon: showEnabled ? Icons.verified : Icons.lock,
-      title: showEnabled ? 'Quyền đang có' : 'Tính năng bị khóa',
+      title: showEnabled
+          ? l10n.subscriptionActiveEntitlements
+          : l10n.subscriptionLockedFeatures,
       trailing: _SmallPill(label: features.length.toString()),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1097,8 +1518,8 @@ class _EntitlementsCard extends StatelessWidget {
           if (features.isEmpty)
             Text(
               showEnabled
-                  ? 'Chưa có quyền nào được bật.'
-                  : 'Không có tính năng khóa trong gói này.',
+                  ? l10n.subscriptionNoEntitlements
+                  : l10n.subscriptionNoLockedFeatures,
               style: StyleTokens.bodySmall(),
             )
           else
@@ -1117,24 +1538,71 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return _CollapsibleSectionCard(
       icon: Icons.receipt_long,
-      title: 'Lịch sử gói',
+      title: l10n.subscriptionPlanHistory,
       trailing: _SmallPill(label: events.length.toString()),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           if (events.isEmpty)
-            Text(
-              'Chưa có lịch sử hóa đơn hoặc thay đổi gói.',
-              style: StyleTokens.bodySmall(),
-            )
+            Text(l10n.subscriptionNoHistory, style: StyleTokens.bodySmall())
           else
             for (final AiseeSubscriptionEvent event in events.take(5))
               _InfoRow(
-                title: _eventLabel(event.eventType),
+                title: _eventLabelLocalized(event.eventType, l10n),
                 value: _eventDetail(event),
               ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvoicePlaceholderCard extends StatelessWidget {
+  const _InvoicePlaceholderCard({
+    required this.overview,
+    required this.revenueCatEnabled,
+  });
+
+  final AiseeBillingOverview overview;
+  final bool revenueCatEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            l10n.subscriptionInvoiceDetail,
+            style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            revenueCatEnabled
+                ? l10n.subscriptionInvoicePlaceholder
+                : l10n.subscriptionBillingHistoryPlaceholder,
+            style: StyleTokens.bodySmall(),
+          ),
+          const SizedBox(height: 12),
+          if (revenueCatEnabled &&
+              overview.storeManagement.manageUrl != null &&
+              overview.storeManagement.manageUrl!.isNotEmpty)
+            _SecondaryButton(
+              label: l10n.subscriptionOpenStoreManagement,
+              onTap: () async {
+                final Uri u = Uri.parse(overview.storeManagement.manageUrl!);
+                if (await canLaunchUrl(u)) {
+                  await launchUrl(u, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
         ],
       ),
     );
@@ -1144,46 +1612,68 @@ class _HistoryCard extends StatelessWidget {
 class _StoreCard extends StatelessWidget {
   const _StoreCard({
     required this.overview,
+    required this.revenueCatEnabled,
+    required this.canManageStore,
     required this.onManage,
     required this.onCustomerCenter,
     required this.onRestore,
   });
 
   final AiseeBillingOverview overview;
+  final bool revenueCatEnabled;
+  final bool canManageStore;
   final VoidCallback onManage;
   final VoidCallback onCustomerCenter;
   final VoidCallback onRestore;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const _SectionTitle(
+          _SectionTitle(
             icon: Icons.storefront,
-            title: 'Quản lý subscription',
+            title: l10n.subscriptionManageSubscription,
           ),
           const SizedBox(height: 8),
           Text(
-            overview.storeManagement.instructions,
+            revenueCatEnabled
+                ? overview.storeManagement.instructions
+                : l10n.subscriptionTemporaryUnavailable,
             style: StyleTokens.bodySmall(),
           ),
-          if (overview.subscription != null) ...<Widget>[
+          if (canManageStore && overview.subscription != null) ...<Widget>[
             const SizedBox(height: 14),
             _SecondaryButton(
-              label: 'Mở trung tâm khách hàng',
+              label: l10n.subscriptionOpenCustomerCenter,
               onTap: onCustomerCenter,
             ),
             const SizedBox(height: 10),
-            _SecondaryButton(label: 'Mở trang quản lý store', onTap: onManage),
+            _SecondaryButton(
+              label: l10n.subscriptionOpenStorePage,
+              onTap: onManage,
+            ),
           ],
-          const SizedBox(height: 10),
-          _SecondaryButton(label: 'Đồng bộ giao dịch', onTap: onRestore),
+          if (canManageStore) ...<Widget>[
+            const SizedBox(height: 10),
+            _SecondaryButton(
+              label: l10n.subscriptionSyncTransactions,
+              onTap: onRestore,
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+class _BillingScreenContext {
+  const _BillingScreenContext({this.careGroupId, this.caredUserId});
+
+  final String? careGroupId;
+  final String? caredUserId;
 }
 
 class _SectionCard extends StatelessWidget {
@@ -1390,25 +1880,35 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({required this.label, required this.onTap});
+  const _PrimaryButton({
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: StyleTokens.buttonPrimary,
+      color: enabled
+          ? StyleTokens.buttonPrimary
+          : StyleTokens.cardBorder.withValues(alpha: 0.9),
       borderRadius: BorderRadius.circular(31),
       child: InkWell(
         borderRadius: BorderRadius.circular(31),
-        onTap: onTap,
+        onTap: enabled ? onTap : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
           child: Center(
             child: Text(
               label,
-              style: StyleTokens.socialLabel().copyWith(fontSize: 13),
+              style: StyleTokens.socialLabel().copyWith(
+                fontSize: 13,
+                color: enabled ? StyleTokens.background : StyleTokens.textMuted,
+              ),
             ),
           ),
         ),
@@ -1457,47 +1957,55 @@ class _FeatureLine {
   final String description;
 }
 
-const List<_FeatureLine> _knownFeatures = <_FeatureLine>[
-  _FeatureLine('sos_enabled', 'SOS khẩn cấp', 'Gửi cảnh báo tới người thân.'),
-  _FeatureLine(
-    'medication_reminders_enabled',
-    'Nhắc thuốc',
-    'Theo dõi lịch uống thuốc và lịch khám.',
-  ),
-  _FeatureLine(
-    'daily_brief_enabled',
-    'Tóm tắt hằng ngày',
-    'Gia đình nhận tóm tắt chăm sóc trong ngày.',
-  ),
-  _FeatureLine(
-    'weekly_report_enabled',
-    'Báo cáo tuần',
-    'Tổng hợp xu hướng sức khỏe và hoạt động.',
-  ),
-  _FeatureLine(
-    'weekly_report_pdf_enabled',
-    'Xuất báo cáo PDF',
-    'Tải báo cáo chăm sóc để lưu hoặc gửi bác sĩ.',
-  ),
-  _FeatureLine(
-    'smart_alert_enabled',
-    'Cảnh báo thông minh',
-    'Nhận tín hiệu bất thường chủ động hơn.',
-  ),
-  _FeatureLine(
-    'incident_report_enabled',
-    'Báo cáo sự cố',
-    'Lưu lại các sự kiện cần gia đình theo dõi.',
-  ),
-  _FeatureLine(
-    'priority_support_enabled',
-    'Hỗ trợ ưu tiên',
-    'Ưu tiên xử lý khi cần hỗ trợ.',
-  ),
-];
+List<_FeatureLine> _getKnownFeatures(AppLocalizations l) {
+  return <_FeatureLine>[
+    _FeatureLine(
+      'sos_enabled',
+      l.subscriptionDavoFeaturesSos,
+      l.subscriptionDavoFeaturesSosDesc,
+    ),
+    _FeatureLine(
+      'medication_reminders_enabled',
+      l.subscriptionDavoFeaturesMeds,
+      l.subscriptionDavoFeaturesMedsDesc,
+    ),
+    _FeatureLine(
+      'daily_brief_enabled',
+      l.subscriptionDavoFeaturesDailyBrief,
+      l.subscriptionDavoFeaturesDailyBriefDesc,
+    ),
+    _FeatureLine(
+      'weekly_report_enabled',
+      l.subscriptionDavoFeaturesWeeklyReport,
+      l.subscriptionDavoFeaturesWeeklyReportDesc,
+    ),
+    _FeatureLine(
+      'weekly_report_pdf_enabled',
+      l.subscriptionDavoFeaturesPdfExport,
+      l.subscriptionDavoFeaturesPdfExportDesc,
+    ),
+    _FeatureLine(
+      'smart_alert_enabled',
+      l.subscriptionDavoFeaturesSmartAlert,
+      l.subscriptionDavoFeaturesSmartAlertDesc,
+    ),
+    _FeatureLine(
+      'incident_report_enabled',
+      l.subscriptionDavoFeaturesIncidentReport,
+      l.subscriptionDavoFeaturesIncidentReportDesc,
+    ),
+    _FeatureLine(
+      'priority_support_enabled',
+      l.subscriptionDavoFeaturesPrioritySupport,
+      l.subscriptionDavoFeaturesPrioritySupportDesc,
+    ),
+  ];
+}
 
-String _formatPrice(AiseeBillingPlan plan) {
-  if (plan.priceVnd == 0) return 'Miễn phí';
+String _formatPrice(AiseeBillingPlan plan, AppLocalizations l) {
+  if (plan.priceVnd == 0) {
+    return l.subscriptionFree;
+  }
   final String raw = plan.priceVnd.toString();
   final StringBuffer buffer = StringBuffer();
   for (int i = 0; i < raw.length; i++) {
@@ -1505,71 +2013,87 @@ String _formatPrice(AiseeBillingPlan plan) {
     buffer.write(raw[i]);
     if (remaining > 1 && remaining % 3 == 1) buffer.write('.');
   }
-  return '${buffer.toString()}đ / tháng';
+  return l.subscriptionVndPricePerMonth(buffer.toString());
 }
 
-String _quotaLabel(String usageType) {
+String _quotaLabel(String usageType, AppLocalizations l) {
   switch (usageType) {
     case 'ai_minutes':
-      return 'Phút AI';
+    case 'ai_minutes_per_month':
+      return l.localeName.startsWith('vi') ? 'Phút AI' : 'AI minutes';
     case 'camera_activations':
-      return 'Lượt camera';
+    case 'camera_activations_per_day':
+      return l.localeName.startsWith('vi')
+          ? 'Lượt camera'
+          : 'Camera activations';
     case 'voice_call_minutes':
-      return 'Phút gọi thoại';
+    case 'voice_calls':
+    case 'voice_calls_enabled':
+      return l.localeName.startsWith('vi')
+          ? 'Phút gọi thoại'
+          : 'Voice call minutes';
     case 'video_call_minutes':
-      return 'Phút gọi video';
+    case 'video_calls':
+    case 'video_calls_enabled':
+    case 'video_calls_per_day':
+      return l.localeName.startsWith('vi')
+          ? 'Phút gọi video'
+          : 'Video call minutes';
     case 'pdf_exports':
-      return 'Xuất PDF';
+    case 'care_pdf_exports':
+    case 'csv_exports_per_month':
+      return l.localeName.startsWith('vi') ? 'Xuất PDF' : 'PDF export';
     case 'care_coach_questions':
-      return 'Câu hỏi chăm sóc';
+      return l.localeName.startsWith('vi')
+          ? 'Câu hỏi chăm sóc'
+          : 'Care questions';
     case 'pattern_detection_runs':
-      return 'Phân tích xu hướng';
+      return l.localeName.startsWith('vi')
+          ? 'Phân tích xu hướng'
+          : 'Trend analysis';
     default:
       return usageType;
   }
 }
 
-String _eventLabel(String eventType) {
+String _eventLabelLocalized(String eventType, AppLocalizations l10n) {
   final String normalized = _normalizedEventType(eventType);
   switch (normalized) {
     case 'initial_purchase':
     case 'started':
     case 'start':
-      return 'Bắt đầu gói';
+    case 'subscription_started':
+      return l10n.subscriptionPlanStarted;
     case 'renewal':
     case 'renewed':
-      return 'Gia hạn gói';
+    case 'subscription_renewed':
+      return l10n.subscriptionPlanRenewed;
     case 'cancellation':
     case 'canceled':
     case 'cancelled':
-      return 'Hủy gia hạn';
+      return l10n.subscriptionPlanRenewalOff;
     case 'expiration':
     case 'expired':
-      return 'Gói hết hạn';
+      return l10n.subscriptionPlanExpired;
     case 'product_change':
     case 'changed':
-      return 'Đổi gói';
+    case 'subscription_changed':
+      return l10n.subscriptionPlanChanged;
     case 'uncancellation':
-      return 'Bật lại gia hạn';
+      return l10n.subscriptionPlanRenewalOn;
     case 'billing_issue':
-      return 'Lỗi thanh toán';
+      return l10n.subscriptionPlanBillingError;
     case 'subscription_paused':
     case 'paused':
-      return 'Tạm dừng gói';
+      return l10n.subscriptionPlanPaused;
     case 'non_renewing_purchase':
-      return 'Mua gói không gia hạn';
+      return l10n.subscriptionPlanPurchasedNonRenewing;
     case 'transfer':
-      return 'Chuyển quyền mua';
+      return l10n.subscriptionPlanOwnershipTransferred;
     case 'subscriber_alias':
-      return 'Liên kết tài khoản mua';
-    case 'subscription_renewed':
-      return 'Gia hạn gói';
-    case 'subscription_started':
-      return 'Bắt đầu gói';
+      return l10n.subscriptionPlanAccountLinked;
     case 'subscription_canceled':
-      return 'Hủy gói';
-    case 'subscription_changed':
-      return 'Đổi gói';
+      return l10n.subscriptionPlanCancelled;
     default:
       return _humanizeEventType(normalized);
   }
@@ -1594,7 +2118,7 @@ String _normalizedEventType(String eventType) {
 }
 
 String _humanizeEventType(String eventType) {
-  if (eventType.isEmpty) return 'Cập nhật gói';
+  if (eventType.isEmpty) return 'plan_updated'; // resolved by caller
   final String spaced = eventType.replaceAll('_', ' ');
   return spaced[0].toUpperCase() + spaced.substring(1);
 }
@@ -1608,7 +2132,7 @@ String _providerLabel(String? provider) {
     case 'revenuecat':
       return 'RevenueCat';
     case 'manual':
-      return 'Cấp thủ công';
+      return 'granted_manually'; // key
     case '':
       return 'AiSee';
     default:
@@ -1638,67 +2162,66 @@ String planNameForProduct(AiseeRevenueCatProduct product) {
   }
 }
 
-List<_PlanFeatureLine> _planExpandedFeatures(AiseeRevenueCatProduct product) {
+List<_PlanFeatureLine> _planExpandedFeatures(
+  AiseeRevenueCatProduct product,
+  AppLocalizations l,
+) {
   switch (product) {
     case AiseeRevenueCatProduct.basic149k:
-      return const <_PlanFeatureLine>[
+      return <_PlanFeatureLine>[
         _PlanFeatureLine(
-          title: '150 phút AI mỗi tháng',
-          detail:
-              'Phù hợp cho một người dùng chính với nhu cầu theo dõi cơ bản.',
+          title: l.subscriptionPlanFeatureBasic1,
+          detail: l.subscriptionPlanFeatureBasic1Desc,
         ),
         _PlanFeatureLine(
-          title: '3 lần bật camera mỗi ngày',
-          detail: 'Kiểm tra nhanh tình huống khi người dùng cần hỗ trợ.',
+          title: l.subscriptionPlanFeatureBasic2,
+          detail: l.subscriptionPlanFeatureBasic2Desc,
         ),
         _PlanFeatureLine(
-          title: 'Timeline chăm sóc 7 ngày',
-          detail: 'Xem lại hoạt động gần đây của gia đình trong tuần.',
+          title: l.subscriptionPlanFeatureBasic3,
+          detail: l.subscriptionPlanFeatureBasic3Desc,
         ),
         _PlanFeatureLine(
-          title: '2 thành viên gia đình',
-          detail:
-              'Cho phép thêm người thân cùng theo dõi một người được chăm sóc.',
+          title: l.subscriptionPlanFeatureBasic4,
+          detail: l.subscriptionPlanFeatureBasic4Desc,
         ),
       ];
     case AiseeRevenueCatProduct.plus399k:
-      return const <_PlanFeatureLine>[
+      return <_PlanFeatureLine>[
         _PlanFeatureLine(
-          title: '600 phút AI mỗi tháng',
-          detail: 'Dư dùng hơn cho gia đình cần trợ lý hoạt động thường xuyên.',
+          title: l.subscriptionPlanFeaturePlus1,
+          detail: l.subscriptionPlanFeaturePlus1Desc,
         ),
         _PlanFeatureLine(
-          title: '20 lần bật camera mỗi ngày',
-          detail:
-              'Theo dõi linh hoạt hơn khi có nhiều tình huống cần kiểm tra.',
+          title: l.subscriptionPlanFeaturePlus2,
+          detail: l.subscriptionPlanFeaturePlus2Desc,
         ),
         _PlanFeatureLine(
-          title: 'Daily brief và weekly report',
-          detail: 'Tóm tắt chăm sóc định kỳ để gia đình nắm tình hình nhanh.',
+          title: l.subscriptionPlanFeaturePlus3,
+          detail: l.subscriptionPlanFeaturePlus3Desc,
         ),
         _PlanFeatureLine(
-          title: '5 thành viên, 3 người được chăm sóc',
-          detail: 'Phù hợp cho gia đình có nhiều người cùng quản lý.',
+          title: l.subscriptionPlanFeaturePlus4,
+          detail: l.subscriptionPlanFeaturePlus4Desc,
         ),
       ];
     case AiseeRevenueCatProduct.premium599k:
-      return const <_PlanFeatureLine>[
+      return <_PlanFeatureLine>[
         _PlanFeatureLine(
-          title: 'AI và camera fair use',
-          detail:
-              'Ưu tiên trải nghiệm gần như không giới hạn theo chính sách hợp lý.',
+          title: l.subscriptionPlanFeaturePremium1,
+          detail: l.subscriptionPlanFeaturePremium1Desc,
         ),
         _PlanFeatureLine(
-          title: 'Báo cáo nâng cao PDF/CSV',
-          detail: 'Xuất báo cáo chăm sóc để lưu trữ hoặc chia sẻ khi cần.',
+          title: l.subscriptionPlanFeaturePremium2,
+          detail: l.subscriptionPlanFeaturePremium2Desc,
         ),
         _PlanFeatureLine(
-          title: '10 thành viên, 4 người được chăm sóc',
-          detail: 'Dành cho nhóm gia đình lớn hoặc chăm sóc nhiều người.',
+          title: l.subscriptionPlanFeaturePremium3,
+          detail: l.subscriptionPlanFeaturePremium3Desc,
         ),
         _PlanFeatureLine(
-          title: 'Hỗ trợ ưu tiên và incident report',
-          detail: 'Tăng mức hỗ trợ vận hành khi có tình huống quan trọng.',
+          title: l.subscriptionPlanFeaturePremium4,
+          detail: l.subscriptionPlanFeaturePremium4Desc,
         ),
       ];
   }
@@ -1736,10 +2259,10 @@ bool _isCurrentPlan(
 ) {
   switch (product) {
     case AiseeRevenueCatProduct.basic149k:
-      return overview.effectivePlan.code == 'basic_149k';
+      return _currentPlanCode(overview) == 'basic_149k';
     case AiseeRevenueCatProduct.plus399k:
-      return overview.effectivePlan.code == 'plus_399k';
+      return _currentPlanCode(overview) == 'plus_399k';
     case AiseeRevenueCatProduct.premium599k:
-      return overview.effectivePlan.code == 'premium_599k';
+      return _currentPlanCode(overview) == 'premium_599k';
   }
 }

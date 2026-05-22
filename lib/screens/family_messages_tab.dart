@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
 import '../services/aisee_call_service.dart';
@@ -166,7 +167,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
       );
     } catch (e) {
       if (!mounted) return;
-      final String msg = 'Không tạo được cuộc gọi';
+      final String msg = AppLocalizations.of(context).familyMessagesCallFailed;
       AppToast.show(msg, isError: true);
     } finally {
       _callingInProgress = false;
@@ -175,16 +176,17 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(color: StyleTokens.buttonPrimary),
       );
     }
     if (_error != null) {
-      return Center(child: _buildErrorState());
+      return Center(child: _buildErrorState(l));
     }
     if (_members.isEmpty) {
-      return Center(child: _buildEmptyState());
+      return Center(child: _buildEmptyState(l));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -196,6 +198,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
           final member = _members[index];
           return _MemberCard(
             member: member,
+            l: l,
             onTap: () {
               HapticFeedback.lightImpact();
               Navigator.of(context).push(
@@ -244,7 +247,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(AppLocalizations l) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -269,7 +272,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Text(
-                'Thử lại',
+                l.familyMessagesRetry,
                 style: StyleTokens.socialLabel().copyWith(fontSize: 14),
               ),
             ),
@@ -279,7 +282,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(AppLocalizations l) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -293,7 +296,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
           ),
         ),
         const SizedBox(height: 12),
-        Text('Chưa có người thân để nhắn tin', style: StyleTokens.bodySmall()),
+        Text(l.familyMessagesEmpty, style: StyleTokens.bodySmall()),
       ],
     );
   }
@@ -304,12 +307,14 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
 class _MemberCard extends StatelessWidget {
   const _MemberCard({
     required this.member,
+    required this.l,
     required this.onTap,
     required this.onVoiceCall,
     required this.onVideoCall,
   });
 
   final AiseeFamilyMember member;
+  final AppLocalizations l;
   final VoidCallback onTap;
   final VoidCallback onVoiceCall;
   final VoidCallback onVideoCall;
@@ -318,7 +323,7 @@ class _MemberCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '${member.label}. Chạm để nhắn tin.',
+      label: '${member.label}. ${l.familyMessagesTapToChat}',
       child: Material(
         color: StyleTokens.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -351,7 +356,7 @@ class _MemberCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Chạm để nhắn tin',
+                        l.familyMessagesTapToChat,
                         style: StyleTokens.bodySmall().copyWith(
                           fontSize: 11,
                           color: StyleTokens.textMuted,
@@ -362,7 +367,7 @@ class _MemberCard extends StatelessWidget {
                 ),
                 Semantics(
                   button: true,
-                  label: 'Gọi thoại ${member.label}',
+                  label: l.familyMessagesVoiceCall(member.label),
                   child: IconButton(
                     icon: SvgPicture.asset(
                       'assets/icons/nav/ic_voice.svg',
@@ -373,13 +378,13 @@ class _MemberCard extends StatelessWidget {
                         BlendMode.srcIn,
                       ),
                     ),
-                    tooltip: 'Gọi thoại',
+                    tooltip: l.familyMessagesVoiceCallTooltip,
                     onPressed: onVoiceCall,
                   ),
                 ),
                 Semantics(
                   button: true,
-                  label: 'Gọi video ${member.label}',
+                  label: l.familyMessagesVideoCall(member.label),
                   child: IconButton(
                     icon: SvgPicture.asset(
                       'assets/icons/nav/ic_camera.svg',
@@ -390,7 +395,7 @@ class _MemberCard extends StatelessWidget {
                         BlendMode.srcIn,
                       ),
                     ),
-                    tooltip: 'Gọi video',
+                    tooltip: l.familyMessagesVideoCallTooltip,
                     onPressed: onVideoCall,
                   ),
                 ),

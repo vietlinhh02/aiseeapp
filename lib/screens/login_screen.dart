@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../auth/google_sign_in_web_button_stub.dart'
     if (dart.library.js_util) '../auth/google_sign_in_web_button_web.dart';
+import '../generated/l10n/app_localizations.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
 import '../widgets/google_g_logo.dart';
@@ -20,6 +21,7 @@ class LoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     final bool useWebButton =
         kIsWeb && !GoogleSignIn.instance.supportsAuthenticate();
 
@@ -44,7 +46,7 @@ class LoginScreen extends StatelessWidget {
                             const AppWordmark(fontSize: 36),
                             const SizedBox(height: 14),
                             Text(
-                              'Không chỉ nhìn thay bạn — hành động cùng bạn',
+                              l.loginTagline,
                               style: StyleTokens.bodySmall().copyWith(
                                 color: StyleTokens.textPrimary,
                                 fontWeight: FontWeight.w600,
@@ -55,9 +57,7 @@ class LoginScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'AiSee là trợ lý AI cho người suy giảm thị lực tại Việt Nam. '
-                              'Bạn chỉ cần nói — AiSee nghe, hiểu và thực hiện. '
-                              'Thiết kế ưu tiên giọng nói, hỗ trợ tiếng Việt.',
+                              l.loginIntro,
                               style: StyleTokens.bodySmall(),
                               textAlign: TextAlign.center,
                             ),
@@ -127,7 +127,7 @@ class LoginScreen extends StatelessWidget {
                                                 const GoogleGLogo(size: 22),
                                                 const SizedBox(width: 10),
                                                 Text(
-                                                  'Đăng nhập bằng Google',
+                                                  l.loginGoogleButton,
                                                   style:
                                                       StyleTokens.socialLabel(),
                                                   textAlign: TextAlign.center,
@@ -141,8 +141,7 @@ class LoginScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 22),
                             Text(
-                              'Đăng nhập bằng Google để vào ứng dụng. '
-                              'Chúng tôi dùng tài khoản Google để xác thực an toàn và đồng bộ hồ sơ của bạn.',
+                              l.loginGoogleHelp,
                               style: StyleTokens.bodySmall().copyWith(
                                 color: StyleTokens.textMuted,
                               ),
@@ -158,7 +157,7 @@ class LoginScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
                 child: Text(
-                  'Bằng việc đăng nhập, bạn đồng ý với điều khoản dịch vụ của Google và AiSee.',
+                  l.loginLegalNotice,
                   style: StyleTokens.legalMuted(),
                   textAlign: TextAlign.center,
                 ),

@@ -18,7 +18,7 @@ void main() {
   test('call join message falls back for unknown errors', () {
     expect(
       aiseeCallJoinErrorMessage(Exception('socket failed')),
-      'Không vào được cuộc gọi. Vui lòng thử lại.',
+      'callJoinFailed',
     );
   });
 }

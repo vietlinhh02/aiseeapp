@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_dashboard_models.dart';
 import '../theme/style_tokens.dart';
 import 'family_dashboard_format.dart';
@@ -23,64 +24,108 @@ class FamilyDashboardAuditTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const ColoredBox(
+        color: StyleTokens.background,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
     if (logs.isEmpty) {
-      return const Center(child: Text('Chưa có hoạt động nào'));
-    }
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: logs.length,
-        itemBuilder: (context, index) {
-          final log = logs[index];
-          return GestureDetector(
-            onTap: () => onLogTap(log),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: StyleTokens.surfaceCard,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  familyDashboardAuditIcon(log.toolName),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          log.toolLabel,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: StyleTokens.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          formatFamilyDashboardTime(log.createdAt),
-                          style: StyleTokens.bodySmall(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SvgPicture.asset(
-                    'assets/icons/nav/ic_arrow_right.svg',
-                    width: 20,
-                    height: 20,
-                    colorFilter: const ColorFilter.mode(
-                      StyleTokens.textMuted,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ],
+      final AppLocalizations l = AppLocalizations.of(context);
+      return ColoredBox(
+        color: StyleTokens.background,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              l.dashboardAuditEmpty,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: StyleTokens.textSecondary,
               ),
             ),
-          );
-        },
+          ),
+        ),
+      );
+    }
+    return ColoredBox(
+      color: StyleTokens.background,
+      child: RefreshIndicator(
+        onRefresh: onRefresh,
+        color: StyleTokens.buttonPrimary,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: logs.length,
+          itemBuilder: (context, index) {
+            final AuditLogEntry log = logs[index];
+            return GestureDetector(
+              onTap: () => onLogTap(log),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: StyleTokens.surfaceCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: StyleTokens.cardBorder),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: StyleTokens.textPrimary.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    familyDashboardAuditIcon(log.toolName),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            log.toolLabel,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: StyleTokens.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            log.activitySubtitle,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              height: 1.35,
+                              color: StyleTokens.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            formatFamilyDashboardTime(log.createdAt),
+                            style: StyleTokens.bodySmall(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SvgPicture.asset(
+                      'assets/icons/nav/ic_arrow_right.svg',
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        StyleTokens.textMuted,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -112,10 +157,14 @@ Widget familyDashboardAuditIcon(String toolName) {
   if (n.contains('medication') || n.contains('med')) {
     return _auditSvg('assets/icons/nav/ic_heart.svg', const Color(0xFF6A1B9A));
   }
-  return _auditSvg('assets/icons/nav/ic_time_circle.svg', StyleTokens.textMuted);
+  return _auditSvg(
+    'assets/icons/nav/ic_time_circle.svg',
+    StyleTokens.textMuted,
+  );
 }
 
 void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
+  final AppLocalizations l = AppLocalizations.of(context);
   showModalBottomSheet<void>(
     context: context,
     shape: const RoundedRectangleBorder(
@@ -146,9 +195,18 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
               color: StyleTokens.textPrimary,
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            log.activitySubtitle,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              height: 1.4,
+              color: StyleTokens.textSecondary,
+            ),
+          ),
           const SizedBox(height: 16),
           Text(
-            'Thời gian: ${formatFamilyDashboardTime(log.createdAt)}',
+            l.dashboardAuditTime(formatFamilyDashboardTime(log.createdAt)),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               color: StyleTokens.textSecondary,
@@ -157,9 +215,11 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
           if (log.params.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              'Chi tiết: ${log.params.entries.map(
-                    (e) => '${e.key}: ${e.value}',
-                  ).join(', ')}',
+              l.dashboardAuditDetails(
+                log.params.entries
+                    .map((e) => '${e.key}: ${e.value}')
+                    .join(', '),
+              ),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 color: StyleTokens.textSecondary,
@@ -169,7 +229,7 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
           if (log.result != null) ...[
             const SizedBox(height: 8),
             Text(
-              'Kết quả: ${log.result}',
+              l.dashboardAuditResult(log.result!),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 color: StyleTokens.textSecondary,
@@ -186,10 +246,8 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
               ),
               onPressed: () => Navigator.pop(ctx),
               child: Text(
-                'Đóng',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w600,
-                ),
+                l.dashboardClose,
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
               ),
             ),
           ),

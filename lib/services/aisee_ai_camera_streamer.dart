@@ -160,7 +160,9 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
         unawaited(_deleteCaptureFile(file.path));
       }
     } on CameraException catch (error) {
-      debugPrint('[AiSee:AICamera] capture failed: ${error.code} ${error.description}');
+      debugPrint(
+        '[AiSee:AICamera] capture failed: ${error.code} ${error.description}',
+      );
     } catch (error, stackTrace) {
       debugPrint('[AiSee:AICamera] capture failed: $error\n$stackTrace');
     } finally {

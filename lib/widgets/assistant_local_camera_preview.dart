@@ -21,10 +21,7 @@ class AssistantLiveCameraBackdrop extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(_radius),
-          border: Border.all(
-            color: StyleTokens.navGlassBorder,
-            width: 1.5,
-          ),
+          border: Border.all(color: StyleTokens.navGlassBorder, width: 1.5),
           boxShadow: const <BoxShadow>[
             BoxShadow(
               color: Color(0x40000000),

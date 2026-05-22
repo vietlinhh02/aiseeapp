@@ -20,6 +20,7 @@ class AiseeIncomingCall {
     Map<String, dynamic> payload, {
     required AiseeIncomingCallSource source,
     DateTime? receivedAt,
+    String callerNameFallback = 'Người gọi',
   }) {
     final Map<String, dynamic> data = _flattenPayload(payload);
 
@@ -72,7 +73,7 @@ class AiseeIncomingCall {
       token: token,
       callType: callType.isNotEmpty ? callType : 'voice',
       callerId: callerId,
-      callerName: callerName.isNotEmpty ? callerName : 'Người gọi',
+      callerName: callerName.isNotEmpty ? callerName : callerNameFallback,
       callerAvatarUrl: callerAvatarUrl.isEmpty ? null : callerAvatarUrl,
       source: source,
       receivedAt: receivedAt ?? DateTime.now(),

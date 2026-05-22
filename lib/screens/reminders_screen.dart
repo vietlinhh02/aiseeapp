@@ -11,6 +11,7 @@ import '../services/aisee_health_service.dart';
 import '../services/aisee_reminder_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import '../generated/l10n/app_localizations.dart';
 
 enum ReminderFilter { all, medication, appointment, health }
 
@@ -34,6 +35,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
   List<Map<String, dynamic>> _healthLogs = <Map<String, dynamic>>[];
   bool _loading = true;
   String? _error;
+
+  AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   @override
   void initState() {
@@ -68,7 +71,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e is AiseeApiException ? e.message : 'Không tải được dữ liệu.';
+        _error = e is AiseeApiException ? e.message : l10n.remindersLoadFailed;
       });
     } finally {
       svc.close();
@@ -87,13 +90,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
   String get _title {
     switch (widget.initialFilter) {
       case ReminderFilter.medication:
-        return 'Lịch uống thuốc';
+        return l10n.remindersMedication;
       case ReminderFilter.appointment:
-        return 'Lịch hẹn';
+        return l10n.personalAppointmentsTitle;
       case ReminderFilter.health:
-        return 'Nhật ký sức khỏe';
+        return l10n.personalHealthLogTitle;
       case ReminderFilter.all:
-        return 'Nhắc nhở';
+        return 'Reminders';
     }
   }
 
@@ -136,7 +139,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         key: const ValueKey<String>('error'),
         iconAsset: 'assets/icons/nav/ic_danger_circle.svg',
         message: _error!,
-        actionLabel: 'Thử lại',
+        actionLabel: l10n.remindersRetry,
         onAction: _load,
         color: StyleTokens.error,
       );
@@ -171,12 +174,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
         _summaryBand(
           primaryCount: meds.length,
           secondaryCount: appts.length,
-          primaryLabel: 'Thuốc',
-          secondaryLabel: 'Lịch hẹn',
+          primaryLabel: l10n.remindersMedication,
+          secondaryLabel: l10n.personalAppointmentsTitle,
         ),
         const SizedBox(height: 18),
         if (meds.isNotEmpty) ...<Widget>[
-          _sectionHeader('Lịch uống thuốc', 'assets/icons/nav/ic_heart.svg'),
+          _sectionHeader(
+            l10n.personalMedicationTitle,
+            'assets/icons/nav/ic_heart.svg',
+          ),
           const SizedBox(height: 10),
           for (int i = 0; i < meds.length; i++) ...<Widget>[
             _animatedListItem(
@@ -188,7 +194,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
           const SizedBox(height: 24),
         ],
         if (appts.isNotEmpty) ...<Widget>[
-          _sectionHeader('Lịch hẹn', 'assets/icons/nav/ic_calendar.svg'),
+          _sectionHeader(
+            l10n.personalAppointmentsTitle,
+            'assets/icons/nav/ic_calendar.svg',
+          ),
           const SizedBox(height: 10),
           for (int i = 0; i < appts.length; i++) ...<Widget>[
             _animatedListItem(
@@ -315,7 +324,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         item['local_id'] == widget.highlightedReminderId;
     return Semantics(
       button: true,
-      label: '$title. $subtitle. Chạm để xem chi tiết.',
+      label: l10n.remindersDetailSemantics(title, subtitle),
       child: Material(
         color: highlighted ? const Color(0xFFEAF0FA) : StyleTokens.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -391,11 +400,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
         _summaryBand(
           primaryCount: _healthLogs.length,
           secondaryCount: 0,
-          primaryLabel: 'Bản ghi',
-          secondaryLabel: 'Chờ xử lý',
+          primaryLabel: l10n.personalHealthLogTitle,
+          secondaryLabel: '0',
         ),
         const SizedBox(height: 18),
-        _sectionHeader('Nhật ký sức khỏe', 'assets/icons/nav/ic_activity.svg'),
+        _sectionHeader(
+          l10n.personalHealthLogTitle,
+          'assets/icons/nav/ic_activity.svg',
+        ),
         const SizedBox(height: 10),
         for (int i = 0; i < _healthLogs.length; i++) ...<Widget>[
           _animatedListItem(
@@ -414,7 +426,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     final bool isSymptom = kind == 'symptom';
     final String desc = isSymptom
         ? (log['symptom'] as String? ?? '')
-        : _metricTypeVi(log['metric_type'] as String? ?? '');
+        : _metricType(log['metric_type'] as String? ?? '');
     final String severity = log['severity'] as String? ?? '';
     final String value = log['value']?.toString() ?? '';
     final String unit = log['unit'] as String? ?? '';
@@ -491,7 +503,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                isSymptom ? 'Triệu chứng' : 'Chỉ số',
+                isSymptom ? l10n.healthSymptoms : l10n.healthMetrics,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
                   fontWeight: FontWeight.w500,
@@ -509,7 +521,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     return _buildStateMessage(
       key: const ValueKey<String>('empty-reminders'),
       iconAsset: 'assets/icons/nav/ic_calendar.svg',
-      message: 'Chưa có nhắc nhở nào.\nThêm bằng giọng nói hoặc cài đặt.',
+      message: l10n.remindersEmpty,
     );
   }
 
@@ -517,7 +529,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     return _buildStateMessage(
       key: const ValueKey<String>('empty-health'),
       iconAsset: 'assets/icons/nav/ic_activity.svg',
-      message: 'Nhật ký sức khỏe sẽ hiển thị\nkhi có dữ liệu ghi nhận.',
+      message: l10n.personalHealthLogSubtitle,
     );
   }
 
@@ -562,20 +574,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   // ── Helpers ──
 
-  static String _metricTypeVi(String type) {
+  String _metricType(String type) {
     switch (type) {
       case 'blood_pressure':
-        return 'Huyết áp';
+        return l10n.metricBloodPressure;
       case 'heart_rate':
-        return 'Nhịp tim';
+        return l10n.metricHeartRate;
       case 'temperature':
-        return 'Nhiệt độ';
+        return l10n.metricTemperature;
       case 'blood_sugar':
-        return 'Đường huyết';
+        return l10n.metricBloodSugar;
       case 'weight':
-        return 'Cân nặng';
+        return l10n.metricWeight;
       case 'height':
-        return 'Chiều cao';
+        return l10n.metricHeight;
       case 'spo2':
         return 'SpO2';
       default:
@@ -583,16 +595,16 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
-  static String _frequencyVi(String? freq) {
+  String _frequency(String? freq) {
     switch (freq?.toLowerCase()) {
       case 'daily':
-        return 'Hàng ngày';
+        return l10n.freqDaily;
       case 'weekly':
-        return 'Hàng tuần';
+        return l10n.freqWeekly;
       case 'monthly':
-        return 'Hàng tháng';
+        return l10n.freqMonthly;
       case 'twice_daily':
-        return '2 lần/ngày';
+        return l10n.freqTwiceDaily;
       default:
         return freq ?? '';
     }
@@ -606,7 +618,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     final List<String> times =
         (item['times'] as List<dynamic>?)?.cast<String>() ?? <String>[];
     final String dosage = item['dosage'] as String? ?? '';
-    final String freq = _frequencyVi(item['frequency'] as String?);
+    final String freq = _frequency(item['frequency'] as String?);
     final bool taken = item['taken'] == true;
     final bool skipped = item['skipped'] == true;
 
@@ -615,9 +627,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
     if (times.isNotEmpty) parts.add(times.join(', '));
     if (freq.isNotEmpty) parts.add(freq);
     if (taken) {
-      parts.add('✓ Đã uống');
+      parts.add(l10n.remindersTaken);
     } else if (skipped) {
-      parts.add('✗ Bỏ qua');
+      parts.add(l10n.remindersSkipped);
     }
     return parts.join(' · ');
   }
@@ -634,7 +646,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
           '${parsed.day.toString().padLeft(2, '0')}/'
           '${parsed.month.toString().padLeft(2, '0')}/'
           '${parsed.year}'
-          ' lúc ${parsed.hour.toString().padLeft(2, '0')}:'
+          '${l10n.reminderAtSeparator}${parsed.hour.toString().padLeft(2, '0')}:'
           '${parsed.minute.toString().padLeft(2, '0')}',
         );
       } catch (_) {
@@ -744,7 +756,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           Expanded(
                             child: _sheetAction(
                               ctx,
-                              label: 'Đã uống',
+                              label: l10n.remindersTakenStatus,
                               color: StyleTokens.buttonPrimary,
                               textColor: StyleTokens.buttonOnPrimary,
                               onTap: () {
@@ -757,7 +769,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           Expanded(
                             child: _sheetAction(
                               ctx,
-                              label: 'Bỏ qua',
+                              label: l10n.remindersSkippedStatus,
                               color: StyleTokens.background,
                               textColor: StyleTokens.textSecondary,
                               onTap: () {
@@ -772,7 +784,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     ],
                     _sheetAction(
                       ctx,
-                      label: 'Xoá nhắc nhở',
+                      label: l10n.remindersDeletePrompt,
                       color: const Color(0xFFFFEBEB),
                       textColor: StyleTokens.error,
                       onTap: () {

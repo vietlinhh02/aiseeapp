@@ -10,6 +10,54 @@ import 'package:purchases_flutter/models/store.dart';
 
 void main() {
   group('AiseeRevenueCatService', () {
+    test('disabled mode skips SDK bootstrap and logout calls', () async {
+      final _FakeRevenueCatClient client = _FakeRevenueCatClient(
+        initiallyConfigured: true,
+      );
+      final AiseeRevenueCatService service = AiseeRevenueCatService(
+        client: client,
+        apiKey: 'test_revenuecat_key',
+        enabled: false,
+      );
+
+      await service.identify(
+        const AiseeUserProfile(
+          id: 'user-123',
+          email: 'family@example.com',
+          displayName: 'Family Admin',
+        ),
+        careGroupId: 'care-group-456',
+      );
+      await service.logOut();
+
+      expect(service.isEnabled, isFalse);
+      expect(client.configuredApiKey, isNull);
+      expect(client.loginAppUserId, isNull);
+      expect(client.logOutCalls, 0);
+      expect(client.attributes, isEmpty);
+    });
+
+    test('disabled mode rejects interactive billing actions', () async {
+      final _FakeRevenueCatClient client = _FakeRevenueCatClient();
+      final AiseeRevenueCatService service = AiseeRevenueCatService(
+        client: client,
+        apiKey: 'test_revenuecat_key',
+        enabled: false,
+      );
+
+      await expectLater(
+        service.customerInfo(),
+        throwsA(
+          isA<AiseeRevenueCatException>().having(
+            (e) => e.message,
+            'message',
+            contains('không khả dụng'),
+          ),
+        ),
+      );
+      expect(client.customerInfoCalls, 0);
+    });
+
     test('uses the configured API key and AiSee Pro entitlement', () {
       final service = AiseeRevenueCatService(
         client: _FakeRevenueCatClient(),
@@ -150,6 +198,7 @@ void main() {
       );
 
       expect(client.customerInfoCalls, 1);
+      expect(client.syncCalls, 1);
       expect(client.restoreCalls, 0);
     });
 
@@ -245,7 +294,9 @@ class _FakeRevenueCatClient implements AiseeRevenueCatClient {
   String? email;
   String? displayName;
   int customerInfoCalls = 0;
+  int logOutCalls = 0;
   int restoreCalls = 0;
+  int syncCalls = 0;
   Map<String, String> attributes = <String, String>{};
 
   @override
@@ -260,6 +311,12 @@ class _FakeRevenueCatClient implements AiseeRevenueCatClient {
   @override
   Future<CustomerInfo> logIn(String appUserId) async {
     loginAppUserId = appUserId;
+    return _customerInfo(activePro: false);
+  }
+
+  @override
+  Future<CustomerInfo> logOut() async {
+    logOutCalls++;
     return _customerInfo(activePro: false);
   }
 
@@ -280,7 +337,9 @@ class _FakeRevenueCatClient implements AiseeRevenueCatClient {
   }
 
   @override
-  Future<void> syncPurchases() async {}
+  Future<void> syncPurchases() async {
+    syncCalls++;
+  }
 
   @override
   Future<void> setAttributes(Map<String, String> nextAttributes) async {

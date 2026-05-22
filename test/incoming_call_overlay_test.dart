@@ -1,3 +1,4 @@
+import 'package:aiseeapp/generated/l10n/app_localizations.dart';
 import 'package:aiseeapp/models/aisee_incoming_call.dart';
 import 'package:aiseeapp/services/incoming_call_controller.dart';
 import 'package:aiseeapp/widgets/incoming_call_overlay.dart';
@@ -104,6 +105,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: IncomingCallOverlayHost(
           controller: controller,
           child: const Scaffold(body: SizedBox.expand()),
@@ -142,6 +146,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: IncomingCallOverlayHost(
           controller: controller,
           onAccept: (AiseeIncomingCall call) async {
@@ -198,6 +205,9 @@ void main() {
 
     expect(declinedCall?.roomName, 'room-decline');
     expect(find.text('Linh'), findsNothing);
+
+    controller.dispose();
+    await tester.pump(const Duration(milliseconds: 200));
   });
 
   testWidgets('overlay works from MaterialApp builder', (
@@ -208,6 +218,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         builder: (BuildContext context, Widget? child) {
           return IncomingCallOverlayHost(
             controller: controller,
@@ -235,5 +248,6 @@ void main() {
     expect(find.text('Mia'), findsOneWidget);
 
     controller.dispose();
+    await tester.pump(const Duration(milliseconds: 200));
   });
 }

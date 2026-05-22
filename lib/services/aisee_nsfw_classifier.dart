@@ -40,7 +40,10 @@ class AiseeNsfwClassifier implements NsfwClassifier {
         );
       }
 
-      final interpreter = await Interpreter.fromAsset(_modelAsset, options: options);
+      final interpreter = await Interpreter.fromAsset(
+        _modelAsset,
+        options: options,
+      );
       return AiseeNsfwClassifier._(interpreter);
     } catch (e) {
       dev.log(
@@ -72,15 +75,12 @@ class AiseeNsfwClassifier implements NsfwClassifier {
   }
 
   @override
-  Future<double> classify(
-    Uint8List argbPixels,
-    int width,
-    int height,
-  ) async {
-    final input = await compute(
-      _preprocess,
-      (pixels: argbPixels, width: width, height: height),
-    );
+  Future<double> classify(Uint8List argbPixels, int width, int height) async {
+    final input = await compute(_preprocess, (
+      pixels: argbPixels,
+      width: width,
+      height: height,
+    ));
     return runInference(input);
   }
 
@@ -139,9 +139,7 @@ Float32List _imageToTfliteInput(img.Image source) {
 /// Preprocessing step that runs in an isolate via [compute].
 ///
 /// Decodes ARGB pixels, resizes to 224×224, and normalises to [0, 1].
-Float32List _preprocess(
-  ({Uint8List pixels, int width, int height}) data,
-) {
+Float32List _preprocess(({Uint8List pixels, int width, int height}) data) {
   final source = img.Image.fromBytes(
     width: data.width,
     height: data.height,

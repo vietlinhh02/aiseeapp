@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_incoming_call.dart';
 import '../services/incoming_call_controller.dart';
 import '../theme/style_tokens.dart';
@@ -50,7 +51,7 @@ class IncomingCallOverlayHost extends StatelessWidget {
   }
 }
 
-class _IncomingCallCard extends StatelessWidget {
+class _IncomingCallCard extends StatefulWidget {
   const _IncomingCallCard({
     required this.call,
     required this.onAccept,
@@ -62,7 +63,30 @@ class _IncomingCallCard extends StatelessWidget {
   final Future<void> Function() onDecline;
 
   @override
+  State<_IncomingCallCard> createState() => _IncomingCallCardState();
+}
+
+class _IncomingCallCardState extends State<_IncomingCallCard>
+    with TickerProviderStateMixin {
+  late final AnimationController _ripple = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat();
+  late final AnimationController _breathe = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ripple.dispose();
+    _breathe.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final AiseeIncomingCall call = widget.call;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
@@ -96,11 +120,11 @@ class _IncomingCallCard extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(22),
                   ),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
                   child: Row(
                     children: <Widget>[
-                      _CallerAvatar(call: call),
-                      const SizedBox(width: 12),
+                      _PulsingAvatar(call: call, ripple: _ripple),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -108,8 +132,12 @@ class _IncomingCallCard extends StatelessWidget {
                           children: <Widget>[
                             Text(
                               call.isVideo
-                                  ? 'Cuộc gọi video đến'
-                                  : 'Cuộc gọi thoại đến',
+                                  ? AppLocalizations.of(
+                                      context,
+                                    ).incomingVideoCall
+                                  : AppLocalizations.of(
+                                      context,
+                                    ).incomingVoiceCall,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.plusJakartaSans(
@@ -131,24 +159,29 @@ class _IncomingCallCard extends StatelessWidget {
                                 height: 1.18,
                               ),
                             ),
+                            const SizedBox(height: 4),
+                            _RingingDots(controller: _breathe),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       _CallActionButton(
-                        tooltip: 'Từ chối',
+                        tooltip: AppLocalizations.of(context).declineCall,
                         icon: Icons.call_end_rounded,
                         backgroundColor: const Color(0xFFE53935),
                         foregroundColor: Colors.white,
-                        onPressed: () => unawaited(onDecline()),
+                        onPressed: () => unawaited(widget.onDecline()),
                       ),
                       const SizedBox(width: 6),
-                      _CallActionButton(
-                        tooltip: 'Nghe',
-                        icon: Icons.call_rounded,
-                        backgroundColor: StyleTokens.buttonPrimary,
-                        foregroundColor: Colors.white,
-                        onPressed: () => unawaited(onAccept()),
+                      _BreathingButton(
+                        controller: _breathe,
+                        child: _CallActionButton(
+                          tooltip: 'Nghe',
+                          icon: Icons.call_rounded,
+                          backgroundColor: StyleTokens.buttonPrimary,
+                          foregroundColor: Colors.white,
+                          onPressed: () => unawaited(widget.onAccept()),
+                        ),
                       ),
                     ],
                   ),
@@ -158,6 +191,133 @@ class _IncomingCallCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PulsingAvatar extends StatelessWidget {
+  const _PulsingAvatar({required this.call, required this.ripple});
+
+  final AiseeIncomingCall call;
+  final AnimationController ripple;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 58,
+      height: 58,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          AnimatedBuilder(
+            animation: ripple,
+            builder: (BuildContext context, Widget? _) {
+              return CustomPaint(
+                size: const Size(58, 58),
+                painter: _RipplePainter(
+                  progress: ripple.value,
+                  color: StyleTokens.buttonPrimary,
+                ),
+              );
+            },
+          ),
+          _CallerAvatar(call: call),
+        ],
+      ),
+    );
+  }
+}
+
+class _RipplePainter extends CustomPainter {
+  _RipplePainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final double base = size.width / 2 - 6;
+    for (int i = 0; i < 2; i++) {
+      final double t = (progress + i * 0.5) % 1.0;
+      final double r = base + t * 14;
+      final double alpha = (1 - t) * 0.35;
+      if (alpha <= 0) continue;
+      final Paint paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = color.withValues(alpha: alpha);
+      canvas.drawCircle(center, r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RipplePainter old) =>
+      old.progress != progress || old.color != color;
+}
+
+class _BreathingButton extends StatelessWidget {
+  const _BreathingButton({required this.controller, required this.child});
+
+  final AnimationController controller;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (BuildContext context, Widget? c) {
+        final double t = Curves.easeInOut.transform(controller.value);
+        final double scale = 1.0 + 0.06 * t;
+        return Transform.scale(scale: scale, child: c);
+      },
+      child: child,
+    );
+  }
+}
+
+class _RingingDots extends StatelessWidget {
+  const _RingingDots({required this.controller});
+
+  final AnimationController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (BuildContext context, Widget? _) {
+        final int active = (controller.value * 3).floor() % 3;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              AppLocalizations.of(context).ringing,
+              style: GoogleFonts.plusJakartaSans(
+                color: StyleTokens.buttonPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                height: 1.0,
+              ),
+            ),
+            const SizedBox(width: 2),
+            for (int i = 0; i < 3; i++)
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Opacity(
+                  opacity: i <= active ? 1.0 : 0.25,
+                  child: Container(
+                    width: 3,
+                    height: 3,
+                    decoration: const BoxDecoration(
+                      color: StyleTokens.buttonPrimary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

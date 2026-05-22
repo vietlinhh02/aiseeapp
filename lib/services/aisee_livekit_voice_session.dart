@@ -315,7 +315,7 @@ class AiseeLiveKitVoiceSession {
     if (map == null) {
       throw AiseeApiException(
         'API /api/v1/calls/token trả 200 nhưng thân phản hồi trống hoặc không phải JSON object. '
-        'Kiểm tra handler backend (có gửi JSON chứa token không).',
+        'Kiểm tra phần xử lý của ứng dụng xem có gửi JSON chứa token không.',
       );
     }
 
@@ -344,7 +344,7 @@ class AiseeLiveKitVoiceSession {
       throw AiseeApiException(
         'Thiếu URL LiveKit: điền LIVEKIT_URL trong assets/app_config.env '
         'rồi chạy flutter clean && flutter run; hoặc '
-        '--dart-define=LIVEKIT_URL=wss://...; hoặc để backend trả url trong JSON.',
+        '--dart-define=LIVEKIT_URL=wss://...; hoặc để ứng dụng trả url trong JSON.',
       );
     }
     return LiveKitJoinCredentials(token: token, url: url, roomName: room);

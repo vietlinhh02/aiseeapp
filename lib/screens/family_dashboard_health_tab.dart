@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/aisee_dashboard_models.dart';
 import '../theme/style_tokens.dart';
+import '../generated/l10n/app_localizations.dart';
 import 'family_dashboard_format.dart';
 
 typedef HealthOverviewChartBuilder =
@@ -30,6 +31,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     if (loading) {
       return const ColoredBox(
         color: StyleTokens.background,
@@ -55,7 +57,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Không có dữ liệu',
+                  l10n.dashboardHealthNoData,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
@@ -65,7 +67,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Kéo xuống để tải lại.',
+                  l10n.dashboardHealthPullToRefresh,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
@@ -88,7 +90,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             Text(
-              'Theo dõi sức khỏe',
+              l10n.dashboardHealthTitle,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -98,7 +100,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Thuốc trong ngày, triệu chứng và chỉ số gần nhất.',
+              l10n.dashboardHealthSubtitle,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
@@ -114,35 +116,41 @@ class FamilyDashboardHealthTab extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             _HealthSectionHeader(
-              title: 'Thuốc hôm nay',
+              title: l10n.dashboardHealthMedsToday,
               iconAsset: _icCalendar,
             ),
             const SizedBox(height: 10),
             if (h.medications.isEmpty)
               _HealthEmptyCard(
-                message: 'Chưa có thuốc nào',
+                message: l10n.dashboardHealthNoMeds,
                 iconAsset: _icCalendar,
               )
             else
               ...h.medications.map(_MedAdherenceCard.new),
             const SizedBox(height: 22),
             _HealthSectionHeader(
-              title: 'Triệu chứng gần đây',
+              title: l10n.dashboardHealthRecentSymptoms,
               iconAsset: _icActivity,
             ),
             const SizedBox(height: 10),
             if (h.recentSymptoms.isEmpty)
               _HealthEmptyCard(
-                message: 'Không có triệu chứng',
+                message: l10n.dashboardHealthNoSymptoms,
                 iconAsset: _icActivity,
               )
             else
               ...h.recentSymptoms.map(_SymptomCard.new),
             const SizedBox(height: 22),
-            _HealthSectionHeader(title: 'Chỉ số sức khỏe', iconAsset: _icHeart),
+            _HealthSectionHeader(
+              title: l10n.dashboardHealthMetrics,
+              iconAsset: _icHeart,
+            ),
             const SizedBox(height: 10),
             if (h.recentMetrics.isEmpty)
-              _HealthEmptyCard(message: 'Không có chỉ số', iconAsset: _icHeart)
+              _HealthEmptyCard(
+                message: l10n.dashboardHealthNoMetrics,
+                iconAsset: _icHeart,
+              )
             else
               ...h.recentMetrics.map(_MetricCard.new),
           ],
@@ -283,6 +291,7 @@ class _HealthOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final takenCount = health.medications.where((m) => m.takenToday).length;
     final pendingCount = health.medications.length - takenCount;
     final symptomCount = health.recentSymptoms.length;
@@ -307,7 +316,7 @@ class _HealthOverviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tổng quan',
+            l10n.dashboardHealthOverview,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -332,25 +341,25 @@ class _HealthOverviewCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               _OverviewStatPill(
-                label: 'Đã uống hôm nay',
+                label: l10n.dashboardHealthTakenToday,
                 value: takenCount.toString(),
                 backgroundColor: const Color(0xFFE8F5E9),
                 foregroundColor: const Color(0xFF2E7D32),
               ),
               _OverviewStatPill(
-                label: 'Chưa uống',
+                label: l10n.dashboardHealthNotTaken,
                 value: pendingCount.toString(),
                 backgroundColor: const Color(0xFFFFF3E0),
                 foregroundColor: const Color(0xFFE65100),
               ),
               _OverviewStatPill(
-                label: 'Triệu chứng',
+                label: l10n.dashboardHealthSymptoms,
                 value: symptomCount.toString(),
                 backgroundColor: const Color(0xFFFFEBEE),
                 foregroundColor: const Color(0xFFC62828),
               ),
               _OverviewStatPill(
-                label: 'Chỉ số',
+                label: l10n.dashboardHealthMetricsPill,
                 value: metricCount.toString(),
                 backgroundColor: const Color(0xFFE3F2FD),
                 foregroundColor: StyleTokens.buttonPrimary,
@@ -405,6 +414,7 @@ class _MedAdherenceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final taken = m.takenToday;
     final statusBg = taken ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0);
     final statusFg = taken ? const Color(0xFF2E7D32) : const Color(0xFFE65100);
@@ -466,7 +476,9 @@ class _MedAdherenceCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        taken ? 'Đã uống' : 'Chưa uống',
+                        taken
+                            ? l10n.dashboardHealthTakenStatus
+                            : l10n.dashboardHealthNotTakenStatus,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -681,10 +693,10 @@ Map<String, dynamic> _overviewChartConfig({
   return {
     'type': 'bar',
     'data': {
-      'labels': ['Đã uống', 'Chưa uống', 'Triệu chứng', 'Chỉ số'],
+      'labels': ['Taken', 'Not taken', 'Symptoms', 'Metrics'],
       'datasets': [
         {
-          'label': 'Tổng quan sức khỏe',
+          'label': 'Health overview',
           'data': [takenCount, pendingCount, symptomCount, metricCount],
           'backgroundColor': [
             'rgba(46, 125, 50, 0.72)',

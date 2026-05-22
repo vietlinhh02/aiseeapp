@@ -29,8 +29,7 @@ class AiseeVoiceRecorder {
   bool get isRecording => _recording;
 
   Future<void> start() async {
-    final Directory tempDir =
-        await path_provider.getTemporaryDirectory();
+    final Directory tempDir = await path_provider.getTemporaryDirectory();
     _currentPath =
         '${tempDir.path}/aisee_voice_'
         '${DateTime.now().millisecondsSinceEpoch}.m4a';
@@ -50,40 +49,32 @@ class AiseeVoiceRecorder {
 
     // Poll amplitude every 50ms for waveform.
     _progressTimer?.cancel();
-    _progressTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (_) async {
-        final Amplitude amp = await _recorder.getAmplitude();
-        _progressController.add(RecordProgress(
-          duration: _stopwatch.elapsed,
-          decibels: amp.current,
-        ));
-      },
-    );
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 50), (
+      _,
+    ) async {
+      final Amplitude amp = await _recorder.getAmplitude();
+      _progressController.add(
+        RecordProgress(duration: _stopwatch.elapsed, decibels: amp.current),
+      );
+    });
 
     // Auto-stop after max duration.
     _autoStopTimer?.cancel();
-    _autoStopTimer = Timer(
-      const Duration(seconds: maxDurationSeconds),
-      () {
-        debugPrint(
-          '[AiSee:Recorder] Auto-stop at $maxDurationSeconds s',
-        );
-        stop().then((File? file) {
-          if (file != null) {
-            _onAutoStop?.call(file);
-          }
-        });
-      },
-    );
+    _autoStopTimer = Timer(const Duration(seconds: maxDurationSeconds), () {
+      debugPrint('[AiSee:Recorder] Auto-stop at $maxDurationSeconds s');
+      stop().then((File? file) {
+        if (file != null) {
+          _onAutoStop?.call(file);
+        }
+      });
+    });
 
     debugPrint('[AiSee:Recorder] Recording started: $_currentPath');
   }
 
   /// Callback for auto-stop. Set by the UI before calling start().
   void Function(File file)? _onAutoStop;
-  set onAutoStop(void Function(File file)? callback) =>
-      _onAutoStop = callback;
+  set onAutoStop(void Function(File file)? callback) => _onAutoStop = callback;
 
   Future<File?> stop() async {
     _autoStopTimer?.cancel();

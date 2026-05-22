@@ -37,8 +37,10 @@ abstract final class AiseeDebugConfig {
     if (!dotenv.isInitialized) {
       return false;
     }
-    final String? v =
-        dotenv.maybeGet('AISEE_PERF_OVERLAY')?.trim().toLowerCase();
+    final String? v = dotenv
+        .maybeGet('AISEE_PERF_OVERLAY')
+        ?.trim()
+        .toLowerCase();
     return v == '1' || v == 'true' || v == 'yes';
   }
 }

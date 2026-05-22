@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../theme/style_tokens.dart';
 
 /// Thanh điều hướng nổi — nền đen, pill shape, active trắng + label.
@@ -11,54 +12,48 @@ class UserLowVisionBottomNav extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onChanged,
-    List<NavItemData>? items,
+    required this.items,
     this.showLabel = true,
-  }) : _items = items ?? _defaultItems;
+  });
 
   final int currentIndex;
   final ValueChanged<int> onChanged;
-  final List<NavItemData> _items;
+  final List<NavItemData> items;
   final bool showLabel;
 
-  static const List<NavItemData> _defaultItems = [
+  static List<NavItemData> defaultItems(AppLocalizations l) => [
     NavItemData(
       iconAsset: 'assets/icons/nav/ic_wave.svg',
-      label: 'Trợ lý',
-      semanticsLabel:
-          'Mục 1 trên 3: Trợ lý. '
-          'Trang chủ. Trợ lý AiSee đang sẵn sàng nghe.',
+      label: l.navAssistant,
+      semanticsLabel: l.navAssistantLabel,
     ),
     NavItemData(
       iconAsset: 'assets/icons/nav/ic_message.svg',
-      label: 'Liên lạc',
-      semanticsLabel:
-          'Mục 2 trên 3: Liên lạc. '
-          'Nhắn tin và gọi điện người thân.',
+      label: l.navContacts,
+      semanticsLabel: l.navContactsLabel,
     ),
     NavItemData(
       iconAsset: 'assets/icons/nav/ic_profile.svg',
-      label: 'Cá nhân',
-      semanticsLabel:
-          'Mục 3 trên 3: Cá nhân. '
-          'Cá nhân. Lịch uống thuốc và tin nhắn của bạn.',
+      label: l.navPersonal,
+      semanticsLabel: l.navPersonalLabel,
     ),
   ];
 
-  static const List<NavItemData> familyItems = [
+  static List<NavItemData> familyItems(AppLocalizations l) => [
     NavItemData(
       iconAsset: 'assets/icons/nav/ic_3user.svg',
-      label: 'Gia đình',
-      semanticsLabel: 'Mục 1 trên 3: Gia đình. Danh sách liên lạc gia đình.',
+      label: l.navFamily,
+      semanticsLabel: l.navFamilyLabel,
     ),
     NavItemData(
       iconAsset: 'assets/icons/nav/ic_message.svg',
-      label: 'Tin nhắn',
-      semanticsLabel: 'Mục 2 trên 3: Tin nhắn. Hộp thư đến.',
+      label: l.navMessages,
+      semanticsLabel: l.navMessagesLabel,
     ),
     NavItemData(
       iconAsset: 'assets/icons/nav/ic_profile.svg',
-      label: 'Cá nhân',
-      semanticsLabel: 'Mục 3 trên 3: Cá nhân. Hồ sơ và cài đặt.',
+      label: l.navPersonal,
+      semanticsLabel: l.navPersonalFamilyLabel,
     ),
   ];
 
@@ -78,19 +73,19 @@ class UserLowVisionBottomNav extends StatelessWidget {
         ),
         child: Row(
           children: [
-            for (int i = 0; i < _items.length; i++)
+            for (int i = 0; i < items.length; i++)
               Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(
                     left: i == 0 ? 0 : 4,
-                    right: i == _items.length - 1 ? 0 : 4,
+                    right: i == items.length - 1 ? 0 : 4,
                   ),
                   child: _NavPill(
                     selected: currentIndex == i,
-                    iconAsset: _items[i].iconAsset,
-                    iconData: _items[i].iconData,
-                    label: _items[i].label,
-                    semanticsLabel: _items[i].semanticsLabel,
+                    iconAsset: items[i].iconAsset,
+                    iconData: items[i].iconData,
+                    label: items[i].label,
+                    semanticsLabel: items[i].semanticsLabel,
                     showLabel: showLabel,
                     onTap: () => _onSelect(i),
                   ),
@@ -138,16 +133,19 @@ class _NavPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color pillColor =
-        selected ? StyleTokens.navSelectedPill : StyleTokens.navInactivePill;
-    final Color contentColor =
-        selected ? StyleTokens.navSelectedOnPill : StyleTokens.navUnselectedIcon;
+    final Color pillColor = selected
+        ? StyleTokens.navSelectedPill
+        : StyleTokens.navInactivePill;
+    final Color contentColor = selected
+        ? StyleTokens.navSelectedOnPill
+        : StyleTokens.navUnselectedIcon;
+    final AppLocalizations l = AppLocalizations.of(context);
 
     return Semantics(
       button: true,
       selected: selected,
       label: semanticsLabel,
-      hint: 'Chạm hai lần để chọn',
+      hint: l.navDoubleTapHint,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -177,11 +175,7 @@ class _NavPill extends StatelessWidget {
                     ),
                   )
                 else if (iconData != null)
-                  Icon(
-                    iconData,
-                    size: 20,
-                    color: contentColor,
-                  ),
+                  Icon(iconData, size: 20, color: contentColor),
                 if (selected && showLabel) ...[
                   const SizedBox(width: 8),
                   Text(

@@ -1,3 +1,5 @@
+import '../generated/l10n/app_localizations.dart';
+
 enum AgentState {
   connecting,
   initializing,
@@ -35,13 +37,13 @@ enum AgentState {
 
   bool get isFinished => this == disconnected || this == failed;
 
-  String get displayTextVi => switch (this) {
-    connecting || initializing => 'Đang kết nối...',
-    idle => 'Sẵn sàng',
-    listening => 'Đang nghe...',
-    thinking => 'Đang xử lý...',
-    speaking => 'Đang trả lời...',
-    disconnected => 'Đã ngắt kết nối',
-    failed => 'Lỗi kết nối',
+  String displayText(AppLocalizations l) => switch (this) {
+    connecting || initializing => l.agentConnecting,
+    idle => l.agentReady,
+    listening => l.agentListening,
+    thinking => l.agentThinking,
+    speaking => l.agentSpeaking,
+    disconnected => l.agentDisconnected,
+    failed => l.agentConnectionError,
   };
 }

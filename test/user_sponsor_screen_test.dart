@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:aiseeapp/generated/l10n/app_localizations.dart';
 import 'package:aiseeapp/models/aisee_api_models.dart';
 import 'package:aiseeapp/screens/family_personal_tab.dart';
 import 'package:aiseeapp/screens/user_personal_tab.dart';
@@ -12,6 +13,9 @@ void main() {
 
   Widget buildPersonalTab() {
     return MaterialApp(
+      locale: const Locale('vi'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: UserPersonalTab(onSignOut: () {})),
     );
   }
@@ -25,6 +29,9 @@ void main() {
       isVolunteer: false,
     );
     return MaterialApp(
+      locale: const Locale('vi'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: FamilyPersonalTab(profile: profile, onSignOut: () {}),
       ),
@@ -58,14 +65,18 @@ void main() {
   testWidgets('Sponsor screen hiển thị phần giới thiệu và card DAVO', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: UserSponsorScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        locale: Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: UserSponsorScreen(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Nhà tài trợ'), findsOneWidget);
-    expect(
-      find.text('Những đơn vị đang đồng hành cùng AiSee.'),
-      findsOneWidget,
-    );
+    expect(find.text('Các đơn vị đang đồng hành cùng dự án'), findsOneWidget);
     expect(find.text('DAVO'), findsWidgets);
     expect(find.text('davoice.io'), findsOneWidget);
     expect(
@@ -113,7 +124,12 @@ void main() {
     }
 
     await tester.pumpWidget(
-      MaterialApp(home: UserSponsorScreen(launchUrlFn: fakeLaunchUrl)),
+      MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: UserSponsorScreen(launchUrlFn: fakeLaunchUrl),
+      ),
     );
     await tester.pumpAndSettle();
 

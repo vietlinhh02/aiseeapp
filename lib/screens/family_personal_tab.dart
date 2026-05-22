@@ -3,12 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/aisee_locale_controller.dart';
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
+import '../services/aisee_family_context_store.dart';
 import '../services/aisee_session_store.dart';
 import '../services/aisee_volunteer_service.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
+import '../widgets/aisee_language_picker_sheet.dart';
 import 'subscription_screen.dart';
+import 'usage_value_screen.dart';
 import 'user_sponsor_screen.dart';
 
 class FamilyPersonalTab extends StatefulWidget {
@@ -84,8 +89,9 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
     try {
       final String? token = await _token();
       if (token == null) {
+        if (!mounted) return;
         AppToast.show(
-          'Phiên đăng nhập hết hạn. Hãy đăng xuất và đăng nhập lại.',
+          AppLocalizations.of(context).familyPersonalSessionExpired,
           isError: true,
         );
         return;
@@ -98,7 +104,7 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
       });
       await _loadVolunteerStatus();
       if (!mounted) return;
-      AppToast.show('Đã đăng ký tình nguyện viên');
+      AppToast.show(AppLocalizations.of(context).familyPersonalRegisterSuccess);
     } catch (e) {
       if (!mounted) return;
       AppToast.show(e.toString(), isError: true);
@@ -113,8 +119,9 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
     try {
       final String? token = await _token();
       if (token == null) {
+        if (!mounted) return;
         AppToast.show(
-          'Phiên đăng nhập hết hạn. Hãy đăng xuất và đăng nhập lại.',
+          AppLocalizations.of(context).familyPersonalSessionExpired,
           isError: true,
         );
         return;
@@ -137,17 +144,54 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
     ).push(MaterialPageRoute<void>(builder: (_) => const UserSponsorScreen()));
   }
 
-  void _openSubscription() {
+  void _openLanguagePicker() {
     HapticFeedback.lightImpact();
+    AiseeLanguagePickerSheet.show(context);
+  }
+
+  Future<String?> _lastCaredUserId() {
+    return AiseeFamilyContextStore.instance.readLastCaredUserId();
+  }
+
+  Future<void> _openUsageValue() async {
+    final String? caredUserId = await _lastCaredUserId();
+    if (!mounted) return;
+    if (caredUserId == null) {
+      AppToast.show(
+        AppLocalizations.of(context).familyPersonalCareNeeded,
+        isError: true,
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const SubscriptionScreen(familyFirst: true),
+        builder: (_) => UsageValueScreen(caredUserId: caredUserId),
+      ),
+    );
+  }
+
+  Future<void> _openSubscription() async {
+    HapticFeedback.lightImpact();
+    final String? caredUserId = await _lastCaredUserId();
+    if (!mounted) return;
+    if (caredUserId == null) {
+      AppToast.show(
+        AppLocalizations.of(context).familyPersonalSubscriptionNeeded,
+        isError: true,
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            SubscriptionScreen(familyFirst: true, caredUserId: caredUserId),
       ),
     );
   }
 
   void _openPersonalInfo(String joinDate) {
     HapticFeedback.lightImpact();
+    final AppLocalizations l = AppLocalizations.of(context);
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -156,7 +200,7 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
       builder: (BuildContext context) {
         return _PersonalInfoSheet(
           email: widget.profile.email,
-          role: 'Người hỗ trợ',
+          role: l.familyPersonalRoleSupporter,
           joinDate: joinDate,
         );
       },
@@ -176,29 +220,37 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     final String joinDate = _formatDate(widget.profile.createdAt);
     return Semantics(
       container: true,
-      label: 'Cá nhân. Thông tin tài khoản và tình nguyện viên.',
+      label: l.familyPersonalSemanticsLabel,
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           Text(
-            'Thông tin tài khoản và đăng ký hỗ trợ của bạn.',
+            l.familyPersonalIntro,
             style: StyleTokens.bodySmall().copyWith(fontSize: 12, height: 1.4),
           ),
           const SizedBox(height: 20),
           _ActionCard(
             iconAsset: 'assets/icons/nav/ic_profile.svg',
-            title: 'Thông tin cá nhân',
-            subtitle: 'Email, vai trò và ngày tham gia',
+            title: l.familyPersonalCardInfoTitle,
+            subtitle: l.familyPersonalCardInfoSubtitle,
             onTap: () => _openPersonalInfo(joinDate),
           ),
           const SizedBox(height: 10),
           _ActionCard(
+            iconAsset: 'assets/icons/nav/ic_graph.svg',
+            title: l.familyPersonalCardUsageTitle,
+            subtitle: l.familyPersonalCardUsageSubtitle,
+            onTap: _openUsageValue,
+          ),
+          const SizedBox(height: 10),
+          _ActionCard(
             iconAsset: 'assets/icons/nav/ic_activity.svg',
-            title: 'Gói AiSee',
-            subtitle: 'Quản lý gói, quota và quyền chăm sóc',
+            title: l.familyPersonalCardSubscriptionTitle,
+            subtitle: l.familyPersonalCardSubscriptionSubtitle,
             onTap: _openSubscription,
           ),
           const SizedBox(height: 10),
@@ -214,21 +266,36 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
           const SizedBox(height: 10),
           _ActionCard(
             iconAsset: 'assets/icons/nav/ic_3user.svg',
-            title: 'Nhà tài trợ',
-            subtitle: 'Đơn vị đồng hành cùng dự án AiSee',
+            title: l.familyPersonalCardSponsorsTitle,
+            subtitle: l.familyPersonalCardSponsorsSubtitle,
             onTap: _openSponsors,
           ),
+          const SizedBox(height: 10),
+          ValueListenableBuilder<Locale>(
+            valueListenable: AiseeLocaleController.instance,
+            builder: (BuildContext context, Locale locale, Widget? child) {
+              final AppLocalizations l = AppLocalizations.of(context);
+              return _ActionCard(
+                iconAsset: 'assets/icons/nav/ic_activity.svg',
+                title: l.settingsLanguageLabel,
+                subtitle: locale.languageCode == 'en'
+                    ? l.languageEn
+                    : l.languageVi,
+                onTap: _openLanguagePicker,
+              );
+            },
+          ),
           const SizedBox(height: 32),
-          _buildSignOutButton(),
+          _buildSignOutButton(l),
         ],
       ),
     );
   }
 
-  Widget _buildSignOutButton() {
+  Widget _buildSignOutButton(AppLocalizations l) {
     return Semantics(
       button: true,
-      label: 'Đăng xuất khỏi AiSee',
+      label: l.familyPersonalSignOutLabel,
       child: Material(
         color: StyleTokens.buttonPrimary,
         borderRadius: BorderRadius.circular(31),
@@ -242,7 +309,7 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Center(
               child: Text(
-                'Đăng xuất',
+                l.familyPersonalSignOutAction,
                 style: StyleTokens.socialLabel().copyWith(fontSize: 14),
               ),
             ),
@@ -266,6 +333,7 @@ class _PersonalInfoSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Container(
       decoration: const BoxDecoration(
         color: StyleTokens.background,
@@ -288,7 +356,7 @@ class _PersonalInfoSheet extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: Text(
-                  'Thông tin cá nhân',
+                  l.familyPersonalSheetTitle,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 19,
                     fontWeight: FontWeight.w800,
@@ -297,7 +365,7 @@ class _PersonalInfoSheet extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: 'Đóng',
+                tooltip: l.familyPersonalSheetClose,
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close),
               ),
@@ -319,14 +387,14 @@ class _PersonalInfoSheet extends StatelessWidget {
                   const SizedBox(height: 14),
                   _PersonalInfoRow(
                     iconAsset: 'assets/icons/nav/ic_3user.svg',
-                    title: 'Vai trò',
+                    title: l.familyPersonalSheetRole,
                     value: role,
                   ),
                   if (joinDate.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 14),
                     _PersonalInfoRow(
                       iconAsset: 'assets/icons/nav/ic_calendar.svg',
-                      title: 'Ngày tham gia',
+                      title: l.familyPersonalSheetJoinDate,
                       value: joinDate,
                     ),
                   ],
@@ -419,9 +487,10 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Semantics(
       button: true,
-      label: '$title. $subtitle. Chạm để mở.',
+      label: l.familyPersonalCardActionHint(title, subtitle),
       child: Material(
         color: StyleTokens.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -517,6 +586,7 @@ class _VolunteerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Material(
       color: StyleTokens.surfaceCard,
       borderRadius: BorderRadius.circular(12),
@@ -552,7 +622,7 @@ class _VolunteerCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        'Tình nguyện viên',
+                        l.familyVolunteerTitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -561,7 +631,7 @@ class _VolunteerCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Hỗ trợ người khiếm thị khi người thân không thể trả lời',
+                        l.familyVolunteerSubtitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
@@ -611,9 +681,10 @@ class _RegisterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Semantics(
       button: true,
-      label: 'Đăng ký tình nguyện viên',
+      label: l.familyVolunteerRegisterAction,
       child: Material(
         color: StyleTokens.buttonPrimary,
         borderRadius: BorderRadius.circular(31),
@@ -633,7 +704,7 @@ class _RegisterButton extends StatelessWidget {
                       ),
                     )
                   : Text(
-                      'Đăng ký tình nguyện viên',
+                      l.familyVolunteerRegisterAction,
                       style: StyleTokens.socialLabel().copyWith(fontSize: 14),
                     ),
             ),
@@ -657,6 +728,7 @@ class _AvailabilityToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Row(
       children: <Widget>[
         Expanded(
@@ -664,7 +736,7 @@ class _AvailabilityToggle extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Sẵn sàng hỗ trợ',
+                l.familyVolunteerReadyTitle,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -674,8 +746,8 @@ class _AvailabilityToggle extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 available
-                    ? 'Bạn sẽ nhận cuộc gọi hỗ trợ'
-                    : 'Tạm nghỉ, không nhận cuộc gọi',
+                    ? l.familyVolunteerReadyOn
+                    : l.familyVolunteerReadyOff,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w400,

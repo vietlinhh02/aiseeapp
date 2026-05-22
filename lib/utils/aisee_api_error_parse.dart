@@ -31,8 +31,40 @@ AiseeApiException aiseeApiExceptionFromResponse(
   try {
     final Object? decoded = jsonDecode(utf8.decode(res.bodyBytes));
     if (decoded is Map<String, dynamic>) {
+      if (res.statusCode == 402) {
+        final AiseeQuotaApiException? quota = aiseeQuotaExceptionFromJsonMap(
+          decoded,
+        );
+        if (quota != null) {
+          return quota;
+        }
+      }
       return aiseeApiExceptionFromJsonMap(decoded, fallback);
     }
   } catch (_) {}
   return AiseeApiException(fallback);
+}
+
+AiseeQuotaApiException? aiseeQuotaExceptionFromJsonMap(
+  Map<String, dynamic> map,
+) {
+  final Object? errObj = map['error'];
+  if (errObj is! Map<String, dynamic>) {
+    return null;
+  }
+  final String? usageType = errObj['usage_type'] as String?;
+  if (usageType == null && errObj['code'] != 'quota_exceeded') {
+    return null;
+  }
+  final String msg = errObj['message'] as String? ?? 'Quota exceeded';
+  final String? code = errObj['code'] as String?;
+  return AiseeQuotaApiException(
+    msg,
+    code: code,
+    usageType: usageType,
+    requiredAmount: (errObj['required'] as num?)?.toDouble(),
+    remaining: (errObj['remaining'] as num?)?.toDouble(),
+    planCode: errObj['plan_code'] as String?,
+    resetPeriod: errObj['reset_period'] as String?,
+  );
 }

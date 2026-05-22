@@ -28,10 +28,7 @@ class AiseeCallService {
     final http.Response res = await _http.post(
       _uri('/api/v1/calls/create-room'),
       headers: _authHeaders(accessToken),
-      body: jsonEncode({
-        'callee_id': calleeId,
-        'call_type': callType,
-      }),
+      body: jsonEncode({'callee_id': calleeId, 'call_type': callType}),
     );
     if (res.statusCode != 200) {
       throw _error(res, 'Không tạo được cuộc gọi');
@@ -65,11 +62,8 @@ class AiseeCallService {
     try {
       return jsonDecode(raw);
     } on FormatException {
-      final String preview =
-          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}): $preview',
-      );
+      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
     }
   }
 

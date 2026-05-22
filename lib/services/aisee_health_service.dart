@@ -48,10 +48,7 @@ class AiseeHealthService {
     }
   }
 
-  Future<void> logSymptom(
-    String accessToken,
-    Map<String, dynamic> data,
-  ) async {
+  Future<void> logSymptom(String accessToken, Map<String, dynamic> data) async {
     final http.Response res = await _http.post(
       _uri('/api/v1/health/symptoms'),
       headers: _authHeaders(accessToken),
@@ -62,10 +59,7 @@ class AiseeHealthService {
     }
   }
 
-  Future<void> logMetric(
-    String accessToken,
-    Map<String, dynamic> data,
-  ) async {
+  Future<void> logMetric(String accessToken, Map<String, dynamic> data) async {
     final http.Response res = await _http.post(
       _uri('/api/v1/health/metrics'),
       headers: _authHeaders(accessToken),
@@ -129,11 +123,9 @@ class AiseeHealthService {
     final List<dynamic> items =
         body['medications'] as List<dynamic>? ?? <dynamic>[];
     return items.map((dynamic e) {
-      final Map<String, dynamic> entry =
-          e as Map<String, dynamic>;
+      final Map<String, dynamic> entry = e as Map<String, dynamic>;
       final Map<String, dynamic> med =
-          entry['medication'] as Map<String, dynamic>? ??
-              <String, dynamic>{};
+          entry['medication'] as Map<String, dynamic>? ?? <String, dynamic>{};
       return <String, dynamic>{
         ...med,
         'taken': entry['taken'] ?? false,
@@ -165,9 +157,7 @@ class AiseeHealthService {
   /// Response: {medications: [...], recent_symptoms: [...],
   ///   recent_metrics: [...]}
   /// Returns merged list with a `_kind` field (symptom / metric).
-  Future<List<Map<String, dynamic>>> fetchHealthLogs(
-    String accessToken,
-  ) async {
+  Future<List<Map<String, dynamic>>> fetchHealthLogs(String accessToken) async {
     final http.Response res = await _http.get(
       _uri('/api/v1/me/health'),
       headers: _authHeaders(accessToken),
@@ -176,20 +166,17 @@ class AiseeHealthService {
       throw _error(res, 'Không tải được nhật ký sức khỏe');
     }
     final Map<String, dynamic> body = _decodeMap(res);
-    final List<Map<String, dynamic>> result =
-        <Map<String, dynamic>>[];
+    final List<Map<String, dynamic>> result = <Map<String, dynamic>>[];
     final List<dynamic> symptoms =
         body['recent_symptoms'] as List<dynamic>? ?? <dynamic>[];
     for (final dynamic s in symptoms) {
-      final Map<String, dynamic> m =
-          s as Map<String, dynamic>;
+      final Map<String, dynamic> m = s as Map<String, dynamic>;
       result.add(<String, dynamic>{...m, '_kind': 'symptom'});
     }
     final List<dynamic> metrics =
         body['recent_metrics'] as List<dynamic>? ?? <dynamic>[];
     for (final dynamic s in metrics) {
-      final Map<String, dynamic> m =
-          s as Map<String, dynamic>;
+      final Map<String, dynamic> m = s as Map<String, dynamic>;
       result.add(<String, dynamic>{...m, '_kind': 'metric'});
     }
     return result;

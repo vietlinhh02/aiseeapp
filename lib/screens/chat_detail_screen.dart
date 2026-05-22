@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
@@ -161,7 +162,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         _loading = false;
         _error = e is AiseeApiException
             ? e.message
-            : 'Không tải được tin nhắn.';
+            : AppLocalizations.of(context).chatLoadFailed;
       });
     }
   }
@@ -322,7 +323,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       if (!mounted) return;
       final String msg = e is AiseeApiException
           ? e.message
-          : 'Không tạo được cuộc gọi';
+          : AppLocalizations.of(context).contactsCallCreateFailed;
       AppToast.show(msg, isError: true);
     } finally {
       _callingInProgress = false;
@@ -352,7 +353,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     } catch (e) {
       if (!mounted) return;
       AppToast.show(
-        e is AiseeApiException ? e.message : 'Không gửi được tin nhắn.',
+        e is AiseeApiException
+            ? e.message
+            : AppLocalizations.of(context).chatSendFailed,
         isError: true,
       );
     } finally {
@@ -365,6 +368,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       context: context,
       backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
+        final AppLocalizations l = AppLocalizations.of(ctx);
         return Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
@@ -387,8 +391,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               _attachOption(
                 ctx,
                 icon: 'assets/icons/nav/ic_camera.svg',
-                label: 'Chụp ảnh',
-                semanticsLabel: 'Chụp ảnh bằng camera',
+                label: l.chatTakePhoto,
+                semanticsLabel: l.chatTakePhotoLabel,
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickImage(ImageSource.camera);
@@ -398,8 +402,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               _attachOption(
                 ctx,
                 icon: 'assets/icons/nav/ic_category.svg',
-                label: 'Chọn từ thư viện',
-                semanticsLabel: 'Chọn ảnh từ thư viện',
+                label: l.chatPickFromGallery,
+                semanticsLabel: l.chatPickFromGalleryLabel,
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickImage(ImageSource.gallery);
@@ -463,7 +467,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       final PermissionStatus status = await Permission.camera.request();
       if (!status.isGranted) {
         if (mounted) {
-          AppToast.show('Cần quyền camera để chụp ảnh.', isError: true);
+          AppToast.show(
+            AppLocalizations.of(context).chatCameraPermission,
+            isError: true,
+          );
         }
         return;
       }
@@ -512,7 +519,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       if (!mounted) return;
       setState(() => _uploadingMedia = false);
       AppToast.show(
-        e is AiseeApiException ? e.message : 'Gửi không thành công.',
+        e is AiseeApiException
+            ? e.message
+            : AppLocalizations.of(context).chatUploadFailed,
         isError: true,
       );
     }
@@ -524,7 +533,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (!micStatus.isGranted) {
       _recordStartCompleter?.complete();
       if (mounted) {
-        AppToast.show('Cần quyền microphone để ghi âm.', isError: true);
+        AppToast.show(
+          AppLocalizations.of(context).chatMicPermission,
+          isError: true,
+        );
       }
       return;
     }
@@ -549,7 +561,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       if (mounted) setState(() => _isRecording = true);
     } catch (e) {
       if (mounted) {
-        AppToast.show('Không thể ghi âm.', isError: true);
+        AppToast.show(
+          AppLocalizations.of(context).chatRecordFailed,
+          isError: true,
+        );
       }
     } finally {
       _recordStartCompleter?.complete();
@@ -606,6 +621,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: StyleTokens.background,
       appBar: AppBar(
@@ -646,7 +662,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 BlendMode.srcIn,
               ),
             ),
-            tooltip: 'Gọi thoại',
+            tooltip: l.chatVoiceCallTooltip,
             onPressed: () => _startCall(widget.contact, 'voice'),
           ),
           IconButton(
@@ -659,21 +675,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 BlendMode.srcIn,
               ),
             ),
-            tooltip: 'Gọi video',
+            tooltip: l.chatVideoCallTooltip,
             onPressed: () => _startCall(widget.contact, 'video'),
           ),
         ],
       ),
       body: Column(
         children: <Widget>[
-          Expanded(child: _buildMessageList()),
-          _buildInputBar(),
+          Expanded(child: _buildMessageList(l)),
+          _buildInputBar(l),
         ],
       ),
     );
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(AppLocalizations l) {
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(color: StyleTokens.buttonPrimary),
@@ -696,7 +712,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             const SizedBox(height: 12),
             TextButton(
               onPressed: _loadInitialMessages,
-              child: const Text('Thử lại'),
+              child: Text(l.actionRetry),
             ),
           ],
         ),
@@ -706,7 +722,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (_messages.isEmpty) {
       return Center(
         child: Text(
-          'Chưa có tin nhắn.\nHãy gửi lời chào!',
+          l.chatEmpty,
           style: StyleTokens.bodySmall().copyWith(fontSize: 13, height: 1.5),
           textAlign: TextAlign.center,
         ),
@@ -734,21 +750,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             ),
           );
         }
+        final bool showTime = _shouldShowTime(index);
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _buildBubble(_messages[index]),
+          child: _buildBubble(_messages[index], showTime: showTime),
         );
       },
     );
   }
 
-  Widget _buildBubble(AiseeMessage msg) {
+  bool _shouldShowTime(int index) {
+    if (index == _messages.length - 1) return true;
+    final AiseeMessage current = _messages[index];
+    final AiseeMessage older = _messages[index + 1];
+    if (current.senderId != older.senderId) return true;
+    return current.createdAt.minute != older.createdAt.minute;
+  }
+
+  Widget _buildBubble(AiseeMessage msg, {bool showTime = true}) {
     final bool isSent = msg.senderId == widget.currentUserId;
     final double maxBubbleWidth = MediaQuery.sizeOf(context).width * 0.75;
+    final AppLocalizations l = AppLocalizations.of(context);
 
     Widget content;
     if (msg.imageUrl != null && msg.imageUrl!.isNotEmpty) {
-      content = _buildImageContent(msg.imageUrl!, maxBubbleWidth);
+      content = _buildImageContent(msg.imageUrl!, maxBubbleWidth, l);
     } else if (msg.voiceUrl != null && msg.voiceUrl!.isNotEmpty) {
       content = _VoiceBubbleContent(voiceUrl: msg.voiceUrl!, isSent: isSent);
     } else {
@@ -784,20 +810,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           ),
           child: content,
         ),
-        const SizedBox(height: 4),
-        Text(
-          _formatTime(msg.createdAt),
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 10,
-            fontWeight: FontWeight.w400,
-            color: StyleTokens.textMuted,
+        if (showTime) ...<Widget>[
+          const SizedBox(height: 4),
+          Text(
+            _formatTime(msg.createdAt),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+              color: StyleTokens.textMuted,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
 
-  Widget _buildImageContent(String imageUrl, double maxWidth) {
+  Widget _buildImageContent(
+    String imageUrl,
+    double maxWidth,
+    AppLocalizations l,
+  ) {
     return GestureDetector(
       onTap: () => _showFullImage(imageUrl),
       child: ClipRRect(
@@ -830,7 +862,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               height: 100,
               child: Center(
                 child: Text(
-                  'Không tải được ảnh',
+                  l.chatImageLoadFailed,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     color: StyleTokens.textMuted,
@@ -861,7 +893,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
-  Widget _buildInputBar() {
+  Widget _buildInputBar(AppLocalizations l) {
     return SafeArea(
       top: false,
       child: Padding(
@@ -872,27 +904,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             color: StyleTokens.navBarBackground,
             borderRadius: BorderRadius.circular(999),
           ),
-          child: _uploadingMedia
-              ? _buildUploadingBar()
-              : _buildNormalInputBar(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (_uploadingMedia) _buildUploadProgress(l),
+              _buildNormalInputBar(l),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildNormalInputBar() {
+  Widget _buildNormalInputBar(AppLocalizations l) {
+    final bool canSend = _hasText && !_uploadingMedia;
     return Row(
       children: <Widget>[
         if (!_isRecording) ...<Widget>[
           Semantics(
             button: true,
-            label: 'Đính kèm ảnh',
+            label: l.chatAttachImage,
             child: Material(
               color: Colors.transparent,
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
-                onTap: _showAttachmentSheet,
+                onTap: _uploadingMedia ? null : _showAttachmentSheet,
                 child: SizedBox(
                   width: 36,
                   height: 36,
@@ -901,8 +938,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       'assets/icons/nav/ic_plus.svg',
                       width: 20,
                       height: 20,
-                      colorFilter: const ColorFilter.mode(
-                        StyleTokens.textMuted,
+                      colorFilter: ColorFilter.mode(
+                        _uploadingMedia
+                            ? StyleTokens.navUnselectedIcon
+                            : StyleTokens.textMuted,
                         BlendMode.srcIn,
                       ),
                     ),
@@ -918,14 +957,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               ? _buildRecordingInfo()
               : TextField(
                   controller: _textController,
+                  enabled: !_uploadingMedia,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
-                    color: StyleTokens.textPrimary,
+                    color: _uploadingMedia
+                        ? StyleTokens.textMuted
+                        : StyleTokens.textPrimary,
                   ),
                   decoration: InputDecoration(
                     filled: false,
-                    hintText: 'Nhắn tin...',
+                    hintText: _uploadingMedia ? l.chatSending : l.chatInputHint,
                     hintStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
@@ -946,19 +988,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         ),
         const SizedBox(width: 8),
         if (_isRecording)
-          _buildStopButton()
-        else if (_hasText)
-          _buildSendButton()
+          _buildStopButton(l)
+        else if (canSend)
+          _buildSendButton(l)
         else
-          _buildMicButton(),
+          _buildMicButton(l),
       ],
     );
   }
 
-  Widget _buildSendButton() {
+  Widget _buildSendButton(AppLocalizations l) {
     return Semantics(
       button: true,
-      label: 'Gửi tin nhắn',
+      label: l.chatSend,
       child: Material(
         color: StyleTokens.buttonPrimary,
         shape: const CircleBorder(),
@@ -987,7 +1029,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   double _micPointerStartX = 0;
 
-  Widget _buildMicButton() {
+  Widget _buildMicButton(AppLocalizations l) {
+    if (_uploadingMedia) {
+      return Semantics(
+        button: true,
+        label: l.chatHoldToRecord,
+        child: Material(
+          color: StyleTokens.navUnselectedIcon,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/nav/ic_voice.svg',
+                width: 16,
+                height: 16,
+                colorFilter: const ColorFilter.mode(
+                  StyleTokens.navBarBackground,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Listener(
       onPointerDown: (PointerDownEvent event) {
         _micPointerStartX = event.position.dx;
@@ -1004,7 +1072,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       },
       child: Semantics(
         button: true,
-        label: 'Giữ để ghi âm',
+        label: l.chatHoldToRecord,
         child: Material(
           color: StyleTokens.buttonPrimary,
           shape: const CircleBorder(),
@@ -1053,13 +1121,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
-  Widget _buildStopButton() {
+  Widget _buildStopButton(AppLocalizations l) {
     return GestureDetector(
       onTap: _stopRecording,
       onLongPress: _cancelRecording,
       child: Semantics(
         button: true,
-        label: 'Dừng ghi âm và gửi. Giữ để huỷ.',
+        label: l.chatStopRecordLabel,
         child: Material(
           color: StyleTokens.error,
           shape: const CircleBorder(),
@@ -1105,28 +1173,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
   }
 
-  Widget _buildUploadingBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        const SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: StyleTokens.buttonPrimary,
+  Widget _buildUploadProgress(AppLocalizations l) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: <Widget>[
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: StyleTokens.buttonPrimary,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          'Đang gửi...',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: StyleTokens.textMuted,
+          const SizedBox(width: 8),
+          Text(
+            l.chatSending,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: StyleTokens.textMuted,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

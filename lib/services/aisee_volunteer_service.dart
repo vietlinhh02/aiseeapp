@@ -6,7 +6,7 @@ import '../models/aisee_volunteer_status.dart';
 
 class AiseeVolunteerService {
   AiseeVolunteerService({http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+    : _http = httpClient ?? http.Client();
 
   final http.Client _http;
   void close() => _http.close();
@@ -14,10 +14,10 @@ class AiseeVolunteerService {
   Uri _uri(String path) => Uri.parse('${AppEnv.apiBaseUrl}$path');
 
   Map<String, String> _authHeaders(String accessToken) => {
-        'Authorization': 'Bearer $accessToken',
-        'Content-Type': 'application/json; charset=utf-8',
-        'Accept': 'application/json',
-      };
+    'Authorization': 'Bearer $accessToken',
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json',
+  };
 
   AiseeApiException _error(http.Response res, String fallback) {
     final String prefix = 'HTTP ${res.statusCode}';
@@ -29,7 +29,9 @@ class AiseeVolunteerService {
       final Object? decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) {
         return AiseeApiException(
-          raw.length > 160 ? '$prefix: ${raw.substring(0, 160)}…' : '$prefix: $raw',
+          raw.length > 160
+              ? '$prefix: ${raw.substring(0, 160)}…'
+              : '$prefix: $raw',
         );
       }
       final String? extracted = _extractErrorMessage(decoded);
@@ -136,9 +138,6 @@ class AiseeVolunteerService {
     if (res.statusCode == 200 || res.statusCode == 204) {
       return;
     }
-    throw _error(
-      res,
-      'Không cập nhật trạng thái sẵn sàng được.',
-    );
+    throw _error(res, 'Không cập nhật trạng thái sẵn sàng được.');
   }
 }

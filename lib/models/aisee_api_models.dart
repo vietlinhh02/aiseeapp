@@ -10,6 +10,25 @@ class AiseeApiException implements Exception {
   String toString() => message;
 }
 
+/// HTTP 402 — phản hồi quota từ backend (billing / care).
+class AiseeQuotaApiException extends AiseeApiException {
+  AiseeQuotaApiException(
+    super.message, {
+    super.code,
+    this.usageType,
+    this.requiredAmount,
+    this.remaining,
+    this.planCode,
+    this.resetPeriod,
+  });
+
+  final String? usageType;
+  final double? requiredAmount;
+  final double? remaining;
+  final String? planCode;
+  final String? resetPeriod;
+}
+
 /// JWT access + refresh sau khi đổi Google `id_token`.
 class AiseeAuthTokens {
   const AiseeAuthTokens({

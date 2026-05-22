@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/aisee_locale_controller.dart';
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../services/aisee_health_service.dart';
 import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
+import '../widgets/aisee_language_picker_sheet.dart';
 import 'reminders_screen.dart';
 import 'subscription_screen.dart';
 import 'user_sponsor_screen.dart';
@@ -80,54 +83,80 @@ class UserPersonalTabState extends State<UserPersonalTab> {
     ).push(MaterialPageRoute<void>(builder: (_) => const SubscriptionScreen()));
   }
 
+  void _openLanguagePicker() {
+    HapticFeedback.lightImpact();
+    AiseeLanguagePickerSheet.show(context);
+  }
+
+  String _languageSubtitle(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
+    final Locale current = AiseeLocaleController.instance.value;
+    return current.languageCode == 'en' ? l.languageEn : l.languageVi;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Semantics(
       container: true,
-      label: 'Cá nhân. Lịch uống thuốc và nhắc nhở của bạn.',
+      label: l.personalTabSemanticsLabel,
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           Text(
-            'Thông tin cá nhân và lịch nhắc nhở của bạn.',
+            l.personalTabIntro,
             style: StyleTokens.bodySmall().copyWith(fontSize: 12, height: 1.4),
           ),
           const SizedBox(height: 20),
           _MenuCard(
             iconAsset: 'assets/icons/nav/ic_heart.svg',
-            title: 'Lịch uống thuốc',
-            subtitle: _medCount > 0 ? '$_medCount nhắc nhở' : 'Chưa có lịch',
+            title: l.personalMedicationTitle,
+            subtitle: _medCount > 0
+                ? l.personalMedicationCount(_medCount)
+                : l.personalMedicationEmpty,
             onTap: () => _openScreen(ReminderFilter.medication),
           ),
           const SizedBox(height: 10),
           _MenuCard(
             iconAsset: 'assets/icons/nav/ic_calendar.svg',
-            title: 'Lịch hẹn',
+            title: l.personalAppointmentsTitle,
             subtitle: _apptCount > 0
-                ? '$_apptCount lịch hẹn'
-                : 'Chưa có lịch hẹn',
+                ? l.personalAppointmentsCount(_apptCount)
+                : l.personalAppointmentsEmpty,
             onTap: () => _openScreen(ReminderFilter.appointment),
           ),
           const SizedBox(height: 10),
           _MenuCard(
             iconAsset: 'assets/icons/nav/ic_activity.svg',
-            title: 'Nhật ký sức khỏe',
-            subtitle: 'Xem chi tiết',
+            title: l.personalHealthLogTitle,
+            subtitle: l.personalHealthLogSubtitle,
             onTap: () => _openScreen(ReminderFilter.health),
           ),
           const SizedBox(height: 10),
           _MenuCard(
             iconAsset: 'assets/icons/nav/ic_activity.svg',
-            title: 'Gói AiSee',
-            subtitle: 'Quota và quyền đang có',
+            title: l.personalSubscriptionTitle,
+            subtitle: l.personalSubscriptionSubtitle,
             onTap: _openSubscription,
           ),
           const SizedBox(height: 10),
           _MenuCard(
             iconAsset: 'assets/icons/nav/ic_3user.svg',
-            title: 'Nhà tài trợ',
-            subtitle: 'Các đơn vị đang đồng hành cùng dự án',
+            title: l.personalSponsorsTitle,
+            subtitle: l.personalSponsorsSubtitle,
             onTap: _openSponsors,
+          ),
+          const SizedBox(height: 10),
+          ValueListenableBuilder<Locale>(
+            valueListenable: AiseeLocaleController.instance,
+            builder: (BuildContext context, Locale locale, Widget? child) {
+              return _MenuCard(
+                iconAsset: 'assets/icons/nav/ic_activity.svg',
+                title: AppLocalizations.of(context).settingsLanguageLabel,
+                subtitle: _languageSubtitle(context),
+                onTap: _openLanguagePicker,
+              );
+            },
           ),
           const SizedBox(height: 32),
           _buildSignOutButton(),
@@ -137,9 +166,10 @@ class UserPersonalTabState extends State<UserPersonalTab> {
   }
 
   Widget _buildSignOutButton() {
+    final AppLocalizations l = AppLocalizations.of(context);
     return Semantics(
       button: true,
-      label: 'Đăng xuất khỏi AiSee',
+      label: l.personalSignOutLabel,
       child: Material(
         color: StyleTokens.buttonPrimary,
         borderRadius: BorderRadius.circular(31),
@@ -153,7 +183,7 @@ class UserPersonalTabState extends State<UserPersonalTab> {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Center(
               child: Text(
-                'Đăng xuất',
+                l.personalSignOutAction,
                 style: StyleTokens.socialLabel().copyWith(fontSize: 14),
               ),
             ),
@@ -179,9 +209,10 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     return Semantics(
       button: true,
-      label: '$title. $subtitle. Chạm để mở.',
+      label: l10n.familyPersonalCardActionHint(title, subtitle),
       child: Material(
         color: StyleTokens.surfaceCard,
         borderRadius: BorderRadius.circular(12),

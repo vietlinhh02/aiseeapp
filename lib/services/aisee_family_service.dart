@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import '../config/app_env.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_family_member.dart';
+import '../models/aisee_family_group.dart';
+import '../utils/aisee_api_error_parse.dart';
 
 class AiseeFamilyService {
   AiseeFamilyService({http.Client? httpClient})
@@ -41,10 +43,7 @@ class AiseeFamilyService {
         .toList();
   }
 
-  Future<String> createInvite(
-    String accessToken,
-    String relationship,
-  ) async {
+  Future<String> createInvite(String accessToken, String relationship) async {
     final http.Response res = await _http.post(
       _uri('/api/v1/users/family-link'),
       headers: _authHeaders(accessToken),
@@ -64,6 +63,30 @@ class AiseeFamilyService {
     return code;
   }
 
+  Future<AiseeCurrentGroup?> fetchCurrentGroup(String accessToken) async {
+    final http.Response res = await _http.get(
+      _uri('/api/v1/users/me/group'),
+      headers: _authHeaders(accessToken),
+    );
+    if (res.statusCode == 404) {
+      final AiseeApiException error = _error(
+        res,
+        'Không tải được nhóm chăm sóc',
+      );
+      if (error.code == 'no_active_group') {
+        return null;
+      }
+    }
+    if (res.statusCode != 200) {
+      throw _error(res, 'Không tải được nhóm chăm sóc');
+    }
+    final Object? decoded = _decodeJson(res, 'Không tải được nhóm chăm sóc');
+    if (decoded is! Map<String, dynamic>) {
+      throw AiseeApiException('Phản hồi nhóm chăm sóc không hợp lệ');
+    }
+    return AiseeCurrentGroup.fromJson(decoded);
+  }
+
   Future<void> joinFamily(String accessToken, String inviteCode) async {
     final http.Response res = await _http.post(
       _uri('/api/v1/users/join-family'),
@@ -74,6 +97,41 @@ class AiseeFamilyService {
       throw _error(res, 'Không tham gia được gia đình');
     }
     // Backend có thể trả {"status":"joined"} — không bắt buộc parse cho luồng UI.
+  }
+
+  Future<void> revokeInvite(String accessToken, String inviteCode) async {
+    final http.Response res = await _http.delete(
+      _uri('/api/v1/users/family-invite/$inviteCode'),
+      headers: _authHeaders(accessToken),
+    );
+    if (res.statusCode != 200) {
+      throw _error(res, 'Không thu hồi được mã mời');
+    }
+  }
+
+  Future<void> leaveGroup(String accessToken) async {
+    final http.Response res = await _http.post(
+      _uri('/api/v1/users/leave-group'),
+      headers: _authHeaders(accessToken),
+      body: jsonEncode(<String, dynamic>{}),
+    );
+    if (res.statusCode != 200) {
+      throw _error(res, 'Không rời được nhóm chăm sóc');
+    }
+  }
+
+  Future<void> transferGroupOwnership(
+    String accessToken,
+    String targetUserId,
+  ) async {
+    final http.Response res = await _http.post(
+      _uri('/api/v1/users/transfer-group-ownership'),
+      headers: _authHeaders(accessToken),
+      body: jsonEncode(<String, dynamic>{'target_user_id': targetUserId}),
+    );
+    if (res.statusCode != 200) {
+      throw _error(res, 'Không chuyển được quyền chủ nhóm');
+    }
   }
 
   Future<void> deleteLink(String accessToken, String linkId) async {
@@ -108,72 +166,19 @@ class AiseeFamilyService {
     try {
       return jsonDecode(raw);
     } on FormatException {
-      final String preview =
-          raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}): $preview',
-      );
+      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
     }
   }
 
   AiseeApiException _error(http.Response res, String fallback) {
-    final String prefix = 'HTTP ${res.statusCode}';
-    try {
-      final String raw = utf8.decode(res.bodyBytes).trim();
-      if (raw.isEmpty) {
-        return AiseeApiException('$prefix: $fallback');
-      }
-      final Object? decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) {
-        return AiseeApiException(
-          raw.length > 120 ? '$prefix: ${raw.substring(0, 120)}…' : '$prefix: $raw',
-        );
-      }
-      final String? extracted = _extractApiErrorMessage(decoded);
-      final String? errCode = _extractApiErrorCode(decoded);
-      return AiseeApiException(
-        extracted != null && extracted.isNotEmpty
-            ? '$prefix: $extracted'
-            : '$prefix: $fallback',
-        code: errCode,
-      );
-    } catch (_) {
-      return AiseeApiException('$prefix: $fallback');
-    }
-  }
-
-  /// Gin/Go thường trả `{"error":"..."}` — phải đưa vào message, không chỉ `code`.
-  static String? _extractApiErrorMessage(Map<String, dynamic> map) {
-    final Object? msg = map['message'];
-    if (msg is String && msg.isNotEmpty) return msg;
-
-    final Object? err = map['error'];
-    if (err is String && err.isNotEmpty) return err;
-    if (err is Map<String, dynamic>) {
-      final m = err['message'] as String?;
-      if (m != null && m.isNotEmpty) return m;
-    }
-
-    final Object? detail = map['detail'];
-    if (detail is String && detail.isNotEmpty) return detail;
-    if (detail is List && detail.isNotEmpty) {
-      final Object? first = detail.first;
-      if (first is Map<String, dynamic>) {
-        final m = first['msg'] as String? ?? first['message'] as String?;
-        if (m != null && m.isNotEmpty) return m;
-      }
-    }
-    return null;
-  }
-
-  static String? _extractApiErrorCode(Map<String, dynamic> map) {
-    final Object? c = map['code'];
-    if (c is String && c.isNotEmpty) return c;
-    final Object? err = map['error'];
-    if (err is Map<String, dynamic>) {
-      final x = err['code'] as String?;
-      if (x != null && x.isNotEmpty) return x;
-    }
-    return null;
+    final AiseeApiException parsed = aiseeApiExceptionFromResponse(
+      res,
+      fallback,
+    );
+    return AiseeApiException(
+      'HTTP ${res.statusCode}: ${parsed.message}',
+      code: parsed.code,
+    );
   }
 }

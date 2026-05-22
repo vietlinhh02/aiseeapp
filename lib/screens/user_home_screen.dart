@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../config/aisee_locale_controller.dart';
+import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_family_member.dart';
+import '../models/aisee_incoming_call.dart';
 import '../models/agent_state.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_ai_assistant_controller.dart';
@@ -16,6 +19,7 @@ import '../services/aisee_ai_camera_streamer.dart';
 import '../services/aisee_ai_microphone_input.dart';
 import '../services/aisee_ai_session.dart';
 import '../services/aisee_analytics_service.dart';
+import '../services/aisee_assistant_call_launcher.dart';
 import '../services/aisee_assistant_device_command_handler.dart';
 import '../services/aisee_audio_uplink_gate.dart';
 import '../services/assistant_audio_coordinator.dart';
@@ -113,7 +117,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     try {
       SemanticsService.sendAnnouncement(
         View.of(context),
-        'Trợ lý đang lắng nghe. Bạn có thể nói.',
+        AppLocalizations.of(context).homeMicReadyAnnouncement,
         Directionality.of(context),
       );
     } catch (e, st) {
@@ -148,7 +152,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
             return;
           }
           await AppToast.show(
-            'Camera tạm tắt vì phát hiện nội dung không phù hợp',
+            lookupAppLocalizations(
+              AiseeLocaleController.instance.value,
+            ).homeCameraBlockedNsfw,
             isError: true,
           );
         },
@@ -160,6 +166,10 @@ class _UserHomeScreenState extends State<UserHomeScreen>
             _assistantController.enableCamera(params),
         onDisableCamera: (Map<String, dynamic> params) =>
             _assistantController.disableCamera(params),
+        onStartCall: (Map<String, dynamic> params) =>
+            AiseeAssistantCallLauncher.instance.startCall(params),
+        onAnswerIncomingCall: _handleAgentAnswerIncomingCall,
+        onDeclineIncomingCall: _handleAgentDeclineIncomingCall,
       ),
       onMusicPlaybackStarted: () async {
         if (!_wakeWordEnabled) {
@@ -272,6 +282,56 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     _assistantAudioCoordinator.onAgentStateChanged(next);
   }
 
+  Future<Map<String, Object?>> _handleAgentAnswerIncomingCall(
+    Map<String, dynamic> params,
+  ) async {
+    final String roomName = (params['room_name'] as String?) ?? '';
+    final String token = (params['token'] as String?) ?? '';
+    if (roomName.isEmpty || token.isEmpty) {
+      return const <String, Object?>{
+        'status': 'no_pending_call',
+        'message': 'No incoming call is currently ringing.',
+      };
+    }
+    final AiseeIncomingCall call =
+        AiseeIncomingCall.fromPayload(<String, dynamic>{
+          'room_name': roomName,
+          'token': token,
+          'caller_id': params['caller_id'] ?? '',
+          'caller_name': params['caller_name'] ?? '',
+          'caller_avatar_url': params['caller_avatar_url'],
+          'call_type': params['call_type'] ?? 'voice',
+        }, source: AiseeIncomingCallSource.callkit);
+    await AiseePushService.instance.acceptIncomingCall(call);
+    return <String, Object?>{
+      'status': 'answered',
+      'room_name': roomName,
+      'caller_name': call.callerName,
+      'call_type': call.callType,
+    };
+  }
+
+  Future<Map<String, Object?>> _handleAgentDeclineIncomingCall(
+    Map<String, dynamic> params,
+  ) async {
+    final String roomName = (params['room_name'] as String?) ?? '';
+    if (roomName.isEmpty) {
+      return const <String, Object?>{
+        'status': 'no_pending_call',
+        'message': 'No incoming call is currently ringing.',
+      };
+    }
+    final AiseeIncomingCall call =
+        AiseeIncomingCall.fromPayload(<String, dynamic>{
+          'room_name': roomName,
+          'caller_id': params['caller_id'] ?? '',
+          'caller_name': params['caller_name'] ?? '',
+          'call_type': params['call_type'] ?? 'voice',
+        }, source: AiseeIncomingCallSource.callkit);
+    await AiseePushService.instance.declineIncomingCall(call);
+    return <String, Object?>{'status': 'declined', 'room_name': roomName};
+  }
+
   Future<bool> _computeHasFamilyLink() async {
     final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
     if (tokens == null) {
@@ -310,7 +370,11 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       );
       final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
       if (tokens == null) {
-        throw AiseeApiException('Chưa có phiên đăng nhập');
+        throw AiseeApiException(
+          lookupAppLocalizations(
+            AiseeLocaleController.instance.value,
+          ).homeNoSession,
+        );
       }
       try {
         await _assistantController.connect(tokens.accessToken);
@@ -375,7 +439,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       final String msg = switch (e) {
         AiseeApiException error => error.message,
         AiseeAiSessionException error => error.message,
-        _ => 'Không kết nối được trợ lý giọng nói.',
+        _ => lookupAppLocalizations(
+          AiseeLocaleController.instance.value,
+        ).homeAssistantConnectFail,
       };
       setState(() {
         _assistantError = msg;
@@ -392,15 +458,15 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     }
   }
 
-  static const List<String?> _tabTitles = <String?>[
-    null, // tab 0: dùng "Xin chào, ..."
-    'Liên lạc',
-    'Cá nhân',
-  ];
-
   Widget _buildAppBarTitle() {
-    final String? tabTitle = _tabTitles[_tabIndex];
-    final String leftText = tabTitle ?? 'Xin chào, $_displayName';
+    final AppLocalizations l = AppLocalizations.of(context);
+    final List<String?> tabTitles = <String?>[
+      null,
+      l.homeTabContacts,
+      l.homeTabPersonal,
+    ];
+    final String? tabTitle = tabTitles[_tabIndex];
+    final String leftText = tabTitle ?? l.homeGreeting(_displayName);
     return Row(
       children: <Widget>[
         Expanded(
@@ -484,6 +550,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
             child: UserLowVisionBottomNav(
               currentIndex: _tabIndex,
               onChanged: _onTabChanged,
+              items: UserLowVisionBottomNav.defaultItems(
+                AppLocalizations.of(context),
+              ),
             ),
           ),
         ],

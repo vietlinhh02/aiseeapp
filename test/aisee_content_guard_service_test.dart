@@ -47,25 +47,28 @@ void main() {
     expect(detected, isTrue);
   });
 
-  test('does not call onUnsafeDetected when score is below threshold', () async {
-    final classifier = _FakeClassifier(0.3);
-    final service = AiseeContentGuardService(
-      classifier: classifier,
-      threshold: 0.7,
-      checkInterval: shortInterval,
-    );
+  test(
+    'does not call onUnsafeDetected when score is below threshold',
+    () async {
+      final classifier = _FakeClassifier(0.3);
+      final service = AiseeContentGuardService(
+        classifier: classifier,
+        threshold: 0.7,
+        checkInterval: shortInterval,
+      );
 
-    var detected = false;
-    service.startWithFrameProvider(
-      frameProvider: () async => dummyFrame,
-      onUnsafeDetected: () => detected = true,
-    );
+      var detected = false;
+      service.startWithFrameProvider(
+        frameProvider: () async => dummyFrame,
+        onUnsafeDetected: () => detected = true,
+      );
 
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    service.stop();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      service.stop();
 
-    expect(detected, isFalse);
-  });
+      expect(detected, isFalse);
+    },
+  );
 
   test('stop() cancels the timer', () async {
     final classifier = _FakeClassifier(0.3);

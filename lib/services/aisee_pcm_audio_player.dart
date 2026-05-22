@@ -24,7 +24,8 @@ class AiseeFlutterPcmAudioPlayer implements AiseeAiPcmPlayer {
   Future<void> _operationQueue = Future<void>.value();
 
   @override
-  bool get hasPendingAudio => _queuedBuffers.isNotEmpty || _pendingFeedCount > 0;
+  bool get hasPendingAudio =>
+      _queuedBuffers.isNotEmpty || _pendingFeedCount > 0;
 
   int _pendingFeedCount = 0;
   int _feedGeneration = 0;
