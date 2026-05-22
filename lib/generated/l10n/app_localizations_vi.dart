@@ -259,9 +259,27 @@ class AppLocalizationsVi extends AppLocalizations {
   String get assistantTabConnecting => 'Đang chờ kết nối…';
 
   @override
+  String get assistantTabWakeHintTitle => 'Gọi “aisee ơi” để đánh thức trợ lý';
+
+  @override
+  String get assistantTabWakeHintBody =>
+      'Khi AiSee đang nghỉ, chỉ cần nói “aisee ơi” để bắt đầu lại.';
+
+  @override
+  String get assistantTabWakeTimedOutTitle => 'AiSee đã nghỉ vì im lặng';
+
+  @override
+  String get assistantTabWakeTimedOutBody =>
+      'Muốn nói tiếp, hãy gọi lại “aisee ơi”.';
+
+  @override
   String assistantTabNowPlaying(String title) {
     return 'Đang phát: $title';
   }
+
+  @override
+  String get homeWakeReminderAnnouncement =>
+      'AiSee đã nghỉ. Muốn nói tiếp, hãy gọi lại aisee ơi.';
 
   @override
   String get authSessionExpired => 'Phiên hết hạn, vui lòng đăng nhập lại';

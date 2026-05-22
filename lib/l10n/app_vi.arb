@@ -88,10 +88,15 @@
   "assistantTabCameraPreviewLabel": "Xem trước camera của bạn, toàn màn hình",
   "assistantTabConnected": "Đã kết nối trợ lý giọng nói.",
   "assistantTabConnecting": "Đang chờ kết nối…",
+  "assistantTabWakeHintTitle": "Gọi “aisee ơi” để đánh thức trợ lý",
+  "assistantTabWakeHintBody": "Khi AiSee đang nghỉ, chỉ cần nói “aisee ơi” để bắt đầu lại.",
+  "assistantTabWakeTimedOutTitle": "AiSee đã nghỉ vì im lặng",
+  "assistantTabWakeTimedOutBody": "Muốn nói tiếp, hãy gọi lại “aisee ơi”.",
   "assistantTabNowPlaying": "Đang phát: {title}",
   "@assistantTabNowPlaying": {
     "placeholders": {"title": {"type": "String"}}
   },
+  "homeWakeReminderAnnouncement": "AiSee đã nghỉ. Muốn nói tiếp, hãy gọi lại aisee ơi.",
   "authSessionExpired": "Phiên hết hạn, vui lòng đăng nhập lại",
   "authSignInSuccess": "Đăng nhập thành công",
   "authSignedOut": "Đã đăng xuất",

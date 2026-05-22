@@ -536,11 +536,41 @@ abstract class AppLocalizations {
   /// **'Đang chờ kết nối…'**
   String get assistantTabConnecting;
 
+  /// No description provided for @assistantTabWakeHintTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gọi “aisee ơi” để đánh thức trợ lý'**
+  String get assistantTabWakeHintTitle;
+
+  /// No description provided for @assistantTabWakeHintBody.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khi AiSee đang nghỉ, chỉ cần nói “aisee ơi” để bắt đầu lại.'**
+  String get assistantTabWakeHintBody;
+
+  /// No description provided for @assistantTabWakeTimedOutTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'AiSee đã nghỉ vì im lặng'**
+  String get assistantTabWakeTimedOutTitle;
+
+  /// No description provided for @assistantTabWakeTimedOutBody.
+  ///
+  /// In vi, this message translates to:
+  /// **'Muốn nói tiếp, hãy gọi lại “aisee ơi”.'**
+  String get assistantTabWakeTimedOutBody;
+
   /// No description provided for @assistantTabNowPlaying.
   ///
   /// In vi, this message translates to:
   /// **'Đang phát: {title}'**
   String assistantTabNowPlaying(String title);
+
+  /// No description provided for @homeWakeReminderAnnouncement.
+  ///
+  /// In vi, this message translates to:
+  /// **'AiSee đã nghỉ. Muốn nói tiếp, hãy gọi lại aisee ơi.'**
+  String get homeWakeReminderAnnouncement;
 
   /// No description provided for @authSessionExpired.
   ///

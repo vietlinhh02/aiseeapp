@@ -357,6 +357,7 @@ void main() {
 
   test('agent idle starts grace period and timeout returns to wake', () async {
     final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
+    final List<String> idleReasons = <String>[];
     final AssistantAudioCoordinator controller = AssistantAudioCoordinator(
       startWakeListening: ops.startWakeListening,
       stopWakeListening: ops.stopWakeListening,
@@ -364,6 +365,7 @@ void main() {
       disableAssistantMic: ops.disableAssistantMic,
       switchToAssistantTab: ops.switchToAssistantTab,
       gracePeriod: const Duration(milliseconds: 20),
+      onReturnedToIdleWake: idleReasons.add,
     );
 
     await controller.onWakeDetected();
@@ -373,6 +375,7 @@ void main() {
     expect(controller.state, AssistantAudioState.idleListeningWake);
     expect(ops.wakeListening, isTrue);
     expect(ops.liveMicEnabled, isFalse);
+    expect(idleReasons, <String>['grace-expired']);
   });
 
   test(

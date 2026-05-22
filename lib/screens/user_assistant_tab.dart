@@ -20,6 +20,7 @@ class UserAssistantTab extends StatelessWidget {
     this.nowPlayingTitle,
     this.assistantWaveEnergy,
     this.agentState,
+    this.showWakeReminder = false,
     this.assistantCameraPreview,
     required this.onRetryAssistant,
   });
@@ -32,6 +33,7 @@ class UserAssistantTab extends StatelessWidget {
   final String? nowPlayingTitle;
   final ValueListenable<double>? assistantWaveEnergy;
   final ValueListenable<AgentState>? agentState;
+  final bool showWakeReminder;
   final Widget? assistantCameraPreview;
   final Future<void> Function() onRetryAssistant;
 
@@ -108,6 +110,7 @@ class UserAssistantTab extends StatelessWidget {
                       cameraPreview: assistantCameraPreview!,
                       assistantWaveEnergy: assistantWaveEnergy,
                       agentState: agentState,
+                      showWakeReminder: showWakeReminder,
                       nowPlayingTitle: nowPlayingTitle,
                       textShadowsOnVideo: _textShadowsOnVideo,
                     )
@@ -120,6 +123,7 @@ class UserAssistantTab extends StatelessWidget {
                           textShadowsOnVideo: _textShadowsOnVideo,
                           assistantWaveEnergy: assistantWaveEnergy,
                           agentState: agentState,
+                          showWakeReminder: showWakeReminder,
                           nowPlayingTitle: nowPlayingTitle,
                         ),
                       ),
@@ -146,6 +150,7 @@ class _AssistantLiveBody extends StatelessWidget {
     required this.cameraPreview,
     required this.assistantWaveEnergy,
     required this.agentState,
+    required this.showWakeReminder,
     required this.nowPlayingTitle,
     required this.textShadowsOnVideo,
   });
@@ -154,6 +159,7 @@ class _AssistantLiveBody extends StatelessWidget {
   final Widget cameraPreview;
   final ValueListenable<double>? assistantWaveEnergy;
   final ValueListenable<AgentState>? agentState;
+  final bool showWakeReminder;
   final String? nowPlayingTitle;
   final List<Shadow> Function() textShadowsOnVideo;
 
@@ -171,6 +177,7 @@ class _AssistantLiveBody extends StatelessWidget {
             textShadowsOnVideo: textShadowsOnVideo,
             assistantWaveEnergy: assistantWaveEnergy,
             agentState: agentState,
+            showWakeReminder: showWakeReminder,
             nowPlayingTitle: nowPlayingTitle,
           ),
         ),
@@ -199,6 +206,7 @@ class _AssistantLiveBody extends StatelessWidget {
                 textShadowsOnVideo: textShadowsOnVideo,
                 assistantWaveEnergy: assistantWaveEnergy,
                 agentState: agentState,
+                showWakeReminder: showWakeReminder,
                 nowPlayingTitle: nowPlayingTitle,
               ),
             ),
@@ -216,6 +224,7 @@ class _AssistantContentColumn extends StatelessWidget {
     required this.textShadowsOnVideo,
     required this.assistantWaveEnergy,
     required this.agentState,
+    required this.showWakeReminder,
     required this.nowPlayingTitle,
   });
 
@@ -224,6 +233,7 @@ class _AssistantContentColumn extends StatelessWidget {
   final List<Shadow> Function() textShadowsOnVideo;
   final ValueListenable<double>? assistantWaveEnergy;
   final ValueListenable<AgentState>? agentState;
+  final bool showWakeReminder;
   final String? nowPlayingTitle;
 
   @override
@@ -239,6 +249,24 @@ class _AssistantContentColumn extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (showWakeReminder) ...[
+          _AssistantHintCard(
+            title: l.assistantTabWakeTimedOutTitle,
+            body: l.assistantTabWakeTimedOutBody,
+            onVideo: onVideo,
+            emphasis: _AssistantHintCardEmphasis.warning,
+            textShadowsOnVideo: textShadowsOnVideo,
+          ),
+          const SizedBox(height: 12),
+        ],
+        _AssistantHintCard(
+          title: l.assistantTabWakeHintTitle,
+          body: l.assistantTabWakeHintBody,
+          onVideo: onVideo,
+          emphasis: _AssistantHintCardEmphasis.neutral,
+          textShadowsOnVideo: textShadowsOnVideo,
+        ),
+        const SizedBox(height: 16),
         if (agentState != null)
           ValueListenableBuilder<AgentState>(
             valueListenable: agentState!,
@@ -283,6 +311,75 @@ class _AssistantContentColumn extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+enum _AssistantHintCardEmphasis { neutral, warning }
+
+class _AssistantHintCard extends StatelessWidget {
+  const _AssistantHintCard({
+    required this.title,
+    required this.body,
+    required this.onVideo,
+    required this.emphasis,
+    required this.textShadowsOnVideo,
+  });
+
+  final String title;
+  final String body;
+  final bool onVideo;
+  final _AssistantHintCardEmphasis emphasis;
+  final List<Shadow> Function() textShadowsOnVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool warning = emphasis == _AssistantHintCardEmphasis.warning;
+    final Color bg = onVideo
+        ? (warning ? const Color(0xD97A3D0A) : const Color(0xB8141A1B))
+        : (warning ? const Color(0xFFFFF1E0) : const Color(0xFFF5F7F8));
+    final Color border = onVideo
+        ? (warning ? const Color(0x66FFD3A6) : const Color(0x4DFFFFFF))
+        : (warning ? const Color(0xFFFFD5A8) : StyleTokens.cardBorder);
+    final Color titleColor = onVideo
+        ? Colors.white
+        : (warning ? const Color(0xFF8B4A05) : StyleTokens.textPrimary);
+    final Color bodyColor = onVideo
+        ? const Color(0xFFF7F8F8)
+        : (warning ? const Color(0xFF8B4A05) : StyleTokens.textSecondary);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            title,
+            style: StyleTokens.bodySmall().copyWith(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: titleColor,
+              shadows: onVideo ? textShadowsOnVideo() : null,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            style: StyleTokens.bodySmall().copyWith(
+              fontSize: 14,
+              height: 1.45,
+              color: bodyColor,
+              shadows: onVideo ? textShadowsOnVideo() : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -261,9 +261,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantTabConnecting => 'Waiting to connect…';
 
   @override
+  String get assistantTabWakeHintTitle =>
+      'Say “aisee oi” to wake the assistant';
+
+  @override
+  String get assistantTabWakeHintBody =>
+      'When AiSee is resting, just say “aisee oi” to start again.';
+
+  @override
+  String get assistantTabWakeTimedOutTitle => 'AiSee stopped after silence';
+
+  @override
+  String get assistantTabWakeTimedOutBody =>
+      'To continue, say “aisee oi” again.';
+
+  @override
   String assistantTabNowPlaying(String title) {
     return 'Now playing: $title';
   }
+
+  @override
+  String get homeWakeReminderAnnouncement =>
+      'AiSee stopped. To continue, say aisee oi again.';
 
   @override
   String get authSessionExpired => 'Session expired, please sign in again';

@@ -7,12 +7,33 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:338486890234:android:925109c421ba7fd2ce0343",
+        "mobilesdk_app_id": "1:338486890234:android:7e40c80223460ea8ce0343",
         "android_client_info": {
-          "package_name": "com.aisee.aiseeapp"
+          "package_name": "com.aisee.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "338486890234-n3c9llg5b882efhfqdnvuv66s1pv6ngk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aisee.app",
+            "certificate_hash": "74827f00898397cc899bd55eb349b62a9185d228"
+          }
+        },
+        {
+          "client_id": "338486890234-qfcmibk8v64kl517c6qrk6okg4jp833n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aisee.app",
+            "certificate_hash": "3bed122b4c9ab84d639c0b881dd7535f3e48f35c"
+          }
+        },
+        {
+          "client_id": "338486890234-rngvalojohs2924etjgn6hbgdm476ij7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB4C-rvMiXpEf--KtxgZmDry5XmvF6nIGw"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "338486890234-rngvalojohs2924etjgn6hbgdm476ij7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -13,6 +13,7 @@ enum AssistantAudioState {
 
 typedef AssistantAudioAsyncAction = Future<void> Function();
 typedef AssistantAudioLog = void Function(String message);
+typedef AssistantAudioIdleWakeCallback = void Function(String reason);
 
 class AssistantAudioCoordinator {
   AssistantAudioCoordinator({
@@ -27,6 +28,7 @@ class AssistantAudioCoordinator {
     /// trước khi tắt engine wake / bật mic LiveKit.
     this.onWakeAcknowledged,
     this.onMicReadyAfterWake,
+    this.onReturnedToIdleWake,
     AssistantAudioLog? log,
   }) : _log = log ?? _defaultLog;
 
@@ -39,6 +41,7 @@ class AssistantAudioCoordinator {
 
   /// Gọi sau khi bật mic LiveKit xong (wake) — rung / a11y để user biết có thể nói.
   final VoidCallback? onMicReadyAfterWake;
+  final AssistantAudioIdleWakeCallback? onReturnedToIdleWake;
   final Duration gracePeriod;
   final AssistantAudioLog _log;
 
@@ -55,6 +58,7 @@ class AssistantAudioCoordinator {
       AssistantAudioState.idleListeningWake,
       'Idle wake ready ($reason)',
     );
+    onReturnedToIdleWake?.call(reason);
   }
 
   Future<void> onWakeDetected({String phrase = 'wake'}) async {

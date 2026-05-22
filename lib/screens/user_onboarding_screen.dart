@@ -10,10 +10,49 @@ import '../generated/l10n/app_localizations.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
 
+abstract class BatteryOptimizationController {
+  Future<bool> isGranted();
+
+  Future<bool> request();
+
+  Future<void> openSettings();
+}
+
+class PermissionHandlerBatteryOptimizationController
+    implements BatteryOptimizationController {
+  const PermissionHandlerBatteryOptimizationController();
+
+  @override
+  Future<bool> isGranted() async {
+    final PermissionStatus status =
+        await Permission.ignoreBatteryOptimizations.status;
+    return status.isGranted;
+  }
+
+  @override
+  Future<void> openSettings() {
+    return openAppSettings();
+  }
+
+  @override
+  Future<bool> request() async {
+    final PermissionStatus status = await Permission.ignoreBatteryOptimizations
+        .request();
+    return status.isGranted;
+  }
+}
+
 class AppOnboardingScreen extends StatefulWidget {
-  const AppOnboardingScreen({super.key, required this.onCompleted});
+  const AppOnboardingScreen({
+    super.key,
+    required this.onCompleted,
+    this.batteryOptimizationController,
+    this.showBatteryOptimizationStep,
+  });
 
   final void Function(String role) onCompleted;
+  final BatteryOptimizationController? batteryOptimizationController;
+  final bool? showBatteryOptimizationStep;
 
   @override
   State<AppOnboardingScreen> createState() => _AppOnboardingScreenState();
@@ -29,6 +68,14 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
   late final PageController _pageController;
   int _pageIndex = 0;
   String? _selectedRole;
+  bool _batteryGranted = false;
+
+  BatteryOptimizationController get _batteryOptimizationController =>
+      widget.batteryOptimizationController ??
+      const PermissionHandlerBatteryOptimizationController();
+
+  bool get _showBatteryOptimizationStep =>
+      widget.showBatteryOptimizationStep ?? (!kIsWeb && Platform.isAndroid);
 
   List<_OnboardingStep> _buildSteps(AppLocalizations l) {
     return <_OnboardingStep>[
@@ -68,7 +115,7 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
         accentColor: const Color(0xFFF0B7A3),
         lottieAssetPath: _familyLottieAsset,
       ),
-      if (!kIsWeb && Platform.isAndroid)
+      if (_showBatteryOptimizationStep)
         _OnboardingStep(
           title: l.onboardingBatteryTitle,
           description: l.onboardingBatteryDesc,
@@ -115,7 +162,27 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
 
   int _stepsLength(AppLocalizations l) => _buildSteps(l).length;
 
+  bool _currentStepRequiresBatteryGrant(List<_OnboardingStep> steps) =>
+      steps[_pageIndex].isBatteryOptimization && !_batteryGranted;
+
+  int _batteryStepIndex(List<_OnboardingStep> steps) =>
+      steps.indexWhere((_OnboardingStep step) => step.isBatteryOptimization);
+
+  int _skipTargetIndex(List<_OnboardingStep> steps) {
+    final int batteryIndex = _batteryStepIndex(steps);
+    if (batteryIndex != -1 && !_batteryGranted && _pageIndex < batteryIndex) {
+      return batteryIndex;
+    }
+    return steps.length - 1;
+  }
+
   Future<void> _goNext() async {
+    final List<_OnboardingStep> steps = _buildSteps(
+      AppLocalizations.of(context),
+    );
+    if (_currentStepRequiresBatteryGrant(steps)) {
+      return;
+    }
     if (_isLastPage) {
       final String? role = _selectedRole;
       if (role == null) {
@@ -136,7 +203,10 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
     final List<_OnboardingStep> steps = _buildSteps(l);
     final _OnboardingStep currentStep = steps[_pageIndex];
     final bool isLast = _pageIndex == steps.length - 1;
-    final bool canContinue = !isLast || _selectedRole != null;
+    final bool batteryRequired = _currentStepRequiresBatteryGrant(steps);
+    final bool canContinue =
+        (!isLast && !batteryRequired) || (isLast && _selectedRole != null);
+    final bool canSkip = !isLast && !currentStep.isBatteryOptimization;
 
     return Scaffold(
       backgroundColor: StyleTokens.background,
@@ -153,15 +223,15 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
                   SizedBox(
                     width: 76,
                     child: TextButton(
-                      onPressed: isLast
-                          ? null
-                          : () {
+                      onPressed: canSkip
+                          ? () {
                               _pageController.animateToPage(
-                                steps.length - 1,
+                                _skipTargetIndex(steps),
                                 duration: const Duration(milliseconds: 320),
                                 curve: Curves.easeOutCubic,
                               );
-                            },
+                            }
+                          : null,
                       style: TextButton.styleFrom(
                         foregroundColor: StyleTokens.textSecondary,
                         disabledForegroundColor: Colors.transparent,
@@ -171,9 +241,9 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
                         style: StyleTokens.bodySmall().copyWith(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: isLast
-                              ? Colors.transparent
-                              : StyleTokens.textSecondary,
+                          color: canSkip
+                              ? StyleTokens.textSecondary
+                              : Colors.transparent,
                         ),
                       ),
                     ),
@@ -184,6 +254,9 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
+                  physics: batteryRequired
+                      ? const NeverScrollableScrollPhysics()
+                      : null,
                   itemCount: steps.length,
                   padEnds: false,
                   clipBehavior: Clip.hardEdge,
@@ -200,6 +273,12 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
                         selectedRole: _selectedRole,
                         onSelectRole: (String role) {
                           setState(() => _selectedRole = role);
+                        },
+                        batteryOptimizationController:
+                            _batteryOptimizationController,
+                        onBatteryStatusChanged: (bool granted) {
+                          if (_batteryGranted == granted) return;
+                          setState(() => _batteryGranted = granted);
                         },
                       ),
                     );
@@ -270,14 +349,67 @@ class _OnboardingStepView extends StatelessWidget {
     required this.step,
     required this.selectedRole,
     required this.onSelectRole,
+    required this.batteryOptimizationController,
+    required this.onBatteryStatusChanged,
   });
 
   final _OnboardingStep step;
   final String? selectedRole;
   final ValueChanged<String> onSelectRole;
+  final BatteryOptimizationController batteryOptimizationController;
+  final ValueChanged<bool> onBatteryStatusChanged;
 
   @override
   Widget build(BuildContext context) {
+    final Widget highlightsCard = Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: StyleTokens.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: step.highlights
+            .map(
+              (String item) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      width: 26,
+                      height: 26,
+                      margin: const EdgeInsets.only(top: 1),
+                      decoration: BoxDecoration(
+                        color: step.accentColor.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: StyleTokens.buttonPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: StyleTokens.bodySmall().copyWith(
+                          fontSize: 14,
+                          height: 1.5,
+                          color: StyleTokens.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+
     return ColoredBox(
       color: StyleTokens.background,
       child: ClipRect(
@@ -296,6 +428,14 @@ class _OnboardingStepView extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
+              if (step.isBatteryOptimization) ...<Widget>[
+                const SizedBox(height: 18),
+                _BatteryOptimizationCard(
+                  accent: step.accentColor,
+                  controller: batteryOptimizationController,
+                  onStatusChanged: onBatteryStatusChanged,
+                ),
+              ],
               const SizedBox(height: 12),
               Text(
                 step.description,
@@ -307,60 +447,8 @@ class _OnboardingStepView extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: StyleTokens.surfaceCard,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: StyleTokens.cardBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: step.highlights
-                      .map(
-                        (String item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Container(
-                                width: 26,
-                                height: 26,
-                                margin: const EdgeInsets.only(top: 1),
-                                decoration: BoxDecoration(
-                                  color: step.accentColor.withValues(
-                                    alpha: 0.22,
-                                  ),
-                                  borderRadius: BorderRadius.circular(13),
-                                ),
-                                child: const Icon(
-                                  Icons.check_rounded,
-                                  size: 16,
-                                  color: StyleTokens.buttonPrimary,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  item,
-                                  style: StyleTokens.bodySmall().copyWith(
-                                    fontSize: 14,
-                                    height: 1.5,
-                                    color: StyleTokens.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-              if (step.isBatteryOptimization) ...<Widget>[
-                const SizedBox(height: 18),
-                _BatteryOptimizationCard(accent: step.accentColor),
-              ],
+              if (!step.isBatteryOptimization) highlightsCard,
+              if (step.isBatteryOptimization) ...<Widget>[highlightsCard],
               if (step.isRoleSelection) ...<Widget>[
                 const SizedBox(height: 18),
                 _RoleChoiceCard(
@@ -556,9 +644,15 @@ class _OnboardingHero extends StatelessWidget {
 }
 
 class _BatteryOptimizationCard extends StatefulWidget {
-  const _BatteryOptimizationCard({required this.accent});
+  const _BatteryOptimizationCard({
+    required this.accent,
+    required this.controller,
+    required this.onStatusChanged,
+  });
 
   final Color accent;
+  final BatteryOptimizationController controller;
+  final ValueChanged<bool> onStatusChanged;
 
   @override
   State<_BatteryOptimizationCard> createState() =>
@@ -593,16 +687,17 @@ class _BatteryOptimizationCardState extends State<_BatteryOptimizationCard>
 
   Future<void> _refreshStatus() async {
     try {
-      final PermissionStatus status =
-          await Permission.ignoreBatteryOptimizations.status;
+      final bool granted = await widget.controller.isGranted();
       if (!mounted) return;
       setState(() {
-        _granted = status.isGranted;
+        _granted = granted;
         _checking = false;
       });
+      widget.onStatusChanged(granted);
     } catch (e) {
       if (!mounted) return;
       setState(() => _checking = false);
+      widget.onStatusChanged(false);
     }
   }
 
@@ -610,15 +705,14 @@ class _BatteryOptimizationCardState extends State<_BatteryOptimizationCard>
     if (_requesting) return;
     setState(() => _requesting = true);
     try {
-      final PermissionStatus status = await Permission
-          .ignoreBatteryOptimizations
-          .request();
+      final bool granted = await widget.controller.request();
       if (!mounted) return;
-      setState(() => _granted = status.isGranted);
+      setState(() => _granted = granted);
+      widget.onStatusChanged(granted);
     } catch (_) {
       // Một số OEM (Xiaomi/Oppo) không cho cấp ở dialog → mở settings.
       try {
-        await openAppSettings();
+        await widget.controller.openSettings();
       } catch (_) {}
     } finally {
       if (mounted) setState(() => _requesting = false);
@@ -707,7 +801,7 @@ class _BatteryOptimizationCardState extends State<_BatteryOptimizationCard>
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: () => openAppSettings(),
+              onPressed: () => widget.controller.openSettings(),
               style: TextButton.styleFrom(
                 foregroundColor: StyleTokens.textSecondary,
               ),

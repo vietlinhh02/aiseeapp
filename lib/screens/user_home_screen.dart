@@ -25,6 +25,7 @@ import '../services/aisee_audio_uplink_gate.dart';
 import '../services/assistant_audio_coordinator.dart';
 import '../services/aisee_auth_service.dart';
 import '../services/aisee_family_service.dart';
+import '../services/aisee_notification_feedback.dart';
 import '../services/aisee_pcm_audio_player.dart';
 import '../services/aisee_push_service.dart';
 import '../services/aisee_wake_word_service.dart';
@@ -73,6 +74,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   bool _assistantConnecting = true;
   String? _assistantError;
   bool _assistantConnected = false;
+  bool _showWakeReminder = false;
 
   String get _displayName {
     final String? googleName = widget.googleUser?.displayName?.trim();
@@ -103,6 +105,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
 
   /// Ngay khi wake được chấp nhận (trước khi nhả DaVoice / bật mic) — tương tự chuông vào session của hello-wakeword.
   void _signalWakeAcknowledged() {
+    _clearWakeReminder();
     HapticFeedback.lightImpact();
     SystemSound.play(SystemSoundType.click);
   }
@@ -123,6 +126,37 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     } catch (e, st) {
       debugPrint('[AiSee:UI] sendAnnouncement mic ready: $e\n$st');
     }
+  }
+
+  void _signalAssistantTimedOutToUser() {
+    if (!mounted) {
+      return;
+    }
+    AiseeNotificationFeedback.instance.playMessageAlert();
+    try {
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        AppLocalizations.of(context).homeWakeReminderAnnouncement,
+        Directionality.of(context),
+      );
+    } catch (e, st) {
+      debugPrint('[AiSee:UI] sendAnnouncement wake reminder: $e\n$st');
+    }
+  }
+
+  void _clearWakeReminder() {
+    if (!_showWakeReminder || !mounted) {
+      return;
+    }
+    setState(() => _showWakeReminder = false);
+  }
+
+  void _handleReturnedToIdleWake(String reason) {
+    if (reason != 'grace-expired' || !mounted) {
+      return;
+    }
+    setState(() => _showWakeReminder = true);
+    _signalAssistantTimedOutToUser();
   }
 
   @override
@@ -191,6 +225,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       onMicReadyAfterWake: _wakeWordEnabled
           ? _signalAssistantReadyToUser
           : null,
+      onReturnedToIdleWake: _wakeWordEnabled ? _handleReturnedToIdleWake : null,
       log: (String message) => debugPrint('[AiSee:WakeFlow] $message'),
     );
     _assistantController.nowPlayingTitle.addListener(_onMusicUiChanged);
@@ -279,6 +314,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       return;
     }
     final AgentState next = _assistantController.agentState.value;
+    if (next.keepsConversationOpen) {
+      _clearWakeReminder();
+    }
     _assistantAudioCoordinator.onAgentStateChanged(next);
   }
 
@@ -401,6 +439,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
         _assistantConnected = true;
         _assistantConnecting = false;
         _assistantError = null;
+        _showWakeReminder = false;
       });
       unawaited(
         AiseeAnalyticsService.instance.trackOnce(
@@ -447,6 +486,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
         _assistantError = msg;
         _assistantConnecting = false;
         _assistantConnected = false;
+        _showWakeReminder = false;
       });
       debugPrint('');
       debugPrint('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
@@ -527,6 +567,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
                     assistantWaveEnergy:
                         _assistantController.assistantWaveEnergy,
                     agentState: _assistantController.agentState,
+                    showWakeReminder: _showWakeReminder,
                     assistantCameraPreview:
                         _assistantController.cameraPreview.value,
                     onRetryAssistant: _startAssistantSession,

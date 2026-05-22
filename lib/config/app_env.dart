@@ -42,14 +42,14 @@ abstract final class AppEnv {
   static const String googleWebClientId = String.fromEnvironment(
     'GOOGLE_WEB_CLIENT_ID',
     defaultValue:
-        '426558011849-rgvtpskfhennhjg5p5r3knu9hau436c8.apps.googleusercontent.com',
+        '338486890234-rngvalojohs2924etjgn6hbgdm476ij7.apps.googleusercontent.com',
   );
 
   /// OAuth Android Client ID — truyền `clientId` khi chạy trên Android.
   static const String googleClientIdAndroid = String.fromEnvironment(
     'GOOGLE_CLIENT_ID_ANDROID',
     defaultValue:
-        '426558011849-cf6t820harsi5hb16pqsi4r14djje5df.apps.googleusercontent.com',
+        '338486890234-n3c9llg5b882efhfqdnvuv66s1pv6ngk.apps.googleusercontent.com',
   );
 
   static String _dotenv(String key) {
