@@ -635,6 +635,9 @@ class _FakeAssistantSession implements AiseeAiAssistantSessionClient {
         AiseeAiSessionConnectionStatus.disconnected,
       );
 
+  @override
+  final ValueNotifier<int> reconnectAttempt = ValueNotifier<int>(0);
+
   final StreamController<Uint8List> _assistantAudioController =
       StreamController<Uint8List>.broadcast();
   final StreamController<void> _assistantAudioInterruptedController =

@@ -14,6 +14,7 @@ enum AiseeAiSessionConnectionStatus {
   starting,
   connected,
   ready,
+  reconnecting,
   failed,
 }
 
@@ -27,14 +28,15 @@ enum AiseeAiSessionMediaMode {
 }
 
 class AiseeAiSessionException implements Exception {
-  AiseeAiSessionException(this.message, {this.statusCode});
+  AiseeAiSessionException(this.message, {this.statusCode, this.retryable = true});
 
   final String message;
   final int? statusCode;
+  final bool retryable;
 
   @override
   String toString() =>
-      'AiseeAiSessionException(statusCode: $statusCode, message: $message)';
+      'AiseeAiSessionException(statusCode: $statusCode, retryable: $retryable, message: $message)';
 }
 
 class AiseeAiAudioFormat {
@@ -172,6 +174,8 @@ class AiseeAiSession {
 
   static const Duration _connectTimeout = Duration(seconds: 45);
   static const Duration _socketPingInterval = Duration(seconds: 30);
+  static const int _maxReconnectAttempts = 8;
+  static const double _reconnectJitterMaxSeconds = 1.5;
 
   final http.Client _http;
   final bool _ownsHttp;
@@ -186,6 +190,7 @@ class AiseeAiSession {
       );
   final ValueNotifier<AiseeAiSessionConfig?> sessionConfig =
       ValueNotifier<AiseeAiSessionConfig?>(null);
+  final ValueNotifier<int> reconnectAttempt = ValueNotifier<int>(0);
 
   final StreamController<Uint8List> _assistantAudioController =
       StreamController<Uint8List>.broadcast();
@@ -205,6 +210,7 @@ class AiseeAiSession {
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   String? _lastAccessToken;
+  final Random _random = Random();
 
   Stream<Uint8List> get assistantAudioBytes => _assistantAudioController.stream;
 
@@ -251,7 +257,15 @@ class AiseeAiSession {
     connectionStatus.value = AiseeAiSessionConnectionStatus.starting;
     agentState.value = AgentState.connecting;
 
-    final AiseeAiSessionConfig config = await _createSession(accessToken);
+    final AiseeAiSessionConfig config;
+    try {
+      config = await _createSession(accessToken);
+    } catch (error) {
+      if (!_disposed) {
+        connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
+      }
+      rethrow;
+    }
     if (_disposed) {
       throw AiseeAiSessionException('AI session disposed before connect.');
     }
@@ -267,6 +281,7 @@ class AiseeAiSession {
     socket.pingInterval = _socketPingInterval;
     _socket = socket;
     _reconnectAttempts = 0;
+    reconnectAttempt.value = 0;
     _socketSub = socket.stream.listen(
       _onSocketData,
       onError: _onSocketError,
@@ -292,11 +307,13 @@ class AiseeAiSession {
     final String raw = utf8.decode(response.bodyBytes).trim();
 
     if (response.statusCode != 200) {
+      final bool isServerError = response.statusCode >= 500;
       throw AiseeAiSessionException(
         raw.isEmpty
             ? 'AI session request failed with HTTP ${response.statusCode}.'
             : 'AI session request failed with HTTP ${response.statusCode}: $raw',
         statusCode: response.statusCode,
+        retryable: isServerError,
       );
     }
 
@@ -408,6 +425,7 @@ class AiseeAiSession {
     if (resetState) {
       sessionConfig.value = null;
       agentState.value = AgentState.disconnected;
+      reconnectAttempt.value = 0;
     }
     connectionStatus.value = AiseeAiSessionConnectionStatus.disconnected;
   }
@@ -421,6 +439,7 @@ class AiseeAiSession {
     agentState.dispose();
     connectionStatus.dispose();
     sessionConfig.dispose();
+    reconnectAttempt.dispose();
     _assistantAudioController.close();
     _assistantAudioInterruptedController.close();
     _toolRequestController.close();
@@ -609,9 +628,12 @@ class AiseeAiSession {
   }
 
   void _onSocketError(Object error, StackTrace stackTrace) {
-    connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
-    if (agentState.value != AgentState.failed) {
-      agentState.value = AgentState.failed;
+    _socket = null;
+    _socketSub = null;
+    _audioStreaming = false;
+    _outgoingMediaMode = null;
+    if (_disposed) {
+      return;
     }
     _scheduleReconnect();
   }
@@ -624,10 +646,6 @@ class AiseeAiSession {
     if (_disposed) {
       return;
     }
-    connectionStatus.value = AiseeAiSessionConnectionStatus.disconnected;
-    if (agentState.value != AgentState.failed) {
-      agentState.value = AgentState.disconnected;
-    }
     _scheduleReconnect();
   }
 
@@ -636,11 +654,24 @@ class AiseeAiSession {
     _reconnectTimer?.cancel();
     final String token = _lastAccessToken ?? '';
     if (token.isEmpty) return;
-    final int delaySec = min(30, pow(2, _reconnectAttempts).toInt());
+
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
+      agentState.value = AgentState.failed;
+      debugPrint(
+        '[AiSee:Session] Max reconnect attempts ($_maxReconnectAttempts) reached',
+      );
+      return;
+    }
+
+    final double jitter = _random.nextDouble() * _reconnectJitterMaxSeconds;
+    final int delaySec = min(30, pow(2, _reconnectAttempts).toInt() + jitter.toInt());
     _reconnectAttempts++;
+    reconnectAttempt.value = _reconnectAttempts;
+    connectionStatus.value = AiseeAiSessionConnectionStatus.reconnecting;
     debugPrint(
       '[AiSee:Session] Reconnect in ${delaySec}s '
-      '(attempt $_reconnectAttempts)',
+      '(attempt $_reconnectAttempts/$_maxReconnectAttempts)',
     );
     _reconnectTimer = Timer(Duration(seconds: delaySec), () {
       unawaited(
@@ -648,7 +679,14 @@ class AiseeAiSession {
           (_) {},
           onError: (Object error, StackTrace _) {
             debugPrint('[AiSee:Session] Reconnect failed: $error');
-            _scheduleReconnect();
+            final bool shouldRetry =
+                error is! AiseeAiSessionException || error.retryable;
+            if (shouldRetry) {
+              _scheduleReconnect();
+            } else {
+              connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
+              agentState.value = AgentState.failed;
+            }
           },
         ),
       );

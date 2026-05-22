@@ -18,6 +18,12 @@ class AiseeChatSocket {
   String? _accessToken;
   bool _disposed = false;
   bool _connecting = false;
+  final Random _random = Random();
+
+  static const int _maxReconnectAttempts = 8;
+  static const double _reconnectJitterMaxSeconds = 1.5;
+
+  final ValueNotifier<int> reconnectAttempts = ValueNotifier<int>(0);
 
   final StreamController<AiseeMessage> _controller =
       StreamController<AiseeMessage>.broadcast();
@@ -70,6 +76,7 @@ class AiseeChatSocket {
       ws.pingInterval = const Duration(seconds: 30);
       _socket = ws;
       _reconnectAttempts = 0;
+      reconnectAttempts.value = 0;
       debugPrint('[AiSee:WS] Connected');
 
       ws.listen(
@@ -125,11 +132,21 @@ class AiseeChatSocket {
   void _scheduleReconnect() {
     if (_disposed) return;
     _reconnectTimer?.cancel();
-    final int delaySec = min(30, pow(2, _reconnectAttempts).toInt());
+
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      debugPrint(
+        '[AiSee:WS] Max reconnect attempts ($_maxReconnectAttempts) reached',
+      );
+      return;
+    }
+
+    final double jitter = _random.nextDouble() * _reconnectJitterMaxSeconds;
+    final int delaySec = min(30, pow(2, _reconnectAttempts).toInt() + jitter.toInt());
     _reconnectAttempts++;
+    reconnectAttempts.value = _reconnectAttempts;
     debugPrint(
       '[AiSee:WS] Reconnect in ${delaySec}s '
-      '(attempt $_reconnectAttempts)',
+      '(attempt $_reconnectAttempts/$_maxReconnectAttempts)',
     );
     _reconnectTimer = Timer(Duration(seconds: delaySec), _doConnect);
   }
@@ -150,5 +167,6 @@ class AiseeChatSocket {
   void dispose() {
     disconnect();
     _controller.close();
+    reconnectAttempts.dispose();
   }
 }

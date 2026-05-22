@@ -21,6 +21,7 @@ typedef AiseeAssistantForegroundAction = Future<void> Function();
 abstract interface class AiseeAiAssistantSessionClient {
   ValueListenable<AgentState> get agentState;
   ValueListenable<AiseeAiSessionConnectionStatus> get connectionStatus;
+  ValueListenable<int> get reconnectAttempt;
 
   Stream<Uint8List> get assistantAudioBytes;
   Stream<void> get assistantAudioInterrupted;
@@ -55,6 +56,9 @@ class AiseeAiSessionClientAdapter implements AiseeAiAssistantSessionClient {
   @override
   ValueListenable<AiseeAiSessionConnectionStatus> get connectionStatus =>
       _session.connectionStatus;
+
+  @override
+  ValueListenable<int> get reconnectAttempt => _session.reconnectAttempt;
 
   @override
   Stream<AiseeAiDeviceCommandRequest> get deviceCommands =>
@@ -167,6 +171,11 @@ class AiseeAiAssistantController {
 
   ValueListenable<AgentState> get agentState => _session.agentState;
 
+  ValueListenable<AiseeAiSessionConnectionStatus> get connectionStatus =>
+      _session.connectionStatus;
+
+  ValueListenable<int> get reconnectAttempt => _session.reconnectAttempt;
+
   ValueListenable<String?> get nowPlayingTitle =>
       _deviceCommandHandler.nowPlayingTitle;
 
@@ -176,7 +185,8 @@ class AiseeAiAssistantController {
     final AiseeAiSessionConnectionStatus status =
         _session.connectionStatus.value;
     return status == AiseeAiSessionConnectionStatus.connected ||
-        status == AiseeAiSessionConnectionStatus.ready;
+        status == AiseeAiSessionConnectionStatus.ready ||
+        status == AiseeAiSessionConnectionStatus.reconnecting;
   }
 
   Future<void> connect(String accessToken) async {
