@@ -165,48 +165,68 @@ class AiseeLiveKitVoiceSession {
   /// (không phụ thuộc VAD). Chờ agent join tối đa [maxWait] vì dispatch có thể
   /// hoàn tất sau khi app đã vào phòng.
   Future<void> _notifyAgentWakeConversationReady() async {
-    const Duration pollInterval = Duration(milliseconds: 200);
-    const Duration maxWait = Duration(seconds: 15);
-    final DateTime deadline = DateTime.now().add(maxWait);
+    final Room? room = _room;
+    final LocalParticipant? lp = room?.localParticipant;
+    if (room == null || lp == null) return;
 
-    while (DateTime.now().isBefore(deadline)) {
-      final Room? room = _room;
-      final LocalParticipant? lp = room?.localParticipant;
-      if (room == null || lp == null) {
-        return;
-      }
-
-      RemoteParticipant? agentParticipant;
+    RemoteParticipant? findAgent() {
       for (final RemoteParticipant p in room.remoteParticipants.values) {
-        if (p.kind == ParticipantKind.AGENT) {
-          agentParticipant = p;
-          break;
-        }
+        if (p.kind == ParticipantKind.AGENT) return p;
       }
-
-      if (agentParticipant != null) {
-        try {
-          final String response = await lp.performRpc(
-            PerformRpcParams(
-              destinationIdentity: agentParticipant.identity,
-              method: 'wake_conversation_ready',
-              payload: '{}',
-              responseTimeoutMs: const Duration(seconds: 10),
-            ),
-          );
-          _log('WakeRPC', 'wake_conversation_ready ok: $response');
-          return;
-        } catch (e, st) {
-          debugPrint(
-            '[AiSee:WakeRPC] wake_conversation_ready failed (retry): $e\n$st',
-          );
-        }
-      }
-
-      await Future<void>.delayed(pollInterval);
+      return null;
     }
 
-    _log('WakeRPC', 'Het thoi gian cho AGENT — wake_conversation_ready bo qua');
+    RemoteParticipant? agent = findAgent();
+
+    if (agent == null) {
+      final Completer<RemoteParticipant> completer =
+          Completer<RemoteParticipant>();
+      Timer? deadlineTimer;
+
+      final EventsListener<RoomEvent> listener = room.createListener()
+        ..on<ParticipantConnectedEvent>((ParticipantConnectedEvent e) {
+          if (e.participant.kind == ParticipantKind.AGENT &&
+              !completer.isCompleted) {
+            completer.complete(e.participant);
+          }
+        });
+
+      deadlineTimer = Timer(const Duration(seconds: 15), () {
+        if (!completer.isCompleted) {
+          completer.completeError(
+            TimeoutException('Agent participant did not connect'),
+          );
+        }
+      });
+
+      try {
+        agent = await completer.future;
+      } on TimeoutException {
+        _log('WakeRPC', 'Het thoi gian cho AGENT');
+        return;
+      } catch (_) {
+        return;
+      } finally {
+        deadlineTimer.cancel();
+        listener.dispose();
+      }
+    }
+
+    try {
+      await lp.performRpc(
+        PerformRpcParams(
+          destinationIdentity: agent.identity,
+          method: 'wake_conversation_ready',
+          payload: '{}',
+          responseTimeoutMs: const Duration(seconds: 10),
+        ),
+      );
+      _log('WakeRPC', 'wake_conversation_ready ok');
+    } catch (e, st) {
+      debugPrint(
+        '[AiSee:WakeRPC] wake_conversation_ready failed: $e\n$st',
+      );
+    }
   }
 
   void _setLocalCameraPreviewTrack(LocalVideoTrack? track) {
@@ -657,11 +677,11 @@ class AiseeLiveKitVoiceSession {
       // Start NSFW content guard with 200ms interval for minimal exposure.
       if (_contentGuard == null) {
         final AiseeNsfwClassifier? classifier =
-            await AiseeNsfwClassifier.load();
+            await AiseeNsfwClassifier.instance;
         if (classifier != null) {
           _contentGuard = AiseeContentGuardService(
             classifier: classifier,
-            checkInterval: const Duration(milliseconds: 200),
+            checkInterval: const Duration(milliseconds: 1000),
           );
         }
       }

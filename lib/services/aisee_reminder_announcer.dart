@@ -17,6 +17,7 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
   final FlutterTts _tts = FlutterTts();
   Timer? _timer;
   bool _running = false;
+  bool _ttsReady = false;
 
   /// Tracks announced reminders so we don't repeat within the same window.
   /// Key format: "{reminderId}_{timeSlotOrDatetime}_{dateKey}"
@@ -30,11 +31,10 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
     if (_running) return;
     _running = true;
 
-    await _initTts();
     AiseeLocaleController.instance.addListener(_onLocaleChanged);
     WidgetsBinding.instance.addObserver(this);
     _startTimer();
-    debugPrint('[AiSee:Announcer] Started');
+    debugPrint('[AiSee:Announcer] Started (TTS deferred)');
   }
 
   void dispose() {
@@ -46,8 +46,16 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
     debugPrint('[AiSee:Announcer] Disposed');
   }
 
+  Future<void> _ensureTts() async {
+    if (_ttsReady) return;
+    await _initTts();
+    _ttsReady = true;
+  }
+
   void _onLocaleChanged() {
-    unawaited(_applyLocaleToTts());
+    if (_ttsReady) {
+      unawaited(_applyLocaleToTts());
+    }
   }
 
   Future<void> _applyLocaleToTts() async {
@@ -163,6 +171,7 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
   }
 
   Future<void> _speak(String text) async {
+    await _ensureTts();
     debugPrint('[AiSee:Announcer] Speaking: $text');
     await _tts.speak(text);
   }

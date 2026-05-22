@@ -18,12 +18,20 @@ class AiseeNsfwClassifier implements NsfwClassifier {
 
   final Interpreter _interpreter;
 
+  static AiseeNsfwClassifier? _instance;
+
   static const String _modelAsset = 'assets/models/nsfw_mobilenet.tflite';
   static const int _inputSize = 224;
   static const int _maxFrameWidth = 640;
   static const int _jpegQuality = 68;
   static const List<int> _nsfwIndices = [1, 3, 4];
   static const double defaultThreshold = 0.7;
+
+  static Future<AiseeNsfwClassifier?> get instance async {
+    if (_instance != null) return _instance;
+    _instance = await load();
+    return _instance;
+  }
 
   /// Loads the classifier from bundled assets with GPU delegate if available.
   ///

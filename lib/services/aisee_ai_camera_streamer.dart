@@ -118,7 +118,7 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
 
   Future<void> _loadClassifier() async {
     if (_classifier != null) return;
-    _classifier = await AiseeNsfwClassifier.load();
+    _classifier = await AiseeNsfwClassifier.instance;
   }
 
   Future<void> _captureAndSend() async {

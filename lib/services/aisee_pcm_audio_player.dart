@@ -15,7 +15,7 @@ abstract interface class AiseeAiPcmPlayer {
 class AiseeFlutterPcmAudioPlayer implements AiseeAiPcmPlayer {
   static const int _sampleRate = 24000;
   static const int _channelCount = 1;
-  static const int _feedThresholdFrames = 9600;
+  static const int _feedThresholdFrames = 4800;
 
   final Queue<PcmArrayInt16> _queuedBuffers = Queue<PcmArrayInt16>();
 
@@ -97,16 +97,14 @@ class AiseeFlutterPcmAudioPlayer implements AiseeAiPcmPlayer {
       }
       if (_queuedBuffers.isNotEmpty || remainingFrames <= 0) {
         final int gen = ++_feedGeneration;
-        scheduleMicrotask(() {
-          unawaited(
-            _runSerial(() => _feedLoop(gen)).catchError((
-              Object error,
-              StackTrace stackTrace,
-            ) {
-              debugPrint('[AiSee:PCM] feed failed: $error\n$stackTrace');
-            }),
-          );
-        });
+        unawaited(
+          _runSerial(() => _feedLoop(gen)).catchError((
+            Object error,
+            StackTrace stackTrace,
+          ) {
+            debugPrint('[AiSee:PCM] feed failed: $error\n$stackTrace');
+          }),
+        );
       }
     });
     _initialized = true;
