@@ -259,7 +259,7 @@ class _UsageHeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? updatedLabel = _updatedLabel(l, usage?.asOf);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: StyleTokens.surfaceCard,
         borderRadius: BorderRadius.circular(22),
@@ -275,22 +275,22 @@ class _UsageHeaderCard extends StatelessWidget {
                 Text(
                   _screenTitle(l),
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 26,
+                    fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   _usageHeaderDescription(l),
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
+                    fontSize: 13,
                     height: 1.45,
                     color: StyleTokens.textSecondary,
                   ),
                 ),
                 if (updatedLabel != null) ...<Widget>[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(
                     updatedLabel,
                     style: GoogleFonts.plusJakartaSans(
@@ -302,7 +302,7 @@ class _UsageHeaderCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
@@ -799,9 +799,11 @@ String _screenTitle(AppLocalizations l) {
 
 String _usageHeaderDescription(AppLocalizations l) {
   if (l.localeName.startsWith('vi')) {
-    return 'Theo dõi nhanh hạn mức AI, cuộc gọi và các quyền chăm sóc đang bật trong gói hiện tại.';
+    return 'Phút AI, số lần bật camera và cuộc gọi đã dùng trong kỳ hiện tại. '
+        'Các quyền chăm sóc đang bật theo gói.';
   }
-  return 'A quick view of AI limits, calling limits, and care features in your current plan.';
+  return 'AI minutes, camera activations and calls used this period. '
+      'Active care features in your current plan.';
 }
 
 String? _updatedLabel(AppLocalizations l, DateTime? asOf) {
