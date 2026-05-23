@@ -156,13 +156,6 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
   Future<void> _openUsageValue() async {
     final String? caredUserId = await _lastCaredUserId();
     if (!mounted) return;
-    if (caredUserId == null) {
-      AppToast.show(
-        AppLocalizations.of(context).familyPersonalCareNeeded,
-        isError: true,
-      );
-      return;
-    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => UsageValueScreen(caredUserId: caredUserId),
@@ -174,13 +167,6 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
     HapticFeedback.lightImpact();
     final String? caredUserId = await _lastCaredUserId();
     if (!mounted) return;
-    if (caredUserId == null) {
-      AppToast.show(
-        AppLocalizations.of(context).familyPersonalSubscriptionNeeded,
-        isError: true,
-      );
-      return;
-    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) =>
