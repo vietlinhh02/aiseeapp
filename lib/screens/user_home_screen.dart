@@ -206,6 +206,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
           if (!mounted) {
             return;
           }
+          try {
+            await aiSession.sendNsfwDetected();
+          } catch (_) {}
           await AppToast.show(
             lookupAppLocalizations(
               AiseeLocaleController.instance.value,
