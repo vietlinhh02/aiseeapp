@@ -41,9 +41,9 @@ class UserLowVisionBottomNav extends StatelessWidget {
 
   static List<NavItemData> familyItems(AppLocalizations l) => [
     NavItemData(
-      iconAsset: 'assets/icons/nav/ic_3user.svg',
-      label: l.navFamily,
-      semanticsLabel: l.navFamilyLabel,
+      iconData: Icons.volunteer_activism_rounded,
+      label: l.navSupport,
+      semanticsLabel: l.navSupportLabel,
     ),
     NavItemData(
       iconAsset: 'assets/icons/nav/ic_message.svg',

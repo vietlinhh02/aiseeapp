@@ -2318,4 +2318,103 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reminderAtSeparator => ' at ';
+
+  @override
+  String get supporterTabSupport => 'Support';
+
+  @override
+  String get navSupport => 'Support';
+
+  @override
+  String get navSupportLabel => 'Tab 1 of 3: Support. Supporter overview.';
+
+  @override
+  String get supporterPersonalPeopleSupported => 'People supported';
+
+  @override
+  String get supporterPersonalAITurnsGifted => 'AI turns gifted';
+
+  @override
+  String get supporterPersonalAdsWatched => 'Ads watched';
+
+  @override
+  String get supporterWatchAdButton => 'Watch ad to support';
+
+  @override
+  String get supporterMyFamilyLink => 'My family';
+
+  @override
+  String get supporterBalanceTitle => 'Your balance';
+
+  @override
+  String supporterBalanceConversion(int count) {
+    return '$count AI turns';
+  }
+
+  @override
+  String get supporterRedeemButton => 'Redeem to support';
+
+  @override
+  String get supporterRateHint => '1 ad = 100 coins = 1 AI turn';
+
+  @override
+  String get supporterCommunityTitle => 'Community';
+
+  @override
+  String get supporterCommunityPeopleSupported => 'People being supported';
+
+  @override
+  String get supporterCommunityAITurnsGifted => 'AI turns gifted';
+
+  @override
+  String get supporterCommunityActiveSupporters => 'Active supporters';
+
+  @override
+  String get supporterInfoTitle => 'How it works';
+
+  @override
+  String get supporterInfoStep1 => 'Watch ads → earn coins';
+
+  @override
+  String get supporterInfoStep2 => 'Save enough coins → redeem AI turns';
+
+  @override
+  String get supporterInfoStep3 => 'Gift to family or community fund';
+
+  @override
+  String get supporterInfoDailyLimit => 'You can watch up to 10 ads per day';
+
+  @override
+  String get supporterInfoLearnMore => 'Learn more';
+
+  @override
+  String get supporterCoinLabel => 'coins';
+
+  @override
+  String get supporterAdLimitReached => 'Daily ad limit reached';
+
+  @override
+  String get supporterInsufficientBalance => 'Not enough balance';
+
+  @override
+  String supporterRedeemSuccess(int turns) {
+    return 'Redeemed $turns AI turns';
+  }
+
+  @override
+  String get supporterAdWatchSuccess => 'Received 100 coins';
+
+  @override
+  String get supporterRedeemDialogTitle => 'Redeem coins for AI turns';
+
+  @override
+  String get supporterRedeemCommunityFund => 'Community fund';
+
+  @override
+  String supporterRedeemConfirm(int amount, int turns) {
+    return 'Redeem $amount coins = $turns AI turns';
+  }
+
+  @override
+  String get supporterRedeemRecipientLabel => 'Recipient';
 }

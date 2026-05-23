@@ -723,5 +723,48 @@
   "freqWeekly": "Weekly",
   "freqMonthly": "Monthly",
   "freqTwiceDaily": "2 times/day",
-  "reminderAtSeparator": " at "
+  "reminderAtSeparator": " at ",
+  "supporterTabSupport": "Support",
+  "navSupport": "Support",
+  "navSupportLabel": "Tab 1 of 3: Support. Supporter overview.",
+  "supporterPersonalPeopleSupported": "People supported",
+  "supporterPersonalAITurnsGifted": "AI turns gifted",
+  "supporterPersonalAdsWatched": "Ads watched",
+  "supporterWatchAdButton": "Watch ad to support",
+  "supporterMyFamilyLink": "My family",
+  "supporterBalanceTitle": "Your balance",
+  "supporterBalanceConversion": "{count} AI turns",
+  "@supporterBalanceConversion": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "supporterRedeemButton": "Redeem to support",
+  "supporterRateHint": "1 ad = 100 coins = 1 AI turn",
+  "supporterCommunityTitle": "Community",
+  "supporterCommunityPeopleSupported": "People being supported",
+  "supporterCommunityAITurnsGifted": "AI turns gifted",
+  "supporterCommunityActiveSupporters": "Active supporters",
+  "supporterInfoTitle": "How it works",
+  "supporterInfoStep1": "Watch ads \u2192 earn coins",
+  "supporterInfoStep2": "Save enough coins \u2192 redeem AI turns",
+  "supporterInfoStep3": "Gift to family or community fund",
+  "supporterInfoDailyLimit": "You can watch up to 10 ads per day",
+  "supporterInfoLearnMore": "Learn more",
+  "supporterCoinLabel": "coins",
+  "supporterAdLimitReached": "Daily ad limit reached",
+  "supporterInsufficientBalance": "Not enough balance",
+  "supporterRedeemSuccess": "Redeemed {turns} AI turns",
+  "@supporterRedeemSuccess": {
+    "placeholders": {"turns": {"type": "int"}}
+  },
+  "supporterAdWatchSuccess": "Received 100 coins",
+  "supporterRedeemDialogTitle": "Redeem coins for AI turns",
+  "supporterRedeemCommunityFund": "Community fund",
+  "supporterRedeemConfirm": "Redeem {amount} coins = {turns} AI turns",
+  "@supporterRedeemConfirm": {
+    "placeholders": {
+      "amount": {"type": "int"},
+      "turns": {"type": "int"}
+    }
+  },
+  "supporterRedeemRecipientLabel": "Recipient"
 }

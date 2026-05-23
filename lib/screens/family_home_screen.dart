@@ -12,7 +12,7 @@ import '../theme/style_tokens.dart';
 import '../widgets/app_wordmark.dart';
 import '../widgets/user_low_vision_bottom_nav.dart';
 import 'call_screen.dart';
-import 'family_contacts_tab.dart';
+import 'family_support_overview_tab.dart';
 import 'family_messages_tab.dart';
 import 'family_personal_tab.dart';
 
@@ -48,7 +48,7 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
   final ValueNotifier<int> _familyRosterVersion = ValueNotifier<int>(0);
 
   List<String> _tabTitles(AppLocalizations l) => <String>[
-    l.familyTabFamily,
+    l.supporterTabSupport,
     l.familyTabMessages,
     l.familyTabPersonal,
   ];
@@ -162,11 +162,7 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
               child: IndexedStack(
                 index: _tabIndex,
                 children: [
-                  FamilyContactsTab(
-                    onFamilyListChanged: () {
-                      _familyRosterVersion.value++;
-                    },
-                  ),
+                  const FamilySupportOverviewTab(),
                   FamilyMessagesTab(
                     currentUserId: profile.id,
                     chatSocket: widget.chatSocket,

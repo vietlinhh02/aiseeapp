@@ -745,5 +745,48 @@
   "freqWeekly": "Hàng tuần",
   "freqMonthly": "Hàng tháng",
   "freqTwiceDaily": "2 lần/ngày",
-  "reminderAtSeparator": " lúc "
+  "reminderAtSeparator": " lúc ",
+  "supporterTabSupport": "Hỗ trợ",
+  "navSupport": "Hỗ trợ",
+  "navSupportLabel": "Mục 1 trên 3: Hỗ trợ. Tổng quan hỗ trợ.",
+  "supporterPersonalPeopleSupported": "Người đang hỗ trợ",
+  "supporterPersonalAITurnsGifted": "Lượt AI đã tặng",
+  "supporterPersonalAdsWatched": "QC đã xem",
+  "supporterWatchAdButton": "Xem quảng cáo để ủng hộ",
+  "supporterMyFamilyLink": "Gia đình của tôi",
+  "supporterBalanceTitle": "Số dư của bạn",
+  "supporterBalanceConversion": "{count} lượt AI hỗ trợ",
+  "@supporterBalanceConversion": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "supporterRedeemButton": "Đổi ngay để ủng hộ",
+  "supporterRateHint": "1 quảng cáo = 100 xu = 1 lượt AI",
+  "supporterCommunityTitle": "Cộng đồng",
+  "supporterCommunityPeopleSupported": "Người đang được hỗ trợ",
+  "supporterCommunityAITurnsGifted": "Lượt AI đã được tặng",
+  "supporterCommunityActiveSupporters": "Người hỗ trợ tích cực",
+  "supporterInfoTitle": "Cách thức hoạt động",
+  "supporterInfoStep1": "Xem quảng cáo → nhận xu",
+  "supporterInfoStep2": "Tích lũy đủ xu → đổi lấy lượt AI",
+  "supporterInfoStep3": "Tặng cho người thân hoặc quỹ chung",
+  "supporterInfoDailyLimit": "Mỗi ngày bạn có thể xem tối đa 10 quảng cáo",
+  "supporterInfoLearnMore": "Tìm hiểu thêm",
+  "supporterCoinLabel": "xu",
+  "supporterAdLimitReached": "Bạn đã đạt giới hạn quảng cáo hôm nay",
+  "supporterInsufficientBalance": "Số dư không đủ để đổi",
+  "supporterRedeemSuccess": "Đã đổi {turns} lượt AI thành công",
+  "@supporterRedeemSuccess": {
+    "placeholders": {"turns": {"type": "int"}}
+  },
+  "supporterAdWatchSuccess": "Nhận được 100 xu",
+  "supporterRedeemDialogTitle": "Đổi xu lấy lượt AI",
+  "supporterRedeemCommunityFund": "Quỹ chung cộng đồng",
+  "supporterRedeemConfirm": "Đổi {amount} xu = {turns} lượt AI",
+  "@supporterRedeemConfirm": {
+    "placeholders": {
+      "amount": {"type": "int"},
+      "turns": {"type": "int"}
+    }
+  },
+  "supporterRedeemRecipientLabel": "Người nhận"
 }

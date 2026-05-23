@@ -4240,6 +4240,192 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **' lúc '**
   String get reminderAtSeparator;
+
+  /// No description provided for @supporterTabSupport.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hỗ trợ'**
+  String get supporterTabSupport;
+
+  /// No description provided for @navSupport.
+  ///
+  /// In vi, this message translates to:
+  /// **'Hỗ trợ'**
+  String get navSupport;
+
+  /// No description provided for @navSupportLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mục 1 trên 3: Hỗ trợ. Tổng quan hỗ trợ.'**
+  String get navSupportLabel;
+
+  /// No description provided for @supporterPersonalPeopleSupported.
+  ///
+  /// In vi, this message translates to:
+  /// **'Người đang hỗ trợ'**
+  String get supporterPersonalPeopleSupported;
+
+  /// No description provided for @supporterPersonalAITurnsGifted.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lượt AI đã tặng'**
+  String get supporterPersonalAITurnsGifted;
+
+  /// No description provided for @supporterPersonalAdsWatched.
+  ///
+  /// In vi, this message translates to:
+  /// **'QC đã xem'**
+  String get supporterPersonalAdsWatched;
+
+  /// No description provided for @supporterWatchAdButton.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem quảng cáo để ủng hộ'**
+  String get supporterWatchAdButton;
+
+  /// No description provided for @supporterMyFamilyLink.
+  ///
+  /// In vi, this message translates to:
+  /// **'Gia đình của tôi'**
+  String get supporterMyFamilyLink;
+
+  /// No description provided for @supporterBalanceTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Số dư của bạn'**
+  String get supporterBalanceTitle;
+
+  /// No description provided for @supporterBalanceConversion.
+  ///
+  /// In vi, this message translates to:
+  /// **'{count} lượt AI hỗ trợ'**
+  String supporterBalanceConversion(int count);
+
+  /// No description provided for @supporterRedeemButton.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đổi ngay để ủng hộ'**
+  String get supporterRedeemButton;
+
+  /// No description provided for @supporterRateHint.
+  ///
+  /// In vi, this message translates to:
+  /// **'1 quảng cáo = 100 xu = 1 lượt AI'**
+  String get supporterRateHint;
+
+  /// No description provided for @supporterCommunityTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cộng đồng'**
+  String get supporterCommunityTitle;
+
+  /// No description provided for @supporterCommunityPeopleSupported.
+  ///
+  /// In vi, this message translates to:
+  /// **'Người đang được hỗ trợ'**
+  String get supporterCommunityPeopleSupported;
+
+  /// No description provided for @supporterCommunityAITurnsGifted.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lượt AI đã được tặng'**
+  String get supporterCommunityAITurnsGifted;
+
+  /// No description provided for @supporterCommunityActiveSupporters.
+  ///
+  /// In vi, this message translates to:
+  /// **'Người hỗ trợ tích cực'**
+  String get supporterCommunityActiveSupporters;
+
+  /// No description provided for @supporterInfoTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cách thức hoạt động'**
+  String get supporterInfoTitle;
+
+  /// No description provided for @supporterInfoStep1.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem quảng cáo → nhận xu'**
+  String get supporterInfoStep1;
+
+  /// No description provided for @supporterInfoStep2.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tích lũy đủ xu → đổi lấy lượt AI'**
+  String get supporterInfoStep2;
+
+  /// No description provided for @supporterInfoStep3.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tặng cho người thân hoặc quỹ chung'**
+  String get supporterInfoStep3;
+
+  /// No description provided for @supporterInfoDailyLimit.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mỗi ngày bạn có thể xem tối đa 10 quảng cáo'**
+  String get supporterInfoDailyLimit;
+
+  /// No description provided for @supporterInfoLearnMore.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tìm hiểu thêm'**
+  String get supporterInfoLearnMore;
+
+  /// No description provided for @supporterCoinLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'xu'**
+  String get supporterCoinLabel;
+
+  /// No description provided for @supporterAdLimitReached.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bạn đã đạt giới hạn quảng cáo hôm nay'**
+  String get supporterAdLimitReached;
+
+  /// No description provided for @supporterInsufficientBalance.
+  ///
+  /// In vi, this message translates to:
+  /// **'Số dư không đủ để đổi'**
+  String get supporterInsufficientBalance;
+
+  /// No description provided for @supporterRedeemSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đã đổi {turns} lượt AI thành công'**
+  String supporterRedeemSuccess(int turns);
+
+  /// No description provided for @supporterAdWatchSuccess.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhận được 100 xu'**
+  String get supporterAdWatchSuccess;
+
+  /// No description provided for @supporterRedeemDialogTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đổi xu lấy lượt AI'**
+  String get supporterRedeemDialogTitle;
+
+  /// No description provided for @supporterRedeemCommunityFund.
+  ///
+  /// In vi, this message translates to:
+  /// **'Quỹ chung cộng đồng'**
+  String get supporterRedeemCommunityFund;
+
+  /// No description provided for @supporterRedeemConfirm.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đổi {amount} xu = {turns} lượt AI'**
+  String supporterRedeemConfirm(int amount, int turns);
+
+  /// No description provided for @supporterRedeemRecipientLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Người nhận'**
+  String get supporterRedeemRecipientLabel;
 }
 
 class _AppLocalizationsDelegate
