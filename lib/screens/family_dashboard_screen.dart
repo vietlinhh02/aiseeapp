@@ -54,7 +54,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
   bool _loadingLogs = true;
   bool _loadingLocation = true;
 
-  AppLocalizations get l10n => AppLocalizations.of(context)!;
+  AppLocalizations get l10n => AppLocalizations.of(context);
 
   @override
   void initState() {

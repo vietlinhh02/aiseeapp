@@ -101,7 +101,7 @@ class _FamilyDashboardMedFormSheetState
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.only(
         left: 24,

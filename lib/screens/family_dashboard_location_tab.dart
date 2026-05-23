@@ -24,7 +24,7 @@ class FamilyDashboardLocationTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     if (loading) {
       return const ColoredBox(
         color: StyleTokens.background,
@@ -93,7 +93,7 @@ class _EmptyLocationState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return ColoredBox(
       color: StyleTokens.background,
       child: RefreshIndicator(
@@ -163,7 +163,7 @@ class _MapPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final mq = MediaQuery.of(context);
     final wPx = ((mq.size.width - 32) * mq.devicePixelRatio).round().clamp(
       400,
@@ -283,7 +283,7 @@ class _MapboxNetworkPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Semantics(
       label: l10n.dashboardLocationMapSemantics,
       child: Image.network(
@@ -323,7 +323,7 @@ class _MapboxMissingTokenPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return ColoredBox(
       color: StyleTokens.background,
       child: Center(
@@ -374,7 +374,7 @@ class _MapLoadErrorPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return ColoredBox(
       color: StyleTokens.background,
       child: Center(

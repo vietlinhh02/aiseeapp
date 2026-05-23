@@ -36,7 +36,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   bool _loading = true;
   String? _error;
 
-  AppLocalizations get l10n => AppLocalizations.of(context)!;
+  AppLocalizations get l10n => AppLocalizations.of(context);
 
   @override
   void initState() {

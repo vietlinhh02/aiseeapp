@@ -209,7 +209,7 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Semantics(
       button: true,
       label: l10n.familyPersonalCardActionHint(title, subtitle),

@@ -22,7 +22,7 @@ class FamilyDashboardMedsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     if (loading) {
       return const Center(child: CircularProgressIndicator());
     }

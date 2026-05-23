@@ -31,7 +31,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     if (loading) {
       return const ColoredBox(
         color: StyleTokens.background,
@@ -291,7 +291,7 @@ class _HealthOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final takenCount = health.medications.where((m) => m.takenToday).length;
     final pendingCount = health.medications.length - takenCount;
     final symptomCount = health.recentSymptoms.length;
@@ -414,7 +414,7 @@ class _MedAdherenceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final taken = m.takenToday;
     final statusBg = taken ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0);
     final statusFg = taken ? const Color(0xFF2E7D32) : const Color(0xFFE65100);

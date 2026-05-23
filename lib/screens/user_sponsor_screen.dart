@@ -40,7 +40,7 @@ class UserSponsorScreen extends StatelessWidget {
   }
 
   Future<void> _openSponsorWebsite(BuildContext context) async {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final _SponsorInfo davo = _getDavo(l10n);
     try {
       final bool launched = await launchUrlFn(
@@ -57,7 +57,7 @@ class UserSponsorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final _SponsorInfo davo = _getDavo(l10n);
     return Scaffold(
       backgroundColor: StyleTokens.background,

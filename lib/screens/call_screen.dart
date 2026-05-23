@@ -82,7 +82,7 @@ class _CallScreenState extends State<CallScreen> {
 
   bool get _isVideo => widget.callInfo.callType == 'video';
 
-  AppLocalizations get l10n => AppLocalizations.of(context)!;
+  AppLocalizations get l10n => AppLocalizations.of(context);
 
   static String _formatDuration(Duration d) {
     final int min = d.inMinutes;
