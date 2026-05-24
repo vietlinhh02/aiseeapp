@@ -1,6 +1,6 @@
 import 'package:country_flags/country_flags.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
@@ -101,7 +101,7 @@ class _AiseeLanguagePickerSheetState extends State<AiseeLanguagePickerSheet> {
                     Expanded(
                       child: Text(
                         l.settingsLanguageSection,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           color: StyleTokens.textPrimary,
@@ -110,7 +110,7 @@ class _AiseeLanguagePickerSheetState extends State<AiseeLanguagePickerSheet> {
                     ),
                     Text(
                       l.settingsLanguageLabel,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 12,
                         color: StyleTokens.textMuted,
                       ),
@@ -227,7 +227,7 @@ class _LanguageOption extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       label,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: selected
@@ -238,7 +238,7 @@ class _LanguageOption extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       nativeName,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: selected

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:intl/intl.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -110,7 +110,7 @@ class _UsageValueScreenState extends State<UsageValueScreen> {
         elevation: 0,
         title: Text(
           _screenTitle(l),
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: aiseeTextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       body: RefreshIndicator(onRefresh: _load, child: _buildBody(l)),
@@ -274,7 +274,7 @@ class _UsageHeaderCard extends StatelessWidget {
               children: <Widget>[
                 Text(
                   _screenTitle(l),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -283,7 +283,7 @@ class _UsageHeaderCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   _usageHeaderDescription(l),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     height: 1.45,
                     color: StyleTokens.textSecondary,
@@ -293,7 +293,7 @@ class _UsageHeaderCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   Text(
                     updatedLabel,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 12,
                       color: StyleTokens.textMuted,
                     ),
@@ -311,7 +311,7 @@ class _UsageHeaderCard extends StatelessWidget {
             ),
             child: Text(
               overview.effectivePlan.name,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: StyleTokens.textPrimary,
@@ -347,7 +347,7 @@ class _UsageQuotaCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   _quotaLabel(quota.usageType, l),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -358,7 +358,7 @@ class _UsageQuotaCard extends StatelessWidget {
                 quota.unlimited
                     ? l.usageValueUnlimited
                     : _percentUsedLabel(l, (percent * 100).round()),
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -412,7 +412,7 @@ class _CallsUsageCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   _callsTitle(l),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -422,7 +422,7 @@ class _CallsUsageCard extends StatelessWidget {
               if (quotas.length > 1)
                 Text(
                   '+${quotas.length - 1}',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: StyleTokens.textSecondary,
@@ -433,7 +433,7 @@ class _CallsUsageCard extends StatelessWidget {
                 child: Text(
                   _callQuotaStatus(l, primary),
                   textAlign: TextAlign.right,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -496,7 +496,7 @@ class _CollapsibleInfoCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: StyleTokens.textPrimary,
@@ -514,7 +514,7 @@ class _CollapsibleInfoCard extends StatelessWidget {
                   ),
                   child: Text(
                     countLabel,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: StyleTokens.textPrimary,
@@ -655,7 +655,7 @@ class _ActionDetailRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 12,
               color: StyleTokens.textSecondary,
             ),
@@ -666,7 +666,7 @@ class _ActionDetailRow extends StatelessWidget {
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -704,7 +704,7 @@ class _EntitlementRow extends StatelessWidget {
             children: <Widget>[
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -733,7 +733,7 @@ class _EmptyUsageCard extends StatelessWidget {
       ),
       child: Text(
         l.usageValueUnlimited,
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
           color: StyleTokens.textPrimary,

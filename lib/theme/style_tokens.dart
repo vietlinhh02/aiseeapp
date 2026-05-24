@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 abstract final class StyleTokens {
   static const Color background = Color(0xFFF6F6F6);
@@ -37,7 +37,7 @@ abstract final class StyleTokens {
   static const Color navGlassTint = Color(0xEAF0F0F0);
   static const Color navGlassBorder = Color(0xFFE0E0E0);
 
-  static TextStyle titleScreen() => GoogleFonts.plusJakartaSans(
+  static TextStyle titleScreen() => aiseeTextStyle(
     fontSize: 24,
     fontWeight: FontWeight.w700,
     height: 1,
@@ -45,7 +45,7 @@ abstract final class StyleTokens {
     color: textPrimary,
   );
 
-  static TextStyle bodySmall() => GoogleFonts.plusJakartaSans(
+  static TextStyle bodySmall() => aiseeTextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.5,
@@ -53,7 +53,7 @@ abstract final class StyleTokens {
     color: textSecondary,
   );
 
-  static TextStyle socialLabel() => GoogleFonts.plusJakartaSans(
+  static TextStyle socialLabel() => aiseeTextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w700,
     height: 1.5,
@@ -61,7 +61,7 @@ abstract final class StyleTokens {
     color: buttonOnPrimary,
   );
 
-  static TextStyle separator() => GoogleFonts.plusJakartaSans(
+  static TextStyle separator() => aiseeTextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w600,
     height: 1,
@@ -69,7 +69,7 @@ abstract final class StyleTokens {
     color: textPrimary,
   );
 
-  static TextStyle inputHint() => GoogleFonts.plusJakartaSans(
+  static TextStyle inputHint() => aiseeTextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.5,
@@ -77,7 +77,7 @@ abstract final class StyleTokens {
     color: hint,
   );
 
-  static TextStyle linkBold() => GoogleFonts.plusJakartaSans(
+  static TextStyle linkBold() => aiseeTextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w700,
     height: 1.5,
@@ -85,7 +85,7 @@ abstract final class StyleTokens {
     color: textPrimary,
   );
 
-  static TextStyle linkAccentStyle() => GoogleFonts.plusJakartaSans(
+  static TextStyle linkAccentStyle() => aiseeTextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w700,
     height: 1.5,
@@ -93,7 +93,7 @@ abstract final class StyleTokens {
     color: linkAccent,
   );
 
-  static TextStyle legalMuted() => GoogleFonts.plusJakartaSans(
+  static TextStyle legalMuted() => aiseeTextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.5,
@@ -101,7 +101,7 @@ abstract final class StyleTokens {
     color: textMuted,
   );
 
-  static TextStyle legalBold() => GoogleFonts.plusJakartaSans(
+  static TextStyle legalBold() => aiseeTextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w700,
     height: 1.5,
@@ -114,8 +114,9 @@ abstract final class StyleTokens {
       brightness: Brightness.light,
       useMaterial3: true,
       scaffoldBackgroundColor: background,
+      fontFamily: 'PlusJakartaSans',
     );
-    final textTheme = GoogleFonts.plusJakartaSansTextTheme(
+    final textTheme = aiseeTextTheme(
       base.textTheme,
     ).apply(bodyColor: textPrimary, displayColor: textPrimary);
     return base.copyWith(

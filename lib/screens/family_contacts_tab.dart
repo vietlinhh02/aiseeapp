@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../models/aisee_api_models.dart';
 import '../models/aisee_family_group.dart';
@@ -294,7 +294,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
               ),
               Text(
                 l10n.familyContactsTransferOwnershipTitle,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -327,7 +327,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                             child: member.avatarUrl == null
                                 ? Text(
                                     member.label.substring(0, 1).toUpperCase(),
-                                    style: GoogleFonts.plusJakartaSans(
+                                    style: aiseeTextStyle(
                                       fontWeight: FontWeight.w700,
                                       color: StyleTokens.textPrimary,
                                     ),
@@ -341,7 +341,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                               children: <Widget>[
                                 Text(
                                   member.label,
-                                  style: GoogleFonts.plusJakartaSans(
+                                  style: aiseeTextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                     color: StyleTokens.textPrimary,
@@ -414,7 +414,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
               ),
               Text(
                 l10n.familyContactsInviteCodeSent,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -423,7 +423,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
               const SizedBox(height: 6),
               Text(
                 l10n.familyContactsCreateCodeToInvite,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
                   color: StyleTokens.textMuted,
@@ -445,7 +445,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                 child: Center(
                   child: SelectableText(
                     code,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                       color: StyleTokens.buttonPrimary,
@@ -472,7 +472,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                       child: Center(
                         child: Text(
                           l10n.familyContactsCopyCode,
-                          style: GoogleFonts.plusJakartaSans(
+                          style: aiseeTextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
@@ -515,7 +515,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                   ),
                   child: Text(
                     l10n.remindersRetry,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -573,7 +573,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                 child: Center(
                   child: Text(
                     l10n.familyContactsCreateInviteCode,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -636,7 +636,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
       children: <Widget>[
         Text(
           l10n.familyContactsCaredUsersSection,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
             color: StyleTokens.textPrimary,
@@ -689,7 +689,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
       children: <Widget>[
         Text(
           l10n.familyContactsFamilyMembersSection,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
             color: StyleTokens.textPrimary,
@@ -718,7 +718,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                   child: member.avatarUrl == null
                       ? Text(
                           member.label.substring(0, 1).toUpperCase(),
-                          style: GoogleFonts.plusJakartaSans(
+                          style: aiseeTextStyle(
                             fontWeight: FontWeight.w700,
                             color: StyleTokens.textPrimary,
                           ),
@@ -727,7 +727,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                 ),
                 title: Text(
                   member.label,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: StyleTokens.textPrimary,
@@ -817,7 +817,7 @@ class _GroupSummaryCard extends StatelessWidget {
                         children: <Widget>[
                           Text(
                             group.name,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: aiseeTextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: StyleTokens.textPrimary,
@@ -928,7 +928,7 @@ class _RolePill extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: fg,
@@ -965,7 +965,7 @@ class _StatTile extends StatelessWidget {
         children: <Widget>[
           Text(
             value,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: accent,
@@ -976,7 +976,7 @@ class _StatTile extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: StyleTokens.textSecondary,
@@ -1024,7 +1024,7 @@ class _ActionButton extends StatelessWidget {
                 )
               : Text(
                   label,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: filled ? Colors.white : StyleTokens.textPrimary,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_dashboard_models.dart';
@@ -39,7 +39,7 @@ class FamilyDashboardAuditTab extends StatelessWidget {
             child: Text(
               l.dashboardAuditEmpty,
               textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 14,
                 color: StyleTokens.textSecondary,
               ),
@@ -86,7 +86,7 @@ class FamilyDashboardAuditTab extends StatelessWidget {
                         children: <Widget>[
                           Text(
                             log.toolLabel,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: aiseeTextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: StyleTokens.textPrimary,
@@ -97,7 +97,7 @@ class FamilyDashboardAuditTab extends StatelessWidget {
                             log.activitySubtitle,
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: aiseeTextStyle(
                               fontSize: 13,
                               height: 1.35,
                               color: StyleTokens.textSecondary,
@@ -189,7 +189,7 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
           const SizedBox(height: 20),
           Text(
             log.toolLabel,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -198,7 +198,7 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
           const SizedBox(height: 8),
           Text(
             log.activitySubtitle,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 14,
               height: 1.4,
               color: StyleTokens.textSecondary,
@@ -207,7 +207,7 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
           const SizedBox(height: 16),
           Text(
             l.dashboardAuditTime(formatFamilyDashboardTime(log.createdAt)),
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 14,
               color: StyleTokens.textSecondary,
             ),
@@ -220,7 +220,7 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
                     .map((e) => '${e.key}: ${e.value}')
                     .join(', '),
               ),
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 14,
                 color: StyleTokens.textSecondary,
               ),
@@ -230,7 +230,7 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
             const SizedBox(height: 8),
             Text(
               l.dashboardAuditResult(log.result!),
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 14,
                 color: StyleTokens.textSecondary,
               ),
@@ -247,7 +247,7 @@ void showFamilyDashboardLogDetail(BuildContext context, AuditLogEntry log) {
               onPressed: () => Navigator.pop(ctx),
               child: Text(
                 l.dashboardClose,
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+                style: aiseeTextStyle(fontWeight: FontWeight.w600),
               ),
             ),
           ),

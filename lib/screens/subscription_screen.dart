@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/aisee_api_models.dart';
@@ -392,7 +392,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             Expanded(
               child: Text(
                 l10n.subscriptionTitle,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -677,7 +677,7 @@ class _CurrentPlanCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             _displayedPlanName(overview),
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
               color: StyleTokens.textPrimary,
@@ -953,7 +953,7 @@ class _PlanPickerSheetState extends State<_PlanPickerSheet> {
                       children: <Widget>[
                         Text(
                           l10n.subscriptionChooseCarePlan,
-                          style: GoogleFonts.plusJakartaSans(
+                          style: aiseeTextStyle(
                             fontSize: 19,
                             fontWeight: FontWeight.w800,
                             color: StyleTokens.textPrimary,
@@ -1163,7 +1163,7 @@ class _PlanFeatureToggleState extends State<_PlanFeatureToggle> {
                   Expanded(
                     child: Text(
                       widget.feature.title,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                         color: StyleTokens.textPrimary,
@@ -1269,7 +1269,7 @@ class _PlanOptionCard extends StatelessWidget {
                         planNameForProduct(option.product),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
                           color: enabled
@@ -1298,7 +1298,7 @@ class _PlanOptionCard extends StatelessWidget {
                     Text(
                       _fallbackVndPrice(option.product),
                       textAlign: TextAlign.right,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: enabled
@@ -1444,7 +1444,7 @@ class _SmallPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w800,
           color: StyleTokens.buttonPrimary,
@@ -1578,7 +1578,7 @@ class _InvoicePlaceholderCard extends StatelessWidget {
         children: <Widget>[
           Text(
             l10n.subscriptionInvoiceDetail,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 15,
             ),
@@ -1736,7 +1736,7 @@ class _CollapsibleSectionCardState extends State<_CollapsibleSectionCard> {
                     Expanded(
                       child: Text(
                         widget.title,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: StyleTokens.textPrimary,
@@ -1788,7 +1788,7 @@ class _SectionTitle extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -1831,7 +1831,7 @@ class _InfoRow extends StatelessWidget {
               children: <Widget>[
                 Text(
                   title,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -1869,7 +1869,7 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: positive ? Colors.green.shade700 : Colors.orange.shade800,
@@ -1936,7 +1936,7 @@ class _SecondaryButton extends StatelessWidget {
           child: Center(
             child: Text(
               label,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: StyleTokens.buttonPrimary,

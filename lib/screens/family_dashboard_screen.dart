@@ -3,7 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -189,7 +189,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
                 children: [
                   Text(
                     familyDashboardNavItemsLocalized(l10n)[_currentTab].label,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       height: 1,
@@ -202,7 +202,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
                   const SizedBox(height: 2),
                   Text(
                     widget.member.label,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: StyleTokens.textSecondary,
@@ -292,7 +292,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
                 ),
                 label: Text(
                   l10n.dashboardMedFormAddTitle,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -310,11 +310,11 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
         builder: (_) => AlertDialog(
           title: Text(
             l10n.dashboardMedsDelete,
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            style: aiseeTextStyle(fontWeight: FontWeight.w700),
           ),
           content: Text(
             l10n.familyDashboardMedDeleteConfirm(med.name),
-            style: GoogleFonts.plusJakartaSans(),
+            style: aiseeTextStyle(),
           ),
           actions: [
             TextButton(

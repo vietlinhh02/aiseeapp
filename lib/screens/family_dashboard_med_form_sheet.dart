@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../theme/style_tokens.dart';
 import '../generated/l10n/app_localizations.dart';
@@ -58,7 +58,7 @@ class _FamilyDashboardMedFormSheetState
       children: [
         Text(
           label,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: StyleTokens.textPrimary,
@@ -67,7 +67,7 @@ class _FamilyDashboardMedFormSheetState
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w500,
             color: StyleTokens.textPrimary,
@@ -125,7 +125,7 @@ class _FamilyDashboardMedFormSheetState
             widget.name.isEmpty
                 ? l10n.dashboardMedFormAddTitle
                 : l10n.dashboardMedFormEditTitle,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -170,7 +170,7 @@ class _FamilyDashboardMedFormSheetState
                       alignment: Alignment.center,
                       child: Text(
                         l10n.dashboardMedFormCancel,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,
                         ),
@@ -200,7 +200,7 @@ class _FamilyDashboardMedFormSheetState
                       alignment: Alignment.center,
                       child: Text(
                         l10n.dashboardMedFormSave,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
                         ),

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_incoming_call.dart';
@@ -140,7 +140,7 @@ class _IncomingCallCardState extends State<_IncomingCallCard>
                                     ).incomingVoiceCall,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: aiseeTextStyle(
                                 color: StyleTokens.textSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -152,7 +152,7 @@ class _IncomingCallCardState extends State<_IncomingCallCard>
                               call.callerName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: aiseeTextStyle(
                                 color: StyleTokens.textPrimary,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -292,7 +292,7 @@ class _RingingDots extends StatelessWidget {
           children: <Widget>[
             Text(
               AppLocalizations.of(context).ringing,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 color: StyleTokens.buttonPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -402,7 +402,7 @@ class _CallerAvatarFallback extends StatelessWidget {
     return Center(
       child: Text(
         initial,
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           color: StyleTokens.brandSecondary,
           fontSize: 17,
           fontWeight: FontWeight.w800,

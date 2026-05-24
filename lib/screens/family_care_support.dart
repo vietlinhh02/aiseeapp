@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
@@ -47,7 +47,7 @@ Future<void> showFamilyCareBillingSheet(
             children: <Widget>[
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -56,7 +56,7 @@ Future<void> showFamilyCareBillingSheet(
               const SizedBox(height: 8),
               Text(
                 body,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 14,
                   height: 1.45,
                   color: StyleTokens.textSecondary,
@@ -66,7 +66,7 @@ Future<void> showFamilyCareBillingSheet(
                 const SizedBox(height: 8),
                 Text(
                   l.careBillingQuotaRemaining(quota!.remaining!),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     color: StyleTokens.textPrimary,
                   ),
@@ -101,7 +101,7 @@ Future<void> showFamilyCareBillingSheet(
                 ),
                 child: Text(
                   l.careBillingSheetViewPlan,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontWeight: FontWeight.w600,
                   ),
                 ),

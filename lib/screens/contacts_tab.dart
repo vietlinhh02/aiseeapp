@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
@@ -259,7 +259,7 @@ class _ContactsTabState extends State<ContactsTab> {
                 ),
                 Text(
                   l.contactsJoinGroupTitle,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -268,7 +268,7 @@ class _ContactsTabState extends State<ContactsTab> {
                 const SizedBox(height: 6),
                 Text(
                   l.contactsJoinGroupHint,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w400,
                     color: StyleTokens.textMuted,
@@ -281,7 +281,7 @@ class _ContactsTabState extends State<ContactsTab> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   maxLength: 6,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -332,7 +332,7 @@ class _ContactsTabState extends State<ContactsTab> {
                             child: Center(
                               child: Text(
                                 l.contactsCancel,
-                                style: GoogleFonts.plusJakartaSans(
+                                style: aiseeTextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: StyleTokens.textSecondary,
@@ -400,7 +400,7 @@ class _ContactsTabState extends State<ContactsTab> {
                             child: Center(
                               child: Text(
                                 l.contactsJoinAction,
-                                style: GoogleFonts.plusJakartaSans(
+                                style: aiseeTextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: StyleTokens.buttonOnPrimary,
@@ -628,7 +628,7 @@ class _ContactsTabState extends State<ContactsTab> {
               children: <Widget>[
                 Text(
                   l.contactsWantSwitchGroup,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -656,7 +656,7 @@ class _ContactsTabState extends State<ContactsTab> {
                             )
                           : Text(
                               l.contactsLeaveCurrentGroup,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: aiseeTextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: StyleTokens.textPrimary,

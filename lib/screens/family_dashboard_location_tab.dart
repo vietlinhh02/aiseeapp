@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../config/mapbox_static_preview.dart';
 import '../models/aisee_dashboard_models.dart';
@@ -52,7 +52,7 @@ class FamilyDashboardLocationTab extends StatelessWidget {
                 delegate: SliverChildListDelegate([
                   Text(
                     l10n.dashboardLocationTitle,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.2,
@@ -62,7 +62,7 @@ class FamilyDashboardLocationTab extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     l10n.dashboardLocationSubtitle,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                       height: 1.35,
@@ -122,7 +122,7 @@ class _EmptyLocationState extends StatelessWidget {
                     Text(
                       l10n.dashboardLocationNoLocation,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: StyleTokens.textPrimary,
@@ -132,7 +132,7 @@ class _EmptyLocationState extends StatelessWidget {
                     Text(
                       l10n.dashboardLocationPullHint,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 13,
                         color: StyleTokens.textSecondary,
                       ),
@@ -203,7 +203,7 @@ class _MapPreviewCard extends StatelessWidget {
               children: [
                 Text(
                   l10n.dashboardLocationCoordinates,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: StyleTokens.textMuted,
@@ -212,7 +212,7 @@ class _MapPreviewCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 SelectableText(
                   '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: StyleTokens.textPrimary,
@@ -225,7 +225,7 @@ class _MapPreviewCard extends StatelessWidget {
                     l10n.dashboardLocationUpdated(
                       formatFamilyDashboardTime(updatedAt!),
                     ),
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 13,
                       color: StyleTokens.textSecondary,
                     ),
@@ -262,7 +262,7 @@ class _MapPreviewCard extends StatelessWidget {
                 ),
                 label: Text(
                   l10n.dashboardLocationOpenMaps,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
@@ -345,7 +345,7 @@ class _MapboxMissingTokenPlaceholder extends StatelessWidget {
               Text(
                 l10n.dashboardLocationMapboxMissing,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -355,7 +355,7 @@ class _MapboxMissingTokenPlaceholder extends StatelessWidget {
               Text(
                 l10n.dashboardLocationMapboxHint,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 12,
                   height: 1.35,
                   color: StyleTokens.textSecondary,
@@ -383,7 +383,7 @@ class _MapLoadErrorPlaceholder extends StatelessWidget {
           child: Text(
             l10n.dashboardLocationMapError,
             textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 13,
               color: StyleTokens.textSecondary,
             ),

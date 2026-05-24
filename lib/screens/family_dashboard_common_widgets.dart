@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../theme/style_tokens.dart';
 
@@ -7,7 +7,7 @@ Widget familyDashboardSectionTitle(String text) => Padding(
   padding: const EdgeInsets.only(bottom: 8),
   child: Text(
     text,
-    style: GoogleFonts.plusJakartaSans(
+    style: aiseeTextStyle(
       fontSize: 16,
       fontWeight: FontWeight.w700,
       color: StyleTokens.textPrimary,

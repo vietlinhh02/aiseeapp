@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_care_models.dart';
@@ -316,7 +316,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
           children: <Widget>[
             Text(
               l.careTabIntroTitle,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.2,
@@ -326,7 +326,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
             const SizedBox(height: 6),
             Text(
               l.careTabIntroSubtitle,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 13,
                 height: 1.35,
                 color: StyleTokens.textSecondary,
@@ -366,7 +366,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
                 Expanded(
                   child: Text(
                     l.careAlertsHeading,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
                     ),
@@ -388,7 +388,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   _alertsError!,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     color: StyleTokens.textSecondary,
                   ),
@@ -397,7 +397,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
             else if (_alerts.isEmpty)
               Text(
                 l.careNoAlerts,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   color: StyleTokens.textSecondary,
                 ),
               )
@@ -415,7 +415,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
                 Expanded(
                   child: Text(
                     l.careTasksHeading,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
                     ),
@@ -438,7 +438,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   _tasksError!,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     color: StyleTokens.textSecondary,
                   ),
@@ -447,7 +447,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
             else if (_tasks.isEmpty)
               Text(
                 l.careNoTasks,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   color: StyleTokens.textSecondary,
                 ),
               )
@@ -487,7 +487,7 @@ class _ErrorCard extends StatelessWidget {
         children: <Widget>[
           Text(
             l.careSummaryLoadFail,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 15,
             ),
@@ -495,7 +495,7 @@ class _ErrorCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             message,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 13,
               color: StyleTokens.textSecondary,
               height: 1.35,

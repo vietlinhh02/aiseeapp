@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/style_tokens.dart';
@@ -64,7 +64,7 @@ class UserSponsorScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           l10n.sponsorsTitle,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
             color: StyleTokens.textPrimary,
@@ -113,7 +113,7 @@ class UserSponsorScreen extends StatelessWidget {
                             return Center(
                               child: Text(
                                 davo.name,
-                                style: GoogleFonts.plusJakartaSans(
+                                style: aiseeTextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: StyleTokens.buttonPrimary,
@@ -131,7 +131,7 @@ class UserSponsorScreen extends StatelessWidget {
                           children: <Widget>[
                             Text(
                               davo.name,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: aiseeTextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                                 color: StyleTokens.textPrimary,
@@ -140,7 +140,7 @@ class UserSponsorScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               davo.websiteLabel,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: aiseeTextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: StyleTokens.linkAccent,
@@ -171,7 +171,7 @@ class UserSponsorScreen extends StatelessWidget {
                         ),
                         child: Text(
                           l10n.sponsorsOpenWebsite,
-                          style: GoogleFonts.plusJakartaSans(
+                          style: aiseeTextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),

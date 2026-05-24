@@ -39,7 +39,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_sign_in: ^7.2.0
   google_sign_in_web: ^1.1.3
-  google_fonts: ^8.0.2
   fluttertoast: ^9.0.0
   flutter_svg: ^2.2.4
   lottie: ^3.3.3
@@ -71,7 +70,6 @@ dependencies:
   flutter_wake_word: ^0.0.42
   tflite_flutter: ^0.12.1
   image: ^4.5.3
-  chartjs_flutter: ^1.0.0
   firebase_analytics: ^11.6.0
   firebase_crashlytics: ^4.3.10
   purchases_flutter: ^10.0.1
@@ -80,6 +78,12 @@ dependencies:
   camera: ^0.12.0+1
   flutter_nnnoiseless: ^1.0.1
   country_flags: ^4.1.2
+  google_mobile_ads: ^6.0.0
+  dio: ^5.9.2
+  retrofit: ^4.9.2
+  json_annotation: ^4.12.0
+  web_socket_client: ^0.2.1
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:
@@ -92,6 +96,9 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  retrofit_generator: ^10.2.6
+  json_serializable: ^6.14.0
+  build_runner: ^2.15.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -118,8 +125,19 @@ flutter:
     - assets/lottie/
     - assets/icons/nav/
     - assets/models/
-    - assets/chart.umd.min.js
-    - assets/chart_template.html
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: google_fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: google_fonts/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: google_fonts/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: google_fonts/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: google_fonts/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

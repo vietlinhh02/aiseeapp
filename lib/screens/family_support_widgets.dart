@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../theme/style_tokens.dart';
@@ -32,7 +32,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               value,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 color: StyleTokens.textPrimary,
@@ -42,7 +42,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
                 color: StyleTokens.textMuted,
@@ -143,7 +143,7 @@ class SupporterCommunityStatsRow extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(
             title,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -207,7 +207,7 @@ class SupporterBalancePoolCard extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(
             title,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -235,7 +235,7 @@ class SupporterBalancePoolCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     '$coinBalance $coinLabel',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
                       color: StyleTokens.textPrimary,
@@ -246,7 +246,7 @@ class SupporterBalancePoolCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 conversionLabel,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
                   color: StyleTokens.textSecondary,
@@ -273,7 +273,7 @@ class SupporterBalancePoolCard extends StatelessWidget {
                           )
                         : Text(
                             redeemLabel,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: aiseeTextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: StyleTokens.buttonPrimary,
@@ -285,7 +285,7 @@ class SupporterBalancePoolCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 rateHint,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
                   color: StyleTokens.textMuted,
@@ -335,7 +335,7 @@ class SupporterInfoCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -352,7 +352,7 @@ class SupporterInfoCard extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     String.fromCharCode(0x2460 + i),
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: StyleTokens.buttonPrimary,
@@ -362,7 +362,7 @@ class SupporterInfoCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       steps[i],
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
                         color: StyleTokens.textPrimary,
@@ -384,7 +384,7 @@ class SupporterInfoCard extends StatelessWidget {
             ),
             child: Text(
               dailyLimit,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 color: StyleTokens.textSecondary,
@@ -408,7 +408,7 @@ class SupporterInfoCard extends StatelessWidget {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Text(
                               '\u2022 $s',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                              style: aiseeTextStyle(fontSize: 14),
                             ),
                           ),
                       ],
@@ -425,7 +425,7 @@ class SupporterInfoCard extends StatelessWidget {
             },
             child: Text(
               learnMoreLabel,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: StyleTokens.buttonPrimary,

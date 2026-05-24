@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -448,7 +448,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 const SizedBox(width: 12),
                 Text(
                   label,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: StyleTokens.textPrimary,
@@ -637,7 +637,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             Expanded(
               child: Text(
                 widget.contact.label,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   height: 1,
@@ -780,7 +780,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     } else {
       content = Text(
         msg.contentText,
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w400,
           color: isSent ? StyleTokens.buttonOnPrimary : StyleTokens.textPrimary,
@@ -814,7 +814,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           const SizedBox(height: 4),
           Text(
             _formatTime(msg.createdAt),
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w400,
               color: StyleTokens.textMuted,
@@ -863,7 +863,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               child: Center(
                 child: Text(
                   l.chatImageLoadFailed,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 12,
                     color: StyleTokens.textMuted,
                   ),
@@ -958,7 +958,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               : TextField(
                   controller: _textController,
                   enabled: !_uploadingMedia,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                     color: _uploadingMedia
@@ -968,7 +968,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   decoration: InputDecoration(
                     filled: false,
                     hintText: _uploadingMedia ? l.chatSending : l.chatInputHint,
-                    hintStyle: GoogleFonts.plusJakartaSans(
+                    hintStyle: aiseeTextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
                       color: StyleTokens.navUnselectedIcon,
@@ -1109,7 +1109,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         const SizedBox(width: 8),
         Text(
           '$mins:$secs',
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: StyleTokens.textPrimary,
@@ -1189,7 +1189,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           const SizedBox(width: 8),
           Text(
             l.chatSending,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
               color: StyleTokens.textMuted,
@@ -1363,7 +1363,7 @@ class _VoiceBubbleContentState extends State<_VoiceBubbleContent> {
         const SizedBox(width: 8),
         Text(
           _formatDuration(_isPlaying ? _position : _duration),
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: mutedColor,

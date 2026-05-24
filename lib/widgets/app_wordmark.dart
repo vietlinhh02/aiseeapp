@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../theme/style_tokens.dart';
 
@@ -15,7 +15,7 @@ class AppWordmark extends StatelessWidget {
       label: 'aisee',
       child: Text(
         'aisee',
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           fontSize: fontSize,
           fontWeight: FontWeight.w700,
           height: 1,

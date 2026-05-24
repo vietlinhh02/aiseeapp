@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:chartjs_flutter/chartjs_flutter.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -11,67 +11,54 @@ import '../models/aisee_care_models.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 
-Map<String, dynamic> careReportTotalsBarChartConfig(
-  CareReportTotals t,
+class _CareTotalsBarDatum {
+  const _CareTotalsBarDatum({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+}
+
+List<_CareTotalsBarDatum> _careReportTotalsBarData(
+  CareReportTotals totals,
   AppLocalizations l,
 ) {
-  return <String, dynamic>{
-    'type': 'bar',
-    'data': <String, dynamic>{
-      'labels': <String>[
-        l.careReportBarMedsActive,
-        l.careReportBarTaken,
-        l.careReportBarSkipped,
-        l.careReportBarSymptoms,
-        l.careReportBarMetrics,
-        l.careReportBarSOS,
-      ],
-      'datasets': <Map<String, dynamic>>[
-        <String, dynamic>{
-          'label': l.careReportChartLabel,
-          'data': <int>[
-            t.activeMedications,
-            t.takenMedications,
-            t.skippedMedications,
-            t.symptomCount,
-            t.metricCount,
-            t.sosAlertCount,
-          ],
-          'backgroundColor': <String>[
-            'rgba(106, 27, 154, 0.72)',
-            'rgba(46, 125, 50, 0.72)',
-            'rgba(230, 81, 0, 0.72)',
-            'rgba(198, 40, 40, 0.68)',
-            'rgba(26, 50, 99, 0.72)',
-            'rgba(194, 24, 91, 0.72)',
-          ],
-          'borderRadius': 8,
-          'barThickness': 22,
-        },
-      ],
-    },
-    'options': <String, dynamic>{
-      'responsive': true,
-      'maintainAspectRatio': false,
-      'plugins': <String, dynamic>{
-        'legend': <String, bool>{'display': false},
-      },
-      'scales': <String, dynamic>{
-        'x': <String, dynamic>{
-          'grid': <String, bool>{'display': false},
-          'ticks': <String, dynamic>{
-            'font': <String, int>{'size': 10},
-            'maxRotation': 0,
-            'minRotation': 0,
-          },
-        },
-        'y': <String, dynamic>{
-          'beginAtZero': true,
-          'ticks': <String, dynamic>{'precision': 0},
-        },
-      },
-    },
-  };
+  return <_CareTotalsBarDatum>[
+    _CareTotalsBarDatum(
+      label: l.careReportBarMedsActive,
+      value: totals.activeMedications,
+      color: const Color(0xFF6A1B9A),
+    ),
+    _CareTotalsBarDatum(
+      label: l.careReportBarTaken,
+      value: totals.takenMedications,
+      color: const Color(0xFF2E7D32),
+    ),
+    _CareTotalsBarDatum(
+      label: l.careReportBarSkipped,
+      value: totals.skippedMedications,
+      color: const Color(0xFFE65100),
+    ),
+    _CareTotalsBarDatum(
+      label: l.careReportBarSymptoms,
+      value: totals.symptomCount,
+      color: const Color(0xFFC62828),
+    ),
+    _CareTotalsBarDatum(
+      label: l.careReportBarMetrics,
+      value: totals.metricCount,
+      color: const Color(0xFF1A3263),
+    ),
+    _CareTotalsBarDatum(
+      label: l.careReportBarSOS,
+      value: totals.sosAlertCount,
+      color: const Color(0xFFC2185B),
+    ),
+  ];
 }
 
 class FamilyCareTotalsOverviewCard extends StatelessWidget {
@@ -87,6 +74,10 @@ class FamilyCareTotalsOverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l = AppLocalizations.of(context);
+    final List<_CareTotalsBarDatum> chartData = _careReportTotalsBarData(
+      totals,
+      l,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -107,23 +98,18 @@ class FamilyCareTotalsOverviewCard extends StatelessWidget {
         children: <Widget>[
           Text(
             l.careWidgetOverviewTitle(dateLabel),
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
             ),
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 200,
-            child: ChartJsWidget(
-              chartConfig: careReportTotalsBarChartConfig(totals, l),
-            ),
-          ),
+          SizedBox(height: 220, child: _CareTotalsBarChart(data: chartData)),
           const SizedBox(height: 12),
           Text(
             l.careWidgetDataTable,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -137,6 +123,108 @@ class FamilyCareTotalsOverviewCard extends StatelessWidget {
   }
 }
 
+class _CareTotalsBarChart extends StatelessWidget {
+  const _CareTotalsBarChart({required this.data});
+
+  final List<_CareTotalsBarDatum> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final double maxY =
+        data.fold<int>(
+          0,
+          (int acc, _CareTotalsBarDatum item) =>
+              item.value > acc ? item.value : acc,
+        ) +
+        1;
+    return BarChart(
+      BarChartData(
+        maxY: maxY <= 1 ? 1 : maxY,
+        alignment: BarChartAlignment.spaceAround,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 1,
+          getDrawingHorizontalLine: (double value) => FlLine(
+            color: StyleTokens.cardBorder.withValues(alpha: 0.6),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(enabled: false),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 24,
+              interval: 1,
+              getTitlesWidget: (double value, TitleMeta meta) {
+                return Text(
+                  value.toInt().toString(),
+                  style: aiseeTextStyle(
+                    fontSize: 10,
+                    color: StyleTokens.textMuted,
+                  ),
+                );
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 44,
+              getTitlesWidget: (double value, TitleMeta meta) {
+                final int index = value.toInt();
+                if (index < 0 || index >= data.length) {
+                  return const SizedBox.shrink();
+                }
+                return SideTitleWidget(
+                  meta: meta,
+                  space: 8,
+                  child: SizedBox(
+                    width: 56,
+                    child: Text(
+                      data[index].label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: aiseeTextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: StyleTokens.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        barGroups: List<BarChartGroupData>.generate(data.length, (int index) {
+          final _CareTotalsBarDatum item = data[index];
+          return BarChartGroupData(
+            x: index,
+            barRods: <BarChartRodData>[
+              BarChartRodData(
+                toY: item.value.toDouble(),
+                width: 22,
+                color: item.color,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
 class _CareTotalsTable extends StatelessWidget {
   const _CareTotalsTable({required this.totals, required this.l});
 
@@ -145,12 +233,12 @@ class _CareTotalsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle headerStyle = GoogleFonts.plusJakartaSans(
+    final TextStyle headerStyle = aiseeTextStyle(
       fontSize: 13,
       fontWeight: FontWeight.w700,
       color: StyleTokens.textSecondary,
     );
-    final TextStyle cellStyle = GoogleFonts.plusJakartaSans(
+    final TextStyle cellStyle = aiseeTextStyle(
       fontSize: 14,
       color: StyleTokens.textPrimary,
     );
@@ -250,7 +338,7 @@ class FamilyCareSummaryLines extends StatelessWidget {
         children: <Widget>[
           Text(
             AppLocalizations.of(context).careWidgetAutoNotes,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textSecondary,
@@ -265,7 +353,7 @@ class FamilyCareSummaryLines extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     '• ',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       height: 1.4,
                       color: StyleTokens.buttonPrimary,
                       fontWeight: FontWeight.w700,
@@ -274,7 +362,7 @@ class FamilyCareSummaryLines extends StatelessWidget {
                   Expanded(
                     child: Text(
                       line,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         height: 1.4,
                         fontSize: 13,
                         color: StyleTokens.textPrimary,
@@ -322,7 +410,7 @@ class FamilyCareWebReportLinks extends StatelessWidget {
         children: <Widget>[
           Text(
             l.careWidgetWebReportsTitle,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -331,7 +419,7 @@ class FamilyCareWebReportLinks extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             l.careWidgetWebReportsHint,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 12,
               height: 1.35,
               color: StyleTokens.textSecondary,
@@ -376,7 +464,7 @@ class FamilyCareWebReportLinks extends StatelessWidget {
       onPressed: onTap,
       child: Text(
         label,
-        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+        style: aiseeTextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -446,7 +534,7 @@ class FamilyCareAlertCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       alert.title,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: StyleTokens.textPrimary,
@@ -457,7 +545,7 @@ class FamilyCareAlertCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         alert.body!,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 13,
                           height: 1.35,
                           color: StyleTokens.textSecondary,
@@ -524,7 +612,7 @@ class FamilyCareAlertCard extends StatelessWidget {
       ),
       child: Text(
         '$k: $v',
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: StyleTokens.textSecondary,
@@ -547,12 +635,12 @@ class FamilyCareTasksTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l = AppLocalizations.of(context);
-    final TextStyle headerStyle = GoogleFonts.plusJakartaSans(
+    final TextStyle headerStyle = aiseeTextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w700,
       color: StyleTokens.textSecondary,
     );
-    final TextStyle cellStyle = GoogleFonts.plusJakartaSans(
+    final TextStyle cellStyle = aiseeTextStyle(
       fontSize: 13,
       color: StyleTokens.textPrimary,
     );
@@ -596,7 +684,7 @@ class FamilyCareTasksTable extends StatelessWidget {
                     t.title,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
                       color: StyleTokens.textPrimary,

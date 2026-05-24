@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../theme/style_tokens.dart';
@@ -180,7 +180,7 @@ class _NavPill extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     label,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       height: 1.2,

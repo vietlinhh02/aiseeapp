@@ -1,7 +1,7 @@
-import 'package:chartjs_flutter/chartjs_flutter.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../models/aisee_dashboard_models.dart';
 import '../theme/style_tokens.dart';
@@ -9,7 +9,25 @@ import '../generated/l10n/app_localizations.dart';
 import 'family_dashboard_format.dart';
 
 typedef HealthOverviewChartBuilder =
-    Widget Function(Map<String, dynamic> chartConfig);
+    Widget Function(HealthOverviewChartData chartData);
+
+class HealthOverviewChartBar {
+  const HealthOverviewChartBar({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+}
+
+class HealthOverviewChartData {
+  const HealthOverviewChartData({required this.bars});
+
+  final List<HealthOverviewChartBar> bars;
+}
 
 class FamilyDashboardHealthTab extends StatelessWidget {
   const FamilyDashboardHealthTab({
@@ -59,7 +77,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
                 Text(
                   l10n.dashboardHealthNoData,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -69,7 +87,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
                 Text(
                   l10n.dashboardHealthPullToRefresh,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     color: StyleTokens.textSecondary,
                   ),
@@ -91,7 +109,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
           children: [
             Text(
               l10n.dashboardHealthTitle,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.2,
@@ -101,7 +119,7 @@ class FamilyDashboardHealthTab extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               l10n.dashboardHealthSubtitle,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
                 height: 1.35,
@@ -184,7 +202,7 @@ class _HealthSectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: StyleTokens.textPrimary,
@@ -271,7 +289,7 @@ class _HealthEmptyCard extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
               color: StyleTokens.textSecondary,
@@ -317,7 +335,7 @@ class _HealthOverviewCard extends StatelessWidget {
         children: [
           Text(
             l10n.dashboardHealthOverview,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: StyleTokens.textPrimary,
@@ -328,6 +346,7 @@ class _HealthOverviewCard extends StatelessWidget {
             height: 190,
             child: chartBuilder(
               _overviewChartConfig(
+                l10n,
                 takenCount: takenCount,
                 pendingCount: pendingCount,
                 symptomCount: symptomCount,
@@ -395,7 +414,7 @@ class _OverviewStatPill extends StatelessWidget {
       ),
       child: Text(
         '$label: $value',
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: foregroundColor,
@@ -457,7 +476,7 @@ class _MedAdherenceCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         m.medication.name,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: StyleTokens.textPrimary,
@@ -479,7 +498,7 @@ class _MedAdherenceCard extends StatelessWidget {
                         taken
                             ? l10n.dashboardHealthTakenStatus
                             : l10n.dashboardHealthNotTakenStatus,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.2,
@@ -492,7 +511,7 @@ class _MedAdherenceCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   m.medication.dosage,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: StyleTokens.textSecondary,
@@ -555,7 +574,7 @@ class _SymptomCard extends StatelessWidget {
               children: [
                 Text(
                   s.symptom,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -580,7 +599,7 @@ class _SymptomCard extends StatelessWidget {
                         ),
                         child: Text(
                           s.severity!.trim(),
-                          style: GoogleFonts.plusJakartaSans(
+                          style: aiseeTextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: const Color(0xFFC62828),
@@ -589,7 +608,7 @@ class _SymptomCard extends StatelessWidget {
                       ),
                     Text(
                       formatFamilyDashboardTime(s.loggedAt),
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 12,
                         color: StyleTokens.textSecondary,
                       ),
@@ -646,7 +665,7 @@ class _MetricCard extends StatelessWidget {
               children: [
                 Text(
                   m.metricType,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: StyleTokens.textSecondary,
@@ -656,7 +675,7 @@ class _MetricCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '${m.value}${m.unit != null && m.unit!.trim().isNotEmpty ? ' ${m.unit}' : ''}',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: StyleTokens.textPrimary,
@@ -666,7 +685,7 @@ class _MetricCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   formatFamilyDashboardTime(m.loggedAt),
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 12,
                     color: StyleTokens.textMuted,
                   ),
@@ -680,50 +699,144 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-Widget _defaultHealthOverviewChartBuilder(Map<String, dynamic> chartConfig) {
-  return ChartJsWidget(chartConfig: chartConfig);
+Widget _defaultHealthOverviewChartBuilder(HealthOverviewChartData chartData) {
+  return _HealthOverviewBarChart(chartData: chartData);
 }
 
-Map<String, dynamic> _overviewChartConfig({
+HealthOverviewChartData _overviewChartConfig(
+  AppLocalizations l10n, {
   required int takenCount,
   required int pendingCount,
   required int symptomCount,
   required int metricCount,
 }) {
-  return {
-    'type': 'bar',
-    'data': {
-      'labels': ['Taken', 'Not taken', 'Symptoms', 'Metrics'],
-      'datasets': [
-        {
-          'label': 'Health overview',
-          'data': [takenCount, pendingCount, symptomCount, metricCount],
-          'backgroundColor': [
-            'rgba(46, 125, 50, 0.72)',
-            'rgba(230, 81, 0, 0.72)',
-            'rgba(198, 40, 40, 0.68)',
-            'rgba(26, 50, 99, 0.72)',
-          ],
-          'borderRadius': 8,
-          'barThickness': 28,
-        },
-      ],
-    },
-    'options': {
-      'responsive': true,
-      'maintainAspectRatio': false,
-      'plugins': {
-        'legend': {'display': false},
-      },
-      'scales': {
-        'x': {
-          'grid': {'display': false},
-        },
-        'y': {
-          'beginAtZero': true,
-          'ticks': {'precision': 0},
-        },
-      },
-    },
-  };
+  return HealthOverviewChartData(
+    bars: <HealthOverviewChartBar>[
+      HealthOverviewChartBar(
+        label: l10n.dashboardHealthTakenToday,
+        value: takenCount,
+        color: const Color(0xFF2E7D32),
+      ),
+      HealthOverviewChartBar(
+        label: l10n.dashboardHealthNotTaken,
+        value: pendingCount,
+        color: const Color(0xFFE65100),
+      ),
+      HealthOverviewChartBar(
+        label: l10n.dashboardHealthSymptoms,
+        value: symptomCount,
+        color: const Color(0xFFC62828),
+      ),
+      HealthOverviewChartBar(
+        label: l10n.dashboardHealthMetricsPill,
+        value: metricCount,
+        color: StyleTokens.buttonPrimary,
+      ),
+    ],
+  );
+}
+
+class _HealthOverviewBarChart extends StatelessWidget {
+  const _HealthOverviewBarChart({required this.chartData});
+
+  final HealthOverviewChartData chartData;
+
+  @override
+  Widget build(BuildContext context) {
+    final double maxY =
+        chartData.bars.fold<int>(
+          0,
+          (int acc, HealthOverviewChartBar item) =>
+              item.value > acc ? item.value : acc,
+        ) +
+        1;
+
+    return BarChart(
+      BarChartData(
+        maxY: maxY <= 1 ? 1 : maxY,
+        alignment: BarChartAlignment.spaceAround,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 1,
+          getDrawingHorizontalLine: (double value) => FlLine(
+            color: StyleTokens.cardBorder.withValues(alpha: 0.6),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(enabled: false),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 24,
+              interval: 1,
+              getTitlesWidget: (double value, TitleMeta meta) {
+                return Text(
+                  value.toInt().toString(),
+                  style: aiseeTextStyle(
+                    fontSize: 10,
+                    color: StyleTokens.textMuted,
+                  ),
+                );
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              getTitlesWidget: (double value, TitleMeta meta) {
+                final int index = value.toInt();
+                if (index < 0 || index >= chartData.bars.length) {
+                  return const SizedBox.shrink();
+                }
+                return SideTitleWidget(
+                  meta: meta,
+                  space: 8,
+                  child: SizedBox(
+                    width: 58,
+                    child: Text(
+                      chartData.bars[index].label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: aiseeTextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: StyleTokens.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        barGroups: List<BarChartGroupData>.generate(chartData.bars.length, (
+          int index,
+        ) {
+          final HealthOverviewChartBar item = chartData.bars[index];
+          return BarChartGroupData(
+            x: index,
+            barRods: <BarChartRodData>[
+              BarChartRodData(
+                toY: item.value.toDouble(),
+                width: 28,
+                color: item.color,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
 }

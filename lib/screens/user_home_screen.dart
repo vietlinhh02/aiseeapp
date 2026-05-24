@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../config/aisee_locale_controller.dart';
@@ -536,7 +536,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
         Expanded(
           child: Text(
             leftText,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               height: 1,

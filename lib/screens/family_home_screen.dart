@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -100,7 +100,7 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
         Expanded(
           child: Text(
             _tabTitles(AppLocalizations.of(context))[_tabIndex],
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               height: 1,

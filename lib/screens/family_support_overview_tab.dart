@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_supporter_models.dart';
@@ -208,7 +208,7 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
                   ),
                   child: Text(
                     l.remindersRetry,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -274,7 +274,7 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
                           scrolledUnderElevation: 0,
                           title: Text(
                             l.supporterMyFamilyLink,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: aiseeTextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               height: 1,
@@ -302,7 +302,7 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
                     Expanded(
                       child: Text(
                         l.supporterMyFamilyLink,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,

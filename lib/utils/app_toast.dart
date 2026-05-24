@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../config/aisee_navigator_key.dart';
 import '../theme/style_tokens.dart';
@@ -43,7 +43,7 @@ abstract final class AppToast {
                     child: Text(
                       message,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         height: 1.35,

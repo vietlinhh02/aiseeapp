@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
@@ -250,7 +250,7 @@ class _MenuCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         title,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,
@@ -259,7 +259,7 @@ class _MenuCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
                           color: StyleTokens.textMuted,

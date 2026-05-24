@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../services/in_app_message_controller.dart';
@@ -95,7 +95,7 @@ class _InAppMessageBanner extends StatelessWidget {
                               notification.senderName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: aiseeTextStyle(
                                 color: StyleTokens.textPrimary,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w800,
@@ -107,7 +107,7 @@ class _InAppMessageBanner extends StatelessWidget {
                               notification.preview,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: aiseeTextStyle(
                                 color: StyleTokens.textSecondary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -189,7 +189,7 @@ class _AvatarFallback extends StatelessWidget {
     return Center(
       child: Text(
         initial,
-        style: GoogleFonts.plusJakartaSans(
+        style: aiseeTextStyle(
           color: StyleTokens.brandSecondary,
           fontSize: 17,
           fontWeight: FontWeight.w800,

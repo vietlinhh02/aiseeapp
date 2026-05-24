@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:livekit_client/livekit_client.dart';
 
 import '../config/app_env.dart';
@@ -429,7 +429,7 @@ class _CallScreenState extends State<CallScreen> {
   Widget _buildContactName() {
     return Text(
       widget.callInfo.contact.label,
-      style: GoogleFonts.plusJakartaSans(
+      style: aiseeTextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w600,
         color: Colors.white,
@@ -448,7 +448,7 @@ class _CallScreenState extends State<CallScreen> {
             : _formatDuration(d);
         return Text(
           text,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w400,
             color: Colors.white70,
@@ -582,7 +582,7 @@ class _CallScreenState extends State<CallScreen> {
         children: <Widget>[
           Text(
             widget.callInfo.contact.label,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: Colors.white,
@@ -591,7 +591,7 @@ class _CallScreenState extends State<CallScreen> {
           const SizedBox(height: 4),
           Text(
             _statusText,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w400,
               color: Colors.white70,

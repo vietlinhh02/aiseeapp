@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../models/aisee_api_models.dart';
 import '../services/aisee_analytics_service.dart';
@@ -110,7 +110,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         centerTitle: true,
         title: Text(
           _title,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
             color: StyleTokens.textPrimary,
@@ -248,7 +248,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         children: <Widget>[
           Text(
             count.toString(),
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
               color: StyleTokens.textPrimary,
@@ -260,7 +260,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: StyleTokens.textMuted,
@@ -306,7 +306,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         const SizedBox(width: 8),
         Text(
           title,
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: StyleTokens.textPrimary,
@@ -354,7 +354,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     children: <Widget>[
                       Text(
                         title,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,
@@ -364,7 +364,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         const SizedBox(height: 3),
                         Text(
                           subtitle,
-                          style: GoogleFonts.plusJakartaSans(
+                          style: aiseeTextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w400,
                             color: StyleTokens.textMuted,
@@ -477,7 +477,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 children: <Widget>[
                   Text(
                     desc,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: aiseeTextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: StyleTokens.textPrimary,
@@ -487,7 +487,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   if (detail.isNotEmpty)
                     Text(
                       detail,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: aiseeTextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                         color: StyleTokens.textMuted,
@@ -504,7 +504,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               ),
               child: Text(
                 isSymptom ? l10n.healthSymptoms : l10n.healthMetrics,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w500,
                   color: StyleTokens.textMuted,
@@ -555,7 +555,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
           const SizedBox(height: 12),
           Text(
             message,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w400,
               color: color,
@@ -726,7 +726,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                             children: <Widget>[
                               Text(
                                 title,
-                                style: GoogleFonts.plusJakartaSans(
+                                style: aiseeTextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
                                   color: StyleTokens.textPrimary,
@@ -736,7 +736,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                                 const SizedBox(height: 5),
                                 Text(
                                   subtitle,
-                                  style: GoogleFonts.plusJakartaSans(
+                                  style: aiseeTextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w400,
                                     color: StyleTokens.textMuted,
@@ -822,7 +822,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
             child: Center(
               child: Text(
                 label,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: textColor,

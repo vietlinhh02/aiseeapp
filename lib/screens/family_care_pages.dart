@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_care_models.dart';
@@ -83,7 +83,7 @@ class _CareTimelinePageState extends State<CareTimelinePage> {
       appBar: AppBar(
         title: Text(
           l.careTimelineTitle,
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: aiseeTextStyle(fontWeight: FontWeight.w700),
         ),
         backgroundColor: StyleTokens.background,
         elevation: 0,
@@ -132,7 +132,7 @@ class _CareTimelinePageState extends State<CareTimelinePage> {
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
               l.careTimelinePlanHint(d.effectiveDays, d.requestedDays),
-              style: GoogleFonts.plusJakartaSans(
+              style: aiseeTextStyle(
                 fontSize: 13,
                 color: StyleTokens.textSecondary,
               ),
@@ -141,7 +141,7 @@ class _CareTimelinePageState extends State<CareTimelinePage> {
         if (d.events.isEmpty)
           Text(
             l.careTimelineEmpty,
-            style: GoogleFonts.plusJakartaSans(
+            style: aiseeTextStyle(
               color: StyleTokens.textSecondary,
             ),
           ),
@@ -151,11 +151,11 @@ class _CareTimelinePageState extends State<CareTimelinePage> {
             child: ListTile(
               title: Text(
                 e.title,
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+                style: aiseeTextStyle(fontWeight: FontWeight.w600),
               ),
               subtitle: Text(
                 '${e.kind}\n${e.detail ?? ''}\n${_ymd(e.occurredAt)}',
-                style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.35),
+                style: aiseeTextStyle(fontSize: 13, height: 1.35),
               ),
             ),
           ),
@@ -248,7 +248,7 @@ class _CareDailyBriefPageState extends State<CareDailyBriefPage> {
       appBar: AppBar(
         title: Text(
           l.careDailyBriefTitle,
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: aiseeTextStyle(fontWeight: FontWeight.w700),
         ),
         backgroundColor: StyleTokens.background,
         actions: <Widget>[
@@ -296,7 +296,7 @@ class _CareDailyBriefPageState extends State<CareDailyBriefPage> {
       children: <Widget>[
         Text(
           l.careDailyBriefDate(d.date),
-          style: GoogleFonts.plusJakartaSans(
+          style: aiseeTextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 16,
           ),
@@ -307,7 +307,7 @@ class _CareDailyBriefPageState extends State<CareDailyBriefPage> {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               '• $line',
-              style: GoogleFonts.plusJakartaSans(height: 1.4),
+              style: aiseeTextStyle(height: 1.4),
             ),
           ),
         const SizedBox(height: 16),
@@ -401,7 +401,7 @@ class _CareWeeklyReportPageState extends State<CareWeeklyReportPage> {
       appBar: AppBar(
         title: Text(
           l.careWeeklyReportTitle,
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: aiseeTextStyle(fontWeight: FontWeight.w700),
         ),
         backgroundColor: StyleTokens.background,
         actions: <Widget>[
@@ -452,7 +452,7 @@ class _CareWeeklyReportPageState extends State<CareWeeklyReportPage> {
       children: <Widget>[
         Text(
           '${d.startDate} → ${d.endDate}',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: aiseeTextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         for (final String line in d.summary)
@@ -460,7 +460,7 @@ class _CareWeeklyReportPageState extends State<CareWeeklyReportPage> {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               '• $line',
-              style: GoogleFonts.plusJakartaSans(height: 1.4),
+              style: aiseeTextStyle(height: 1.4),
             ),
           ),
         const SizedBox(height: 16),
@@ -553,7 +553,7 @@ class _CareIncidentPageState extends State<CareIncidentPage> {
       appBar: AppBar(
         title: Text(
           l.careIncidentTitle,
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: aiseeTextStyle(fontWeight: FontWeight.w700),
         ),
         backgroundColor: StyleTokens.background,
         actions: <Widget>[
@@ -610,7 +610,7 @@ class _CareIncidentPageState extends State<CareIncidentPage> {
       children: <Widget>[
         Text(
           l.careIncidentAlertTime(d.alertAt.toLocal()),
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: aiseeTextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         Text(l.careIncidentLocation(d.location.lat, d.location.lng)),
@@ -618,7 +618,7 @@ class _CareIncidentPageState extends State<CareIncidentPage> {
         for (final String s in d.summary)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: Text(s, style: GoogleFonts.plusJakartaSans(height: 1.4)),
+            child: Text(s, style: aiseeTextStyle(height: 1.4)),
           ),
         const SizedBox(height: 12),
         for (final CareIncidentEscalation e in d.escalations)
@@ -651,7 +651,7 @@ class _TotalsCard extends StatelessWidget {
           children: <Widget>[
             Text(
               l.careTotalsOverview,
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              style: aiseeTextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(l.careTotalsActiveMeds(totals.activeMedications)),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../models/aisee_dashboard_models.dart';
 import '../theme/style_tokens.dart';
@@ -66,7 +66,7 @@ class FamilyDashboardMedsTab extends StatelessWidget {
                     children: [
                       Text(
                         m.medication.name,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
@@ -343,7 +343,7 @@ class _PersonalInfoSheet extends StatelessWidget {
               Expanded(
                 child: Text(
                   l.familyPersonalSheetTitle,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: aiseeTextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w800,
                     color: StyleTokens.textPrimary,
@@ -435,7 +435,7 @@ class _PersonalInfoRow extends StatelessWidget {
             children: <Widget>[
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                   color: StyleTokens.textMuted,
@@ -444,7 +444,7 @@ class _PersonalInfoRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: StyleTokens.textPrimary,
@@ -514,7 +514,7 @@ class _ActionCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         title,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,
@@ -523,7 +523,7 @@ class _ActionCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
                           color: StyleTokens.textMuted,
@@ -609,7 +609,7 @@ class _VolunteerCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         l.familyVolunteerTitle,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: StyleTokens.textPrimary,
@@ -618,7 +618,7 @@ class _VolunteerCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         l.familyVolunteerSubtitle,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: aiseeTextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
                           color: StyleTokens.textMuted,
@@ -723,7 +723,7 @@ class _AvailabilityToggle extends StatelessWidget {
             children: <Widget>[
               Text(
                 l.familyVolunteerReadyTitle,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: StyleTokens.textPrimary,
@@ -734,7 +734,7 @@ class _AvailabilityToggle extends StatelessWidget {
                 available
                     ? l.familyVolunteerReadyOn
                     : l.familyVolunteerReadyOff,
-                style: GoogleFonts.plusJakartaSans(
+                style: aiseeTextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                   color: StyleTokens.textMuted,

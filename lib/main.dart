@@ -66,10 +66,12 @@ Future<void> main() async {
         );
         return true;
       };
-      await dotenv.load(fileName: 'assets/app_config.env');
-      await AiseeLocaleController.instance.load();
-      await AiseeReminderService.instance.init();
-      await AiseeReminderAnnouncer.instance.start();
+      await Future.wait([
+        dotenv.load(fileName: 'assets/app_config.env'),
+        AiseeLocaleController.instance.load(),
+        AiseeReminderService.instance.init(),
+      ]);
+      unawaited(AiseeReminderAnnouncer.instance.start());
       assert(() {
         final String? lk = dotenv.env['LIVEKIT_URL'];
         if (lk == null || lk.trim().isEmpty) {

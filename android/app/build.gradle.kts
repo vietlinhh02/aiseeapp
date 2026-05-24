@@ -7,6 +7,15 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val admobApplicationId =
+    (project.findProperty("ADMOB_APPLICATION_ID_ANDROID") as String?)
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: System.getenv("ADMOB_APPLICATION_ID_ANDROID")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+        ?: "ca-app-pub-3940256099942544~3347511713"
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -41,6 +50,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["admobApplicationId"] = admobApplicationId
     }
 
     // DaVoice: cần libc++_shared.so từ NDK trong jniLibs (README Flutter_WakeWordDetection).
