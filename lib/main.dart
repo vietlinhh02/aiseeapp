@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'config/aisee_locale_controller.dart';
 import 'debug/aisee_debug_hud.dart';
@@ -50,6 +51,12 @@ Future<void> main() async {
         );
       } catch (e) {
         debugPrint('[AiSee] Firebase init skipped: $e');
+      }
+      try {
+        await MobileAds.instance.initialize();
+        debugPrint('[AiSee] AdMob initialized');
+      } catch (e) {
+        debugPrint('[AiSee] AdMob init skipped: $e');
       }
       FlutterError.onError = (FlutterErrorDetails details) {
         FlutterError.presentError(details);

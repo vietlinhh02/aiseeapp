@@ -28,6 +28,16 @@ void main() {
               'avatar_url': 'https://example.com/a.png',
             },
           ],
+          'activities': <Object?>[
+            <String, Object?>{
+              'actor_id': 'u1',
+              'actor_display_name': 'Linh',
+              'actor_avatar_url': 'https://example.com/a.png',
+              'type': 'redeem',
+              'amount': 300,
+              'occurred_at': '2026-05-27T00:00:00Z',
+            },
+          ],
         },
       }, 200),
     );
@@ -42,6 +52,11 @@ void main() {
     expect(response.community.supporters, hasLength(1));
     expect(response.community.supporters.first.displayName, 'Linh');
     expect(response.community.supporters.first.avatarUrl, contains('a.png'));
+    final List<CommunitySupporterActivity> activities =
+        response.community.activities ?? const <CommunitySupporterActivity>[];
+    expect(activities, hasLength(1));
+    expect(activities.first.type, 'redeem');
+    expect(activities.first.amount, 300);
     service.close();
   });
 

@@ -148,13 +148,13 @@ class SupporterWelcomeBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 13),
                   SizedBox(
-                    width: 204,
+                    width: 220,
                     child: Text(
                       title,
-                      maxLines: 2,
+                      maxLines: 4,
                       overflow: TextOverflow.ellipsis,
                       style: aiseeTextStyle(
-                        fontSize: 17,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                         height: 1.14,
                         color: _medicalInk,
@@ -163,13 +163,13 @@ class SupporterWelcomeBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   SizedBox(
-                    width: 190,
+                    width: 210,
                     child: Text(
                       message,
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: aiseeTextStyle(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w400,
                         height: 1.25,
                         color: StyleTokens.textSecondary,
@@ -215,7 +215,7 @@ class _IconBadge extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: backgroundColor ?? _medicalBlue.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
       ),
       child:
           child ?? Icon(icon, size: iconSize, color: iconColor ?? _medicalBlue),
@@ -300,9 +300,9 @@ class SupporterHeroCard extends StatelessWidget {
                     width: 24,
                     height: 24,
                     alignment: Alignment.center,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: _coinGoldSoft,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       PhosphorIcons.coins(PhosphorIconsStyle.duotone),
@@ -404,39 +404,45 @@ class SupporterActionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: <Widget>[
-        Expanded(
-          child: _PanelActionButton(
-            icon: PhosphorIcons.playCircle(PhosphorIconsStyle.regular),
-            label: _watchTitle(context),
-            subtitle: _watchSubtitle(context),
-            enabled: !busy,
-            onTap: onWatchAd,
-            accent: _medicalFreshSky,
-            busy: busy,
-          ),
+        _FullWidthActionButton(
+          icon: PhosphorIcons.playCircle(PhosphorIconsStyle.regular),
+          label: _watchTitle(context),
+          subtitle: _watchSubtitle(context),
+          enabled: !busy,
+          onTap: onWatchAd,
+          accent: _medicalBlue,
+          busy: busy,
+          filled: true,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _PanelActionButton(
-            icon: PhosphorIcons.gift(PhosphorIconsStyle.duotone),
-            label: _redeemTitle(context),
-            subtitle: _redeemSubtitle(context),
-            enabled: !busy && canRedeem,
-            onTap: onRedeem,
-            accent: _medicalMint,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _PanelActionButton(
-            icon: PhosphorIcons.usersThree(PhosphorIconsStyle.duotone),
-            label: _familyTitle(context),
-            subtitle: _familySubtitle(context),
-            enabled: true,
-            onTap: onOpenFamily,
-            accent: _medicalAmber,
+        const SizedBox(height: 8),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Expanded(
+                child: _PanelActionButton(
+                  icon: PhosphorIcons.gift(PhosphorIconsStyle.duotone),
+                  label: _redeemTitle(context),
+                  subtitle: _redeemSubtitle(context),
+                  enabled: !busy && canRedeem,
+                  onTap: onRedeem,
+                  accent: _medicalMint,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _PanelActionButton(
+                  icon: PhosphorIcons.usersThree(PhosphorIconsStyle.duotone),
+                  label: _familyTitle(context),
+                  subtitle: _familySubtitle(context),
+                  enabled: true,
+                  onTap: onOpenFamily,
+                  accent: _medicalAmber,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -474,8 +480,8 @@ class SupporterActionPanel extends StatelessWidget {
   }
 }
 
-class _PanelActionButton extends StatelessWidget {
-  const _PanelActionButton({
+class _FullWidthActionButton extends StatelessWidget {
+  const _FullWidthActionButton({
     required this.icon,
     required this.label,
     required this.subtitle,
@@ -483,6 +489,7 @@ class _PanelActionButton extends StatelessWidget {
     required this.onTap,
     required this.accent,
     this.busy = false,
+    this.filled = false,
   });
 
   final IconData icon;
@@ -492,6 +499,118 @@ class _PanelActionButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color accent;
   final bool busy;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color surface = filled ? accent : _medicalSurface;
+    final Color contentColor = enabled
+        ? (filled ? Colors.white : _medicalInk)
+        : StyleTokens.textMuted;
+    final Color subtitleColor = enabled
+        ? (filled ? Colors.white.withValues(alpha: 0.82) : StyleTokens.textSecondary)
+        : StyleTokens.textMuted;
+    final Color badgeBg = filled
+        ? Colors.white.withValues(alpha: 0.20)
+        : accent.withValues(alpha: 0.12);
+    final Color badgeIcon = enabled ? (filled ? Colors.white : accent) : StyleTokens.textMuted;
+    final Color caretColor = enabled ? (filled ? Colors.white : accent) : StyleTokens.textMuted;
+    final Color borderColor = filled ? accent : _medicalBorder;
+
+    return Material(
+      color: surface,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: <Widget>[
+              _IconBadge(
+                icon: icon,
+                backgroundColor: badgeBg,
+                iconColor: badgeIcon,
+                size: 36,
+                iconSize: 18,
+                child: busy
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: filled ? Colors.white : accent,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: aiseeTextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                        color: contentColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: aiseeTextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        height: 1.1,
+                        color: subtitleColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                size: 16,
+                color: caretColor,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelActionButton extends StatelessWidget {
+  const _PanelActionButton({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.enabled,
+    required this.onTap,
+    required this.accent,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final bool enabled;
+  final VoidCallback onTap;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -505,8 +624,7 @@ class _PanelActionButton extends StatelessWidget {
         onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          height: 98,
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _medicalBorder),
@@ -520,16 +638,6 @@ class _PanelActionButton extends StatelessWidget {
                 iconColor: enabled ? accent : StyleTokens.textMuted,
                 size: 32,
                 iconSize: 17,
-                child: busy
-                    ? SizedBox(
-                        width: 17,
-                        height: 17,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: accent,
-                        ),
-                      )
-                    : null,
               ),
               const SizedBox(height: 7),
               Text(
@@ -605,7 +713,7 @@ class SupporterPersonalStatsRow extends StatelessWidget {
         Text(
           title,
           style: aiseeTextStyle(
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             color: _medicalInk,
           ),
@@ -733,6 +841,7 @@ class SupporterCommunityStatsRow extends StatelessWidget {
     required this.labelPeople,
     required this.labelAITurns,
     required this.labelSupporters,
+    this.onTap,
   });
 
   final int totalCaredUsers;
@@ -743,6 +852,7 @@ class SupporterCommunityStatsRow extends StatelessWidget {
   final String labelPeople;
   final String labelAITurns;
   final String labelSupporters;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -751,83 +861,85 @@ class SupporterCommunityStatsRow extends StatelessWidget {
       children: <Widget>[
         Row(
           children: <Widget>[
-            Expanded(
-              child: Text(
-                title,
-                style: aiseeTextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: _medicalInk,
-                ),
-              ),
-            ),
             Text(
-              _seeAllLabel(context),
+              title,
               style: aiseeTextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: StyleTokens.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _medicalInk,
               ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
-              size: 16,
-              color: StyleTokens.textSecondary,
             ),
           ],
         ),
         const SizedBox(height: 10),
-        _SupportCard(
-          padding: const EdgeInsets.all(16),
-          backgroundColor: _medicalSurface,
-          borderColor: _medicalBorder,
-          child: Row(
-            children: <Widget>[
-              _CommunityAvatarStack(
-                supporters: supporters,
-                activeSupporters: activeSupporters,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      _communityLead(context, activeSupporters),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: aiseeTextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _medicalInk,
-                      ),
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: _SupportCard(
+              padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+              backgroundColor: _medicalSurface,
+              borderColor: _medicalBorder,
+              child: Row(
+                children: <Widget>[
+                  _CommunityAvatarStack(
+                    supporters: supporters,
+                    activeSupporters: activeSupporters,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          _communityLead(context, activeSupporters),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: aiseeTextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _medicalInk,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _communitySub(context, totalCaredUsers, totalAITurns),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: aiseeTextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            height: 1.35,
+                            color: StyleTokens.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _communitySub(context, totalCaredUsers, totalAITurns),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: aiseeTextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        height: 1.35,
-                        color: StyleTokens.textSecondary,
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _medicalBlue.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(11),
                     ),
-                  ],
-                ),
+                    child: Icon(
+                      PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                      size: 17,
+                      color: _medicalBlue,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ],
     );
-  }
-
-  String _seeAllLabel(BuildContext context) {
-    final bool vi = Localizations.localeOf(context).languageCode == 'vi';
-    return vi ? 'Xem tất cả' : 'See all';
   }
 
   String _communityLead(BuildContext context, int activeSupporters) {

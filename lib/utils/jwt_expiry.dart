@@ -1,5 +1,20 @@
 import 'dart:convert';
 
+String? getUserIdFromToken(String token) {
+  final List<String> parts = token.split('.');
+  if (parts.length != 3) return null;
+  try {
+    final String normalized = base64Url.normalize(parts[1]);
+    final Object? decoded = jsonDecode(
+      utf8.decode(base64Url.decode(normalized)),
+    );
+    if (decoded is! Map<String, dynamic>) return null;
+    return decoded['sub'] as String? ?? decoded['user_id'] as String?;
+  } catch (_) {
+    return null;
+  }
+}
+
 bool isJwtExpiringSoon(
   String token, {
   DateTime? now,

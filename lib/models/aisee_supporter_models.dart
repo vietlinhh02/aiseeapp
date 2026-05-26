@@ -32,12 +32,14 @@ class CommunitySupporterStats {
   final int totalAITurnsGifted;
   final int activeSupporters;
   final List<CommunitySupporterProfile> supporters;
+  final List<CommunitySupporterActivity>? activities;
 
   const CommunitySupporterStats({
     required this.totalCaredUsers,
     required this.totalAITurnsGifted,
     required this.activeSupporters,
     this.supporters = const <CommunitySupporterProfile>[],
+    this.activities = const <CommunitySupporterActivity>[],
   });
 
   factory CommunitySupporterStats.fromJson(Map<String, dynamic> j) {
@@ -55,6 +57,16 @@ class CommunitySupporterStats {
               )
               .toList() ??
           const <CommunitySupporterProfile>[],
+      activities:
+          (j['activities'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map(
+                (Map value) => CommunitySupporterActivity.fromJson(
+                  Map<String, dynamic>.from(value),
+                ),
+              )
+              .toList() ??
+          const <CommunitySupporterActivity>[],
     );
   }
 }
@@ -75,6 +87,35 @@ class CommunitySupporterProfile {
       id: j['id'] as String? ?? '',
       displayName: j['display_name'] as String? ?? '',
       avatarUrl: j['avatar_url'] as String?,
+    );
+  }
+}
+
+class CommunitySupporterActivity {
+  final String actorId;
+  final String actorDisplayName;
+  final String? actorAvatarUrl;
+  final String type;
+  final int amount;
+  final String occurredAt;
+
+  const CommunitySupporterActivity({
+    required this.actorId,
+    required this.actorDisplayName,
+    this.actorAvatarUrl,
+    required this.type,
+    required this.amount,
+    required this.occurredAt,
+  });
+
+  factory CommunitySupporterActivity.fromJson(Map<String, dynamic> j) {
+    return CommunitySupporterActivity(
+      actorId: j['actor_id'] as String? ?? '',
+      actorDisplayName: j['actor_display_name'] as String? ?? '',
+      actorAvatarUrl: j['actor_avatar_url'] as String?,
+      type: j['type'] as String? ?? '',
+      amount: (j['amount'] as num?)?.toInt() ?? 0,
+      occurredAt: j['occurred_at'] as String? ?? '',
     );
   }
 }

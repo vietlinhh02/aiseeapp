@@ -5,11 +5,14 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_supporter_models.dart';
+import '../services/aisee_rewarded_ad_service.dart';
 import '../services/aisee_supporter_service.dart';
 import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
+import '../utils/jwt_expiry.dart';
 import 'family_contacts_tab.dart';
+import 'family_support_community_screen.dart';
 import 'family_support_widgets.dart';
 
 const Color _supportInk = Color(0xFF1B4965);
@@ -26,6 +29,7 @@ class FamilySupportOverviewTab extends StatefulWidget {
 
 class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
   late final AiseeSupporterService _service;
+  final AiseeRewardedAdService _adService = AiseeRewardedAdService();
 
   SupporterOverviewResponse? _data;
   bool _loading = true;
@@ -44,6 +48,7 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
   @override
   void dispose() {
     _service.close();
+    _adService.dispose();
     super.dispose();
   }
 
@@ -80,6 +85,11 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
+      final bool rewarded = await _adService.show();
+      if (!rewarded) {
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
       final result = await _withFreshToken(_service.watchAd);
       if (result == null) return;
       if (!mounted) return;
@@ -364,6 +374,7 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
             labelPeople: l.supporterCommunityPeopleSupported,
             labelAITurns: l.supporterCommunityAITurnsGifted,
             labelSupporters: l.supporterCommunityActiveSupporters,
+            onTap: () => _openCommunity(data),
           ),
           const SizedBox(height: 10),
           SizedBox(height: MediaQuery.paddingOf(context).bottom + 16),
@@ -426,6 +437,20 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
       ),
     );
   }
+
+  void _openCommunity(SupporterOverviewResponse data) async {
+    HapticFeedback.lightImpact();
+    final String? token = await AiseeTokenProvider.instance.accessToken();
+    final String? userId = token != null ? getUserIdFromToken(token) : null;
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (BuildContext _) =>
+            FamilySupportCommunityScreen(data: data, userId: userId),
+      ),
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -438,7 +463,7 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       text,
       style: aiseeTextStyle(
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: FontWeight.w700,
         color: StyleTokens.textPrimary,
       ),
