@@ -23,14 +23,13 @@ import '../services/aisee_assistant_call_launcher.dart';
 import '../services/aisee_assistant_device_command_handler.dart';
 import '../services/aisee_audio_uplink_gate.dart';
 import '../services/assistant_audio_coordinator.dart';
-import '../services/aisee_auth_service.dart';
 import '../services/aisee_family_service.dart';
 import '../services/aisee_notification_feedback.dart';
 import '../services/aisee_pcm_audio_player.dart';
 import '../services/aisee_push_service.dart';
+import '../services/aisee_token_provider.dart';
 import '../services/aisee_wake_word_service.dart';
 import '../services/in_app_message_controller.dart';
-import '../services/aisee_session_store.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import '../widgets/app_wordmark.dart';
@@ -178,26 +177,10 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     _wakeWordEnabled = AiseeWakeWordService.instance.isFeatureEnabledByConfig;
     debugPrint('[AiSee:UI] Wake word enabled=$_wakeWordEnabled');
     final AiseeAiSession aiSession = AiseeAiSession();
-    aiSession.tokenProvider = () async {
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      return tokens?.accessToken;
-    };
-    aiSession.refreshTokenProvider = () async {
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) return null;
-      final AiseeAuthService auth = AiseeAuthService();
-      try {
-        final AiseeAuthTokens rotated = await auth.refreshTokens(
-          tokens.refreshToken,
-        );
-        await AiseeSessionStore.instance.write(rotated);
-        return rotated.accessToken;
-      } catch (_) {
-        return null;
-      } finally {
-        auth.close();
-      }
-    };
+    aiSession.tokenProvider = () async =>
+        AiseeTokenProvider.instance.accessToken();
+    aiSession.refreshTokenProvider = () async =>
+        AiseeTokenProvider.instance.accessToken(forceRefresh: true);
     _assistantController = AiseeAiAssistantController(
       session: AiseeAiSessionClientAdapter(aiSession),
       microphoneInput: AiseeAiRecordMicrophoneInput(),
@@ -395,15 +378,11 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   }
 
   Future<bool> _computeHasFamilyLink() async {
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
-      return false;
-    }
     final AiseeFamilyService svc = AiseeFamilyService();
     try {
-      final List<AiseeFamilyMember> family = await svc.fetchFamily(
-        tokens.accessToken,
-      );
+      final List<AiseeFamilyMember>? family = await AiseeTokenProvider.instance
+          .withAccessToken(svc.fetchFamily);
+      if (family == null) return false;
       AiseeInAppMessageController.instance.rememberContacts(family);
       return family.isNotEmpty;
     } catch (_) {
@@ -430,8 +409,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       debugPrint(
         '[AiSee:UI] fetchFamily chay song song voi ket noi AI session',
       );
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw AiseeApiException(
           lookupAppLocalizations(
             AiseeLocaleController.instance.value,
@@ -439,21 +419,16 @@ class _UserHomeScreenState extends State<UserHomeScreen>
         );
       }
       try {
-        await _assistantController.connect(tokens.accessToken);
+        await _assistantController.connect(accessToken);
       } on AiseeAiSessionException catch (error) {
         if (error.statusCode != 401) {
           rethrow;
         }
-        final AiseeAuthService auth = AiseeAuthService();
-        try {
-          final AiseeAuthTokens rotated = await auth.refreshTokens(
-            tokens.refreshToken,
-          );
-          await AiseeSessionStore.instance.write(rotated);
-          await _assistantController.connect(rotated.accessToken);
-        } finally {
-          auth.close();
-        }
+        final String? refreshed = await AiseeTokenProvider.instance.accessToken(
+          forceRefresh: true,
+        );
+        if (refreshed == null) rethrow;
+        await _assistantController.connect(refreshed);
       }
       if (!mounted) return;
       final bool hasLink = await familyLinkFuture;

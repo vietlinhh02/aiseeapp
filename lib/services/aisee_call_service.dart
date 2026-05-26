@@ -1,36 +1,40 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/app_env.dart';
+import 'package:dio/dio.dart';
+import 'package:retrofit/dio.dart';
+
+import '../api/aisee_api_auth.dart';
+import '../api/aisee_api_dio.dart';
+import '../api/call_api.dart';
 import '../models/aisee_api_models.dart';
-import '../utils/aisee_api_error_parse.dart';
 
 class AiseeCallService {
-  AiseeCallService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  AiseeCallService({AiseeCallApiClient? apiClient, Dio? dio})
+    : this._(dio: dio ?? AiseeApiDioFactory.create(), apiClient: apiClient);
 
-  final http.Client _http;
+  AiseeCallService._({required Dio dio, AiseeCallApiClient? apiClient})
+    : _dio = dio,
+      _ownsDio = apiClient == null,
+      _apiClient = apiClient ?? AiseeCallApiClient(dio);
 
-  void close() => _http.close();
+  final Dio _dio;
+  final bool _ownsDio;
+  final AiseeCallApiClient _apiClient;
 
-  Uri _uri(String path) => Uri.parse('${AppEnv.apiBaseUrl}$path');
-
-  Map<String, String> _authHeaders(String accessToken) => {
-    'Authorization': 'Bearer $accessToken',
-    'Content-Type': 'application/json; charset=utf-8',
-    'Accept': 'application/json',
-  };
+  void close() {
+    if (_ownsDio) {
+      _dio.close(force: true);
+    }
+  }
 
   Future<({String roomName, String token})> createRoom(
     String accessToken,
     String calleeId,
     String callType,
   ) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/calls/create-room'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode({'callee_id': calleeId, 'call_type': callType}),
+    final HttpResponse<dynamic> res = await _apiClient.createRoom(
+      AiseeApiAuth.bearer(accessToken),
+      <String, dynamic>{'callee_id': calleeId, 'call_type': callType},
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tạo được cuộc gọi');
     }
     final Object? decoded = _decodeJson(res, 'Không tạo được cuộc gọi');
@@ -44,30 +48,42 @@ class AiseeCallService {
   }
 
   Future<void> endRoom(String accessToken, String roomName) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/calls/end-room'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode({'room_name': roomName}),
+    final HttpResponse<dynamic> res = await _apiClient.endRoom(
+      AiseeApiAuth.bearer(accessToken),
+      <String, dynamic>{'room_name': roomName},
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không kết thúc được cuộc gọi');
     }
   }
 
-  Object? _decodeJson(http.Response res, String fallback) {
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) {
+  Object? _decodeJson(HttpResponse<dynamic> res, String fallback) {
+    final dynamic data = res.data;
+    if (data == null) {
       throw AiseeApiException('$fallback (phản hồi trống)');
     }
-    try {
-      return jsonDecode(raw);
-    } on FormatException {
-      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
+    if (data is Map<String, dynamic>) {
+      return data;
     }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    throw AiseeApiException(
+      '$fallback (HTTP ${res.response.statusCode}): phản hồi không hợp lệ',
+    );
   }
 
-  AiseeApiException _error(http.Response res, String fallback) {
-    return aiseeApiExceptionFromResponse(res, fallback);
+  AiseeApiException _error(HttpResponse<dynamic> res, String fallback) {
+    final dynamic data = res.data;
+    final Map<String, dynamic>? body = switch (data) {
+      Map<String, dynamic> value => value,
+      Map value => Map<String, dynamic>.from(value),
+      _ => null,
+    };
+    final Map<String, dynamic>? error = body?['error'] as Map<String, dynamic>?;
+    return AiseeApiException(
+      error?['message'] as String? ?? body?['message'] as String? ?? fallback,
+      code: error?['code'] as String?,
+    );
   }
 }

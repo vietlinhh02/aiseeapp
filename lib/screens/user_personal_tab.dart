@@ -5,9 +5,8 @@ import 'package:aiseeapp/theme/aisee_typography.dart';
 
 import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
-import '../models/aisee_api_models.dart';
 import '../services/aisee_health_service.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/aisee_language_picker_sheet.dart';
 import 'reminders_screen.dart';
@@ -39,15 +38,15 @@ class UserPersonalTabState extends State<UserPersonalTab> {
   void refreshReminders() => _loadCounts();
 
   Future<void> _loadCounts() async {
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null || !mounted) return;
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null || !mounted) return;
     final AiseeHealthService svc = AiseeHealthService();
     try {
       final List<Map<String, dynamic>> meds = await svc.fetchMedications(
-        tokens.accessToken,
+        accessToken,
       );
       final List<Map<String, dynamic>> appts = await svc.fetchAppointments(
-        tokens.accessToken,
+        accessToken,
       );
       if (!mounted) return;
       setState(() {

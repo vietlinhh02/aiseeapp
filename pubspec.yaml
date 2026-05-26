@@ -84,6 +84,7 @@ dependencies:
   json_annotation: ^4.12.0
   web_socket_client: ^0.2.1
   fl_chart: ^1.2.0
+  phosphor_flutter: ^2.1.0
 
 dev_dependencies:
   flutter_test:
@@ -120,23 +121,25 @@ flutter:
     - assets/illustrations/role_user.svg
     - assets/illustrations/role_family.svg
     - assets/illustrations/family_group_heart.svg
+    - assets/illustrations/support_banner.svg
+    - assets/onboarding/
     - assets/audio/ringback_gsm.wav
     - assets/audio/incoming_ring.wav
     - assets/lottie/
     - assets/icons/nav/
     - assets/models/
   fonts:
-    - family: PlusJakartaSans
+    - family: GoogleSans
       fonts:
-        - asset: google_fonts/PlusJakartaSans-Regular.ttf
+        - asset: google_fonts/GoogleSans-Regular.ttf
           weight: 400
-        - asset: google_fonts/PlusJakartaSans-Medium.ttf
+        - asset: google_fonts/GoogleSans-Medium.ttf
           weight: 500
-        - asset: google_fonts/PlusJakartaSans-SemiBold.ttf
+        - asset: google_fonts/GoogleSans-SemiBold.ttf
           weight: 600
-        - asset: google_fonts/PlusJakartaSans-Bold.ttf
+        - asset: google_fonts/GoogleSans-Bold.ttf
           weight: 700
-        - asset: google_fonts/PlusJakartaSans-ExtraBold.ttf
+        - asset: google_fonts/GoogleSans-Bold.ttf
           weight: 800
 
   # An image asset can refer to one or more resolution-specific "variants", see

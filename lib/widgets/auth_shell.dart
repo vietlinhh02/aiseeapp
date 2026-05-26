@@ -22,6 +22,7 @@ import '../services/aisee_onboarding_store.dart';
 import '../services/aisee_push_service.dart';
 import '../services/in_app_message_controller.dart';
 import '../services/aisee_revenuecat_service.dart';
+import '../services/aisee_token_provider.dart';
 import 'auth_bootstrapping.dart';
 import 'permission_bootstrap_gate.dart';
 import '../services/aisee_profile_cache.dart';
@@ -102,22 +103,10 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     _onboardingStore = widget.onboardingStore ?? AiseeOnboardingStore.instance;
     _ownsAuthService = widget.authService == null;
     _chatSocket.tokenProvider = () async {
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      return tokens?.accessToken;
+      return AiseeTokenProvider.instance.accessToken();
     };
-    _chatSocket.refreshTokenProvider = () async {
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) return null;
-      try {
-        final AiseeAuthTokens rotated = await _aiseeAuth.refreshTokens(
-          tokens.refreshToken,
-        );
-        await AiseeSessionStore.instance.write(rotated);
-        return rotated.accessToken;
-      } catch (_) {
-        return null;
-      }
-    };
+    _chatSocket.refreshTokenProvider = () async =>
+        AiseeTokenProvider.instance.accessToken(forceRefresh: true);
     unawaited(_bootstrap());
   }
 
@@ -151,10 +140,10 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
 
   Future<void> _connectChatSocketIfNeeded() async {
     if (_chatSocket.isConnected) return;
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens != null) {
-      await _chatSocket.connect(tokens.accessToken);
-      unawaited(_primeMessageContacts(tokens.accessToken));
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken != null) {
+      await _chatSocket.connect(accessToken);
+      unawaited(_primeMessageContacts(accessToken));
       _authLog('ChatSocket connected');
     }
   }
@@ -481,9 +470,11 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     await AiseeProfileCache.instance.write(profile);
     unawaited(AiseeAnalyticsService.instance.setUser(profile));
     unawaited(AiseeRevenueCatService.instance.identify(profile));
-    await AiseePushService.instance.initAndUploadToken(tokens.accessToken);
-    unawaited(_chatSocket.connect(tokens.accessToken));
-    unawaited(_primeMessageContacts(tokens.accessToken));
+    final String accessToken =
+        await AiseeTokenProvider.instance.accessToken() ?? tokens.accessToken;
+    await AiseePushService.instance.initAndUploadToken(accessToken);
+    unawaited(_chatSocket.connect(accessToken));
+    unawaited(_primeMessageContacts(accessToken));
   }
 
   Future<String?> _syncOnboardingRoleFromProfile(

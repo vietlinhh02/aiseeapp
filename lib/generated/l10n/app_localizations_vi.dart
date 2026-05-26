@@ -2336,10 +2336,10 @@ class AppLocalizationsVi extends AppLocalizations {
   String get supporterPersonalPeopleSupported => 'Người đang hỗ trợ';
 
   @override
-  String get supporterPersonalAITurnsGifted => 'Lượt AI đã tặng';
+  String get supporterPersonalAITurnsGifted => 'Lượt hỗ trợ đã tặng';
 
   @override
-  String get supporterPersonalAdsWatched => 'QC đã xem';
+  String get supporterPersonalAdsWatched => 'Quảng cáo đã xem';
 
   @override
   String get supporterWatchAdButton => 'Xem quảng cáo để ủng hộ';
@@ -2352,14 +2352,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String supporterBalanceConversion(int count) {
-    return '$count lượt AI hỗ trợ';
+    return '$count lượt hỗ trợ';
   }
 
   @override
   String get supporterRedeemButton => 'Đổi ngay để ủng hộ';
 
   @override
-  String get supporterRateHint => '1 quảng cáo = 100 xu = 1 lượt AI';
+  String get supporterRateHint => 'Xem quảng cáo → nhận xu → đổi lượt hỗ trợ';
 
   @override
   String get supporterCommunityTitle => 'Cộng đồng';
@@ -2368,7 +2368,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get supporterCommunityPeopleSupported => 'Người đang được hỗ trợ';
 
   @override
-  String get supporterCommunityAITurnsGifted => 'Lượt AI đã được tặng';
+  String get supporterCommunityAITurnsGifted => 'Lượt hỗ trợ đã được tặng';
 
   @override
   String get supporterCommunityActiveSupporters => 'Người hỗ trợ tích cực';
@@ -2380,7 +2380,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get supporterInfoStep1 => 'Xem quảng cáo → nhận xu';
 
   @override
-  String get supporterInfoStep2 => 'Tích lũy đủ xu → đổi lấy lượt AI';
+  String get supporterInfoStep2 => 'Tích lũy đủ xu → đổi lấy lượt hỗ trợ';
 
   @override
   String get supporterInfoStep3 => 'Tặng cho người thân hoặc quỹ chung';
@@ -2403,21 +2403,21 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String supporterRedeemSuccess(int turns) {
-    return 'Đã đổi $turns lượt AI thành công';
+    return 'Đã đổi $turns lượt hỗ trợ thành công';
   }
 
   @override
   String get supporterAdWatchSuccess => 'Nhận được 100 xu';
 
   @override
-  String get supporterRedeemDialogTitle => 'Đổi xu lấy lượt AI';
+  String get supporterRedeemDialogTitle => 'Đổi xu lấy lượt hỗ trợ';
 
   @override
   String get supporterRedeemCommunityFund => 'Quỹ chung cộng đồng';
 
   @override
   String supporterRedeemConfirm(int amount, int turns) {
-    return 'Đổi $amount xu = $turns lượt AI';
+    return 'Đổi $amount xu = $turns lượt hỗ trợ';
   }
 
   @override

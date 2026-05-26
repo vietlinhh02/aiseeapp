@@ -7,7 +7,6 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 
 import '../config/aisee_navigator_key.dart';
 import '../config/aisee_locale_controller.dart';
-import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../models/aisee_incoming_call.dart';
 import '../screens/call_screen.dart';
@@ -15,8 +14,8 @@ import '../utils/app_toast.dart';
 import 'aisee_call_service.dart';
 import 'aisee_assistant_incoming_call_bridge.dart';
 import 'aisee_family_service.dart';
+import 'aisee_token_provider.dart';
 import 'incoming_call_controller.dart';
-import 'aisee_session_store.dart';
 
 void _log(String msg) => debugPrint('[AiSee:Push] $msg');
 
@@ -117,11 +116,12 @@ class AiseePushService {
 
     messaging.onTokenRefresh.listen((String token) async {
       _log('Token refreshed');
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) return;
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) return;
       final AiseeFamilyService svc = AiseeFamilyService();
       try {
-        await svc.updateProfile(tokens.accessToken, {'fcm_token': token});
+        await svc.updateProfile(accessToken, {'fcm_token': token});
       } catch (e) {
         _log('Upload refreshed token failed: $e');
       } finally {
@@ -420,14 +420,14 @@ class AiseePushService {
     }
 
     AiseeAssistantIncomingCallBridge.instance.clearPending();
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null) {
       return;
     }
 
     final AiseeCallService svc = AiseeCallService();
     try {
-      await svc.endRoom(tokens.accessToken, room);
+      await svc.endRoom(accessToken, room);
     } catch (_) {
       // Server may have already ended the room
     }

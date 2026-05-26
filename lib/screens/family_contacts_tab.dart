@@ -5,17 +5,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:aiseeapp/theme/aisee_typography.dart';
 
-import '../models/aisee_api_models.dart';
 import '../models/aisee_family_group.dart';
 import '../models/aisee_family_member.dart';
 import '../services/aisee_analytics_service.dart';
 import '../services/aisee_family_service.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../services/in_app_message_controller.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import '../generated/l10n/app_localizations.dart';
-import 'family_dashboard_screen.dart';
+// import 'family_dashboard_screen.dart';
 
 class FamilyContactsTab extends StatefulWidget {
   const FamilyContactsTab({
@@ -64,8 +63,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
   }
 
   Future<String?> _defaultReadAccessToken() async {
-    final AiseeAuthTokens? stored = await AiseeSessionStore.instance.read();
-    return stored?.accessToken;
+    return AiseeTokenProvider.instance.accessToken();
   }
 
   Future<String?> _token() => _readAccessToken();
@@ -80,6 +78,10 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
     );
   }
 
+  Future<AiseeCurrentGroup?> fetchCurrentGroup(String token) {
+    return _familyService.fetchCurrentGroup(token);
+  }
+
   Future<void> _loadGroup({bool silent = false}) async {
     if (!silent) {
       setState(() {
@@ -88,19 +90,19 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
       });
     }
     try {
-      final String? token = await _token();
-      if (token == null) {
+      final AiseeCurrentGroup? group = await AiseeTokenProvider.instance
+          .withAccessToken<AiseeCurrentGroup?>(
+            _familyService.fetchCurrentGroup,
+          );
+      if (group == null) {
         if (mounted && !silent) {
           setState(() => _loading = false);
         }
         return;
       }
-      final AiseeCurrentGroup? group = await _familyService.fetchCurrentGroup(
-        token,
-      );
-      final List<AiseeFamilyMember> caredUsers =
-          group?.caredUsers.map(_toFamilyMember).toList() ??
-          const <AiseeFamilyMember>[];
+      final List<AiseeFamilyMember> caredUsers = group.caredUsers
+          .map(_toFamilyMember)
+          .toList();
       if (!mounted) return;
       AiseeInAppMessageController.instance.rememberContacts(caredUsers);
       setState(() {
@@ -647,7 +649,8 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
           if (i > 0) const SizedBox(height: 8),
           _MemberCard(
             member: _caredUsers[i],
-            onTap: () async {
+            onTap: () {},
+            /* onTap: () async {
               HapticFeedback.lightImpact();
               final String? token = await _token();
               if (token == null || !mounted) return;
@@ -677,6 +680,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
                 ),
               );
             },
+            */
           ),
         ],
       ],

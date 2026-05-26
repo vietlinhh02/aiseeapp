@@ -114,7 +114,7 @@ abstract final class StyleTokens {
       brightness: Brightness.light,
       useMaterial3: true,
       scaffoldBackgroundColor: background,
-      fontFamily: 'PlusJakartaSans',
+      fontFamily: 'GoogleSans',
     );
     final textTheme = aiseeTextTheme(
       base.textTheme,

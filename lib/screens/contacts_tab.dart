@@ -15,7 +15,7 @@ import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_family_service.dart';
 import '../services/in_app_message_controller.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import 'call_screen.dart';
@@ -65,23 +65,24 @@ class _ContactsTabState extends State<ContactsTab> {
       _error = null;
     });
 
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = AppLocalizations.of(context).contactsNotLoggedIn;
-      });
-      return;
-    }
-
     try {
-      final List<AiseeFamilyMember> family = await _familyService.fetchFamily(
-        tokens.accessToken,
-      );
+      final List<AiseeFamilyMember>? family = await AiseeTokenProvider.instance
+          .withAccessToken(_familyService.fetchFamily);
+      if (family == null) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = AppLocalizations.of(context).contactsNotLoggedIn;
+        });
+        return;
+      }
       int unread = 0;
       try {
-        unread = await _chatService.fetchUnreadCount(tokens.accessToken);
+        unread =
+            await AiseeTokenProvider.instance.withAccessToken(
+              _chatService.fetchUnreadCount,
+            ) ??
+            0;
       } catch (_) {}
       if (!mounted) return;
       AiseeInAppMessageController.instance.rememberContacts(family);
@@ -103,10 +104,12 @@ class _ContactsTabState extends State<ContactsTab> {
   }
 
   Future<void> _refreshUnreadCount() async {
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null || !mounted) return;
+    if (!mounted) return;
     try {
-      final int count = await _chatService.fetchUnreadCount(tokens.accessToken);
+      final int? count = await AiseeTokenProvider.instance.withAccessToken(
+        _chatService.fetchUnreadCount,
+      );
+      if (count == null) return;
       if (!mounted) return;
       setState(() => _unreadCount = count);
     } catch (_) {}
@@ -117,18 +120,15 @@ class _ContactsTabState extends State<ContactsTab> {
     _callingInProgress = true;
     HapticFeedback.lightImpact();
 
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
-      _callingInProgress = false;
-      return;
-    }
-
     try {
-      final result = await AiseeCallService().createRoom(
-        tokens.accessToken,
-        contact.id,
-        callType,
+      final result = await AiseeTokenProvider.instance.withAccessToken(
+        (String accessToken) =>
+            AiseeCallService().createRoom(accessToken, contact.id, callType),
       );
+      if (result == null) {
+        _callingInProgress = false;
+        return;
+      }
       if (!mounted) {
         _callingInProgress = false;
         return;
@@ -175,15 +175,15 @@ class _ContactsTabState extends State<ContactsTab> {
   Future<void> _leaveGroup() async {
     if (_groupActionBusy) return;
     final AppLocalizations l = AppLocalizations.of(context);
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
     if (!mounted) return;
-    if (tokens == null) {
+    if (accessToken == null) {
       AppToast.show(l.contactsSessionExpired, isError: true);
       return;
     }
     setState(() => _groupActionBusy = true);
     try {
-      await _familyService.leaveGroup(tokens.accessToken);
+      await _familyService.leaveGroup(accessToken);
       if (!mounted) return;
       AppToast.show(l.contactsLeftGroup);
       await _loadData();
@@ -359,9 +359,10 @@ class _ContactsTabState extends State<ContactsTab> {
                               );
                               return;
                             }
-                            final AiseeAuthTokens? tokens =
-                                await AiseeSessionStore.instance.read();
-                            if (tokens == null) {
+                            final String? accessToken = await AiseeTokenProvider
+                                .instance
+                                .accessToken();
+                            if (accessToken == null) {
                               if (ctx.mounted) {
                                 AppToast.show(
                                   l.contactsSessionExpired,
@@ -372,7 +373,7 @@ class _ContactsTabState extends State<ContactsTab> {
                             }
                             try {
                               await _familyService.joinFamily(
-                                tokens.accessToken,
+                                accessToken,
                                 code,
                               );
                               unawaited(

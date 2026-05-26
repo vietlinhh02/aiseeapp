@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:aiseeapp/theme/aisee_typography.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../generated/l10n/app_localizations.dart';
 import '../theme/style_tokens.dart';
@@ -41,7 +42,7 @@ class UserLowVisionBottomNav extends StatelessWidget {
 
   static List<NavItemData> familyItems(AppLocalizations l) => [
     NavItemData(
-      iconData: Icons.volunteer_activism_rounded,
+      iconData: PhosphorIcons.handHeart(PhosphorIconsStyle.fill),
       label: l.navSupport,
       semanticsLabel: l.navSupportLabel,
     ),

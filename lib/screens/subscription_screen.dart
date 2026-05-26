@@ -13,7 +13,7 @@ import '../services/aisee_billing_service.dart';
 import '../services/aisee_family_service.dart';
 import '../services/aisee_profile_cache.dart';
 import '../services/aisee_revenuecat_service.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import '../widgets/app_wordmark.dart';
@@ -60,7 +60,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     super.initState();
     _billingService = widget.billingService ?? AiseeBillingService();
     _familyService = widget.familyService ?? AiseeFamilyService();
-    _readTokens = widget.readTokens ?? AiseeSessionStore.instance.read;
+    _readTokens = widget.readTokens ?? AiseeTokenProvider.instance.tokens;
     _ownsBillingService = widget.billingService == null;
     _ownsFamilyService = widget.familyService == null;
     unawaited(AiseeAnalyticsService.instance.trackScreen('subscription'));
@@ -1578,10 +1578,7 @@ class _InvoicePlaceholderCard extends StatelessWidget {
         children: <Widget>[
           Text(
             l10n.subscriptionInvoiceDetail,
-            style: aiseeTextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
+            style: aiseeTextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           ),
           const SizedBox(height: 8),
           Text(

@@ -1,21 +1,30 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
+import 'package:retrofit/dio.dart';
 
-import 'package:http/http.dart' as http;
-
-import '../config/app_env.dart';
+import '../api/aisee_api_auth.dart';
+import '../api/aisee_api_dio.dart';
+import '../api/billing_api.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_billing_models.dart';
-import '../utils/aisee_api_error_parse.dart';
 
 class AiseeBillingService {
-  AiseeBillingService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  AiseeBillingService({AiseeBillingApiClient? apiClient, Dio? dio})
+    : this._(dio: dio ?? AiseeApiDioFactory.create(), apiClient: apiClient);
 
-  final http.Client _http;
+  AiseeBillingService._({required Dio dio, AiseeBillingApiClient? apiClient})
+    : _dio = dio,
+      _ownsDio = apiClient == null,
+      _apiClient = apiClient ?? AiseeBillingApiClient(dio);
 
-  void close() => _http.close();
+  final Dio _dio;
+  final bool _ownsDio;
+  final AiseeBillingApiClient _apiClient;
 
-  Uri _uri(String path) => Uri.parse('${AppEnv.apiBaseUrl}$path');
+  void close() {
+    if (_ownsDio) {
+      _dio.close(force: true);
+    }
+  }
 
   Future<AiseeBillingOverview> fetchBillingOverview(
     String accessToken, {
@@ -57,17 +66,23 @@ class AiseeBillingService {
   }) async {
     final String? normalizedCareGroupId = _normalizeQueryValue(careGroupId);
     final String? normalizedCaredUserId = _normalizeQueryValue(caredUserId);
-    final Uri uri = _buildBillingUri(
-      path,
+    final Map<String, dynamic>? query = _buildBillingQuery(
       careGroupId: normalizedCareGroupId,
       caredUserId: normalizedCaredUserId,
     );
-    final http.Response res = await _http.get(
-      uri,
-      headers: _headers(accessToken),
-    );
+    final HttpResponse<dynamic> res = switch (path) {
+      '/api/v1/me/billing-overview' => await _apiClient.fetchBillingOverview(
+        AiseeApiAuth.bearer(accessToken),
+        query ?? const <String, dynamic>{},
+      ),
+      '/api/v1/me/usage' => await _apiClient.fetchUsage(
+        AiseeApiAuth.bearer(accessToken),
+        query ?? const <String, dynamic>{},
+      ),
+      _ => throw StateError('Unsupported billing path: $path'),
+    };
     final Map<String, dynamic> body = _parseJsonBody(res, fallback: fallback);
-    if (res.statusCode == 200) {
+    if (res.response.statusCode == 200) {
       return body;
     }
     final AiseeApiException error = _errorFromBody(body, fallback: fallback);
@@ -84,29 +99,18 @@ class AiseeBillingService {
     throw error;
   }
 
-  Uri _buildBillingUri(
-    String path, {
+  Map<String, dynamic>? _buildBillingQuery({
     String? careGroupId,
     String? caredUserId,
   }) {
-    final Map<String, String> query = <String, String>{};
+    final Map<String, dynamic> query = <String, dynamic>{};
     if (careGroupId != null) {
       query['care_group_id'] = careGroupId;
     }
     if (caredUserId != null) {
       query['cared_user_id'] = caredUserId;
     }
-    final Uri uri = query.isEmpty
-        ? _uri(path)
-        : _uri(path).replace(queryParameters: query);
-    return uri;
-  }
-
-  Map<String, String> _headers(String accessToken) {
-    return <String, String>{
-      'Authorization': 'Bearer $accessToken',
-      'Accept': 'application/json',
-    };
+    return query.isEmpty ? null : query;
   }
 
   String? _normalizeQueryValue(String? value) {
@@ -125,31 +129,37 @@ class AiseeBillingService {
   }
 
   Map<String, dynamic> _parseJsonBody(
-    http.Response res, {
+    HttpResponse<dynamic> res, {
     required String fallback,
   }) {
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) {
+    final dynamic data = res.data;
+    if (data == null) {
       throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}, phản hồi trống)',
+        '$fallback (HTTP ${res.response.statusCode}, phản hồi trống)',
       );
     }
-    try {
-      final Object? decoded = jsonDecode(raw);
-      if (decoded is Map<String, dynamic>) return decoded;
-      throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}, phản hồi không hợp lệ)',
-      );
-    } on FormatException {
-      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
+    if (data is Map<String, dynamic>) {
+      return data;
     }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    throw AiseeApiException(
+      '$fallback (HTTP ${res.response.statusCode}, phản hồi không hợp lệ)',
+    );
   }
 
   AiseeApiException _errorFromBody(
     Map<String, dynamic> map, {
     required String fallback,
   }) {
-    return aiseeApiExceptionFromJsonMap(map, fallback);
+    final Map<String, dynamic>? error = map['error'] as Map<String, dynamic>?;
+    if (error != null) {
+      return AiseeApiException(
+        error['message'] as String? ?? fallback,
+        code: error['code'] as String?,
+      );
+    }
+    return AiseeApiException(map['message'] as String? ?? fallback);
   }
 }

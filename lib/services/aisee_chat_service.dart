@@ -1,26 +1,30 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/app_env.dart';
+import 'package:dio/dio.dart';
+import 'package:retrofit/dio.dart';
+
+import '../api/aisee_api_auth.dart';
+import '../api/aisee_api_dio.dart';
+import '../api/chat_api.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_message.dart';
-import '../utils/aisee_api_error_parse.dart';
 
 class AiseeChatService {
-  AiseeChatService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  AiseeChatService({AiseeChatApiClient? apiClient, Dio? dio})
+    : this._(dio: dio ?? AiseeApiDioFactory.create(), apiClient: apiClient);
 
-  final http.Client _http;
+  AiseeChatService._({required Dio dio, AiseeChatApiClient? apiClient})
+    : _dio = dio,
+      _ownsDio = apiClient == null,
+      _apiClient = apiClient ?? AiseeChatApiClient(dio);
 
-  void close() => _http.close();
+  final Dio _dio;
+  final bool _ownsDio;
+  final AiseeChatApiClient _apiClient;
 
-  Uri _uri(String path, [Map<String, String>? query]) =>
-      Uri.parse('${AppEnv.apiBaseUrl}$path').replace(queryParameters: query);
-
-  Map<String, String> _authHeaders(String accessToken) => {
-    'Authorization': 'Bearer $accessToken',
-    'Content-Type': 'application/json; charset=utf-8',
-    'Accept': 'application/json',
-  };
+  void close() {
+    if (_ownsDio) {
+      _dio.close(force: true);
+    }
+  }
 
   Future<List<AiseeMessage>> fetchMessages(
     String accessToken,
@@ -28,13 +32,16 @@ class AiseeChatService {
     int limit = 50,
     String? before,
   }) async {
-    final Map<String, String> query = {'limit': '$limit'};
-    if (before != null) query['before'] = before;
-    final http.Response res = await _http.get(
-      _uri('/api/v1/messages/$contactId', query),
-      headers: _authHeaders(accessToken),
+    final Map<String, dynamic> query = <String, dynamic>{'limit': limit};
+    if (before != null) {
+      query['before'] = before;
+    }
+    final HttpResponse<dynamic> res = await _apiClient.fetchMessages(
+      AiseeApiAuth.bearer(accessToken),
+      contactId,
+      query,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được tin nhắn');
     }
     final Object? decoded = _decodeJson(res, 'Không tải được tin nhắn');
@@ -76,12 +83,11 @@ class AiseeChatService {
       body['image_url'] = img;
     }
 
-    final http.Response res = await _http.post(
-      _uri('/api/v1/messages/send'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(body),
+    final HttpResponse<dynamic> res = await _apiClient.sendMessage(
+      AiseeApiAuth.bearer(accessToken),
+      body,
     );
-    if (res.statusCode != 200 && res.statusCode != 201) {
+    if (res.response.statusCode != 200 && res.response.statusCode != 201) {
       throw _error(res, 'Không gửi được tin nhắn');
     }
     final Object? decoded = _decodeJson(res, 'Không gửi được tin nhắn');
@@ -92,21 +98,20 @@ class AiseeChatService {
   }
 
   Future<void> markRead(String accessToken, String messageId) async {
-    final http.Response res = await _http.put(
-      _uri('/api/v1/messages/$messageId/read'),
-      headers: _authHeaders(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.markRead(
+      AiseeApiAuth.bearer(accessToken),
+      messageId,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không đánh dấu đã đọc');
     }
   }
 
   Future<int> fetchUnreadCount(String accessToken) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/messages/unread-count'),
-      headers: _authHeaders(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.fetchUnreadCount(
+      AiseeApiAuth.bearer(accessToken),
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không lấy được số tin chưa đọc');
     }
     final Object? decoded = _decodeJson(res, 'Không lấy được số tin chưa đọc');
@@ -116,20 +121,33 @@ class AiseeChatService {
     return 0;
   }
 
-  Object? _decodeJson(http.Response res, String fallback) {
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) {
+  Object? _decodeJson(HttpResponse<dynamic> res, String fallback) {
+    final dynamic data = res.data;
+    if (data == null) {
       throw AiseeApiException('$fallback (phản hồi trống)');
     }
-    try {
-      return jsonDecode(raw);
-    } on FormatException {
-      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
+    if (data is Map<String, dynamic> || data is List) {
+      return data;
     }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    throw AiseeApiException(
+      '$fallback (HTTP ${res.response.statusCode}): phản hồi không hợp lệ',
+    );
   }
 
-  AiseeApiException _error(http.Response res, String fallback) {
-    return aiseeApiExceptionFromResponse(res, fallback);
+  AiseeApiException _error(HttpResponse<dynamic> res, String fallback) {
+    final dynamic data = res.data;
+    final Map<String, dynamic>? body = switch (data) {
+      Map<String, dynamic> value => value,
+      Map value => Map<String, dynamic>.from(value),
+      _ => null,
+    };
+    final Map<String, dynamic>? error = body?['error'] as Map<String, dynamic>?;
+    return AiseeApiException(
+      error?['message'] as String? ?? body?['message'] as String? ?? fallback,
+      code: error?['code'] as String?,
+    );
   }
 }

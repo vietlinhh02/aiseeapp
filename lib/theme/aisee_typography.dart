@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-const String aiseeFontFamily = 'PlusJakartaSans';
+const String aiseeFontFamily = 'GoogleSans';
 
 TextStyle aiseeTextStyle({
   TextStyle? textStyle,

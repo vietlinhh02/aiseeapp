@@ -12,7 +12,7 @@ import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
 import '../services/aisee_call_service.dart';
 import '../services/aisee_notification_feedback.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 
@@ -342,13 +342,10 @@ class _CallScreenState extends State<CallScreen> {
 
   Future<void> _cleanupRoom() async {
     // Backend end-room (best-effort).
-    final tokens = await AiseeSessionStore.instance.read();
-    if (tokens != null) {
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken != null) {
       try {
-        await AiseeCallService().endRoom(
-          tokens.accessToken,
-          widget.callInfo.roomName,
-        );
+        await AiseeCallService().endRoom(accessToken, widget.callInfo.roomName);
       } catch (_) {}
     }
 

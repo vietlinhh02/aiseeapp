@@ -5,7 +5,6 @@ import 'package:aiseeapp/screens/usage_value_screen.dart';
 import 'package:aiseeapp/services/aisee_billing_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 
 void main() {
   Widget buildApp(Widget child) {
@@ -96,8 +95,7 @@ void main() {
 }
 
 class _FakeBillingService extends AiseeBillingService {
-  _FakeBillingService({this.overview, this.usage})
-    : super(httpClient: _NoopClient());
+  _FakeBillingService({this.overview, this.usage});
 
   final AiseeBillingOverview? overview;
   final AiseeMeUsageResponse? usage;
@@ -118,13 +116,6 @@ class _FakeBillingService extends AiseeBillingService {
     String? caredUserId,
   }) async {
     return usage ?? _usage();
-  }
-}
-
-class _NoopClient extends http.BaseClient {
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
-    throw UnimplementedError();
   }
 }
 

@@ -9,7 +9,7 @@ import '../models/aisee_api_models.dart';
 import '../models/aisee_billing_models.dart';
 import '../services/aisee_analytics_service.dart';
 import '../services/aisee_billing_service.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import 'subscription_screen.dart';
 
@@ -45,7 +45,7 @@ class _UsageValueScreenState extends State<UsageValueScreen> {
   void initState() {
     super.initState();
     _billing = widget.billingService ?? AiseeBillingService();
-    _readTokens = widget.readTokens ?? AiseeSessionStore.instance.read;
+    _readTokens = widget.readTokens ?? AiseeTokenProvider.instance.tokens;
     _ownsBillingService = widget.billingService == null;
     unawaited(AiseeAnalyticsService.instance.trackScreen('usage_value'));
     unawaited(

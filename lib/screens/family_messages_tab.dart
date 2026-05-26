@@ -13,7 +13,7 @@ import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
 import '../services/aisee_family_service.dart';
 import '../services/in_app_message_controller.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
 import 'call_screen.dart';
@@ -90,14 +90,15 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
       });
     }
     try {
-      final stored = await AiseeSessionStore.instance.read();
-      if (stored == null) {
+      final members = await AiseeTokenProvider.instance.withAccessToken(
+        _familyService.fetchFamily,
+      );
+      if (members == null) {
         if (!background && mounted) {
           setState(() => _loading = false);
         }
         return;
       }
-      final members = await _familyService.fetchFamily(stored.accessToken);
       if (!mounted) return;
       AiseeInAppMessageController.instance.rememberContacts(members);
       setState(() {
@@ -121,18 +122,15 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
     _callingInProgress = true;
     HapticFeedback.lightImpact();
 
-    final tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
-      _callingInProgress = false;
-      return;
-    }
-
     try {
-      final result = await AiseeCallService().createRoom(
-        tokens.accessToken,
-        contact.id,
-        callType,
+      final result = await AiseeTokenProvider.instance.withAccessToken(
+        (String accessToken) =>
+            AiseeCallService().createRoom(accessToken, contact.id, callType),
       );
+      if (result == null) {
+        _callingInProgress = false;
+        return;
+      }
       if (!mounted) {
         _callingInProgress = false;
         return;

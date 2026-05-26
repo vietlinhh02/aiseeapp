@@ -7,7 +7,7 @@ import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../services/aisee_family_context_store.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../services/aisee_volunteer_service.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
@@ -79,8 +79,7 @@ class _FamilyPersonalTabState extends State<FamilyPersonalTab> {
   }
 
   Future<String?> _token() async {
-    final AiseeAuthTokens? stored = await AiseeSessionStore.instance.read();
-    return stored?.accessToken;
+    return AiseeTokenProvider.instance.accessToken();
   }
 
   Future<void> _register() async {

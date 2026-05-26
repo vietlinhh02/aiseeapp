@@ -1,35 +1,40 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/app_env.dart';
+import 'package:dio/dio.dart';
+import 'package:retrofit/dio.dart';
+
+import '../api/aisee_api_auth.dart';
+import '../api/aisee_api_dio.dart';
+import '../api/health_api.dart';
 import '../models/aisee_api_models.dart';
-import '../utils/aisee_api_error_parse.dart';
 
 class AiseeHealthService {
-  AiseeHealthService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  AiseeHealthService({AiseeHealthApiClient? apiClient, Dio? dio})
+    : this._(dio: dio ?? AiseeApiDioFactory.create(), apiClient: apiClient);
 
-  final http.Client _http;
+  AiseeHealthService._({required Dio dio, AiseeHealthApiClient? apiClient})
+    : _dio = dio,
+      _ownsDio = apiClient == null,
+      _apiClient = apiClient ?? AiseeHealthApiClient(dio);
 
-  void close() => _http.close();
+  final Dio _dio;
+  final bool _ownsDio;
+  final AiseeHealthApiClient _apiClient;
 
-  Uri _uri(String path) => Uri.parse('${AppEnv.apiBaseUrl}$path');
-
-  Map<String, String> _authHeaders(String accessToken) => {
-    'Authorization': 'Bearer $accessToken',
-    'Content-Type': 'application/json; charset=utf-8',
-    'Accept': 'application/json',
-  };
+  void close() {
+    if (_ownsDio) {
+      _dio.close(force: true);
+    }
+  }
 
   Future<void> markMedicationTaken(
     String accessToken,
     Map<String, dynamic> data,
   ) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/health/medication/taken'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(data),
+    final HttpResponse<dynamic> res = await _apiClient.postJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/health/medication/taken',
+      data,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không ghi nhận uống thuốc được');
     }
   }
@@ -38,34 +43,34 @@ class AiseeHealthService {
     String accessToken,
     Map<String, dynamic> data,
   ) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/health/medication/skipped'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(data),
+    final HttpResponse<dynamic> res = await _apiClient.postJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/health/medication/skipped',
+      data,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không ghi nhận bỏ thuốc được');
     }
   }
 
   Future<void> logSymptom(String accessToken, Map<String, dynamic> data) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/health/symptoms'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(data),
+    final HttpResponse<dynamic> res = await _apiClient.postJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/health/symptoms',
+      data,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không ghi triệu chứng được');
     }
   }
 
   Future<void> logMetric(String accessToken, Map<String, dynamic> data) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/health/metrics'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(data),
+    final HttpResponse<dynamic> res = await _apiClient.postJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/health/metrics',
+      data,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không ghi chỉ số sức khoẻ được');
     }
   }
@@ -74,20 +79,17 @@ class AiseeHealthService {
     String accessToken,
     Map<String, dynamic> data,
   ) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/emergency/alert'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(data),
+    final HttpResponse<dynamic> res = await _apiClient.postJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/emergency/alert',
+      data,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không gửi được cảnh báo khẩn cấp');
     }
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) return <String, dynamic>{};
-    try {
-      final Object? decoded = jsonDecode(raw);
-      if (decoded is Map<String, dynamic>) return decoded;
-    } catch (_) {}
+    final dynamic payload = res.data;
+    if (payload is Map<String, dynamic>) return payload;
+    if (payload is Map) return Map<String, dynamic>.from(payload);
     return <String, dynamic>{};
   }
 
@@ -95,28 +97,24 @@ class AiseeHealthService {
     String accessToken,
     Map<String, dynamic> data,
   ) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/volunteers/rate'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(data),
+    final HttpResponse<dynamic> res = await _apiClient.postJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/volunteers/rate',
+      data,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không đánh giá được tình nguyện viên');
     }
   }
 
-  /// GET /api/v1/me/medications
-  /// Response: {medications: [{medication: {...}, taken, skipped}], count}
-  /// Returns flattened list: [{id, name, dosage, times, frequency,
-  ///   active, taken, skipped, created_at}]
   Future<List<Map<String, dynamic>>> fetchMedications(
     String accessToken,
   ) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/me/medications'),
-      headers: _authHeaders(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.getJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/me/medications',
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được lịch thuốc');
     }
     final Map<String, dynamic> body = _decodeMap(res);
@@ -134,17 +132,14 @@ class AiseeHealthService {
     }).toList();
   }
 
-  /// GET /api/v1/me/appointments
-  /// Response: {appointments: [{id, title, location, datetime,
-  ///   notes, ...}], count}
   Future<List<Map<String, dynamic>>> fetchAppointments(
     String accessToken,
   ) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/me/appointments'),
-      headers: _authHeaders(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.getJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/me/appointments',
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được lịch hẹn');
     }
     final Map<String, dynamic> body = _decodeMap(res);
@@ -153,16 +148,12 @@ class AiseeHealthService {
     return items.cast<Map<String, dynamic>>();
   }
 
-  /// GET /api/v1/me/health
-  /// Response: {medications: [...], recent_symptoms: [...],
-  ///   recent_metrics: [...]}
-  /// Returns merged list with a `_kind` field (symptom / metric).
   Future<List<Map<String, dynamic>>> fetchHealthLogs(String accessToken) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/me/health'),
-      headers: _authHeaders(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.getJson(
+      AiseeApiAuth.bearer(accessToken),
+      '/api/v1/me/health',
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được nhật ký sức khỏe');
     }
     final Map<String, dynamic> body = _decodeMap(res);
@@ -182,15 +173,24 @@ class AiseeHealthService {
     return result;
   }
 
-  Map<String, dynamic> _decodeMap(http.Response res) {
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) return <String, dynamic>{};
-    final Object? decoded = jsonDecode(raw);
-    if (decoded is Map<String, dynamic>) return decoded;
+  Map<String, dynamic> _decodeMap(HttpResponse<dynamic> res) {
+    final dynamic payload = res.data;
+    if (payload is Map<String, dynamic>) return payload;
+    if (payload is Map) return Map<String, dynamic>.from(payload);
     return <String, dynamic>{};
   }
 
-  AiseeApiException _error(http.Response res, String fallback) {
-    return aiseeApiExceptionFromResponse(res, fallback);
+  AiseeApiException _error(HttpResponse<dynamic> res, String fallback) {
+    final dynamic data = res.data;
+    final Map<String, dynamic>? body = switch (data) {
+      Map<String, dynamic> value => value,
+      Map value => Map<String, dynamic>.from(value),
+      _ => null,
+    };
+    final Map<String, dynamic>? error = body?['error'] as Map<String, dynamic>?;
+    return AiseeApiException(
+      error?['message'] as String? ?? body?['message'] as String? ?? fallback,
+      code: error?['code'] as String?,
+    );
   }
 }

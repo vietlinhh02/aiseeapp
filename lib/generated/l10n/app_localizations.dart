@@ -4268,13 +4268,13 @@ abstract class AppLocalizations {
   /// No description provided for @supporterPersonalAITurnsGifted.
   ///
   /// In vi, this message translates to:
-  /// **'Lượt AI đã tặng'**
+  /// **'Lượt hỗ trợ đã tặng'**
   String get supporterPersonalAITurnsGifted;
 
   /// No description provided for @supporterPersonalAdsWatched.
   ///
   /// In vi, this message translates to:
-  /// **'QC đã xem'**
+  /// **'Quảng cáo đã xem'**
   String get supporterPersonalAdsWatched;
 
   /// No description provided for @supporterWatchAdButton.
@@ -4298,7 +4298,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterBalanceConversion.
   ///
   /// In vi, this message translates to:
-  /// **'{count} lượt AI hỗ trợ'**
+  /// **'{count} lượt hỗ trợ'**
   String supporterBalanceConversion(int count);
 
   /// No description provided for @supporterRedeemButton.
@@ -4310,7 +4310,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterRateHint.
   ///
   /// In vi, this message translates to:
-  /// **'1 quảng cáo = 100 xu = 1 lượt AI'**
+  /// **'Xem quảng cáo → nhận xu → đổi lượt hỗ trợ'**
   String get supporterRateHint;
 
   /// No description provided for @supporterCommunityTitle.
@@ -4328,7 +4328,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterCommunityAITurnsGifted.
   ///
   /// In vi, this message translates to:
-  /// **'Lượt AI đã được tặng'**
+  /// **'Lượt hỗ trợ đã được tặng'**
   String get supporterCommunityAITurnsGifted;
 
   /// No description provided for @supporterCommunityActiveSupporters.
@@ -4352,7 +4352,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterInfoStep2.
   ///
   /// In vi, this message translates to:
-  /// **'Tích lũy đủ xu → đổi lấy lượt AI'**
+  /// **'Tích lũy đủ xu → đổi lấy lượt hỗ trợ'**
   String get supporterInfoStep2;
 
   /// No description provided for @supporterInfoStep3.
@@ -4394,7 +4394,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterRedeemSuccess.
   ///
   /// In vi, this message translates to:
-  /// **'Đã đổi {turns} lượt AI thành công'**
+  /// **'Đã đổi {turns} lượt hỗ trợ thành công'**
   String supporterRedeemSuccess(int turns);
 
   /// No description provided for @supporterAdWatchSuccess.
@@ -4406,7 +4406,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterRedeemDialogTitle.
   ///
   /// In vi, this message translates to:
-  /// **'Đổi xu lấy lượt AI'**
+  /// **'Đổi xu lấy lượt hỗ trợ'**
   String get supporterRedeemDialogTitle;
 
   /// No description provided for @supporterRedeemCommunityFund.
@@ -4418,7 +4418,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterRedeemConfirm.
   ///
   /// In vi, this message translates to:
-  /// **'Đổi {amount} xu = {turns} lượt AI'**
+  /// **'Đổi {amount} xu = {turns} lượt hỗ trợ'**
   String supporterRedeemConfirm(int amount, int turns);
 
   /// No description provided for @supporterRedeemRecipientLabel.

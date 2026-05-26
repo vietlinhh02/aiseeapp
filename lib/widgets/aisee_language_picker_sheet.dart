@@ -5,8 +5,7 @@ import 'package:aiseeapp/theme/aisee_typography.dart';
 import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../services/aisee_family_service.dart';
-import '../services/aisee_session_store.dart';
-import '../models/aisee_api_models.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 
 class AiseeLanguagePickerSheet extends StatefulWidget {
@@ -152,11 +151,11 @@ class _AiseeLanguagePickerSheetState extends State<AiseeLanguagePickerSheet> {
 }
 
 Future<void> _syncBackend(String code) async {
-  final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-  if (tokens == null) return;
+  final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+  if (accessToken == null) return;
   final AiseeFamilyService svc = AiseeFamilyService();
   try {
-    await svc.updateProfile(tokens.accessToken, <String, dynamic>{
+    await svc.updateProfile(accessToken, <String, dynamic>{
       'settings': <String, dynamic>{'preferred_language': code},
     });
   } catch (_) {

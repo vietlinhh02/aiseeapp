@@ -46,6 +46,7 @@ void main() {
 
       await _goToBatteryStep(tester);
 
+      await tester.ensureVisible(find.text('Tắt tối ưu pin cho AiSee'));
       await tester.tap(find.text('Tắt tối ưu pin cho AiSee'));
       await tester.pumpAndSettle();
 
@@ -58,7 +59,7 @@ void main() {
     },
   );
 
-  testWidgets('battery action card renders above battery highlights', (
+  testWidgets('battery step keeps action card and removes old bullet list', (
     WidgetTester tester,
   ) async {
     final _FakeBatteryOptimizationController batteryController =
@@ -73,14 +74,13 @@ void main() {
 
     await _goToBatteryStep(tester);
 
-    final double buttonTop = tester
-        .getTopLeft(find.text('Tắt tối ưu pin cho AiSee'))
-        .dy;
-    final double bulletTop = tester
-        .getTopLeft(find.text('Cuộc gọi đến hiện ngay cả khi tắt màn hình'))
-        .dy;
+    await tester.ensureVisible(find.text('Tắt tối ưu pin cho AiSee'));
 
-    expect(buttonTop, lessThan(bulletTop));
+    expect(find.text('Tắt tối ưu pin cho AiSee'), findsOneWidget);
+    expect(
+      find.text('Cuộc gọi đến hiện ngay cả khi tắt màn hình'),
+      findsNothing,
+    );
   });
 }
 

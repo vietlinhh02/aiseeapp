@@ -17,9 +17,9 @@ import '../models/aisee_message.dart';
 import '../services/aisee_call_service.dart';
 import '../services/aisee_chat_service.dart';
 import '../services/aisee_chat_socket.dart';
+import '../services/aisee_token_provider.dart';
 import '../services/in_app_message_controller.dart';
 import '../services/chat_recording_lifecycle_policy.dart';
-import '../services/aisee_session_store.dart';
 import '../services/aisee_upload_service.dart';
 import '../services/aisee_voice_recorder.dart';
 import '../theme/style_tokens.dart';
@@ -141,12 +141,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       _error = null;
     });
 
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null || !mounted) return;
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null || !mounted) return;
 
     try {
       final List<AiseeMessage> msgs = await _chatService.fetchMessages(
-        tokens.accessToken,
+        accessToken,
         widget.contact.id,
       );
       if (!mounted) return;
@@ -171,15 +171,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (_loadingMore || !_hasMore || _messages.isEmpty) return;
     setState(() => _loadingMore = true);
 
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null || !mounted) {
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null || !mounted) {
       if (mounted) setState(() => _loadingMore = false);
       return;
     }
 
     try {
       final List<AiseeMessage> older = await _chatService.fetchMessages(
-        tokens.accessToken,
+        accessToken,
         widget.contact.id,
         before: _messages.last.id,
       );
@@ -213,9 +213,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (!mounted) return;
     setState(() => _messages.insert(0, msg));
     // Fire-and-forget mark read.
-    AiseeSessionStore.instance.read().then((AiseeAuthTokens? tokens) {
-      if (tokens != null) {
-        unawaited(_markReadAndNotify(tokens.accessToken, msg.id));
+    AiseeTokenProvider.instance.accessToken().then((String? accessToken) {
+      if (accessToken != null) {
+        unawaited(_markReadAndNotify(accessToken, msg.id));
       }
     });
   }
@@ -239,14 +239,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (incomingUnread.isEmpty) {
       return;
     }
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null || !mounted) {
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null || !mounted) {
       return;
     }
     await Future.wait<void>(
       incomingUnread.map((AiseeMessage m) async {
         try {
-          await _chatService.markRead(tokens.accessToken, m.id);
+          await _chatService.markRead(accessToken, m.id);
         } catch (_) {
           // Tiếp tục các tin còn lại.
         }
@@ -275,18 +275,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _callingInProgress = true;
     HapticFeedback.lightImpact();
 
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
-      _callingInProgress = false;
-      return;
-    }
-
     try {
-      final result = await AiseeCallService().createRoom(
-        tokens.accessToken,
-        contact.id,
-        callType,
+      final result = await AiseeTokenProvider.instance.withAccessToken(
+        (String accessToken) =>
+            AiseeCallService().createRoom(accessToken, contact.id, callType),
       );
+      if (result == null) {
+        _callingInProgress = false;
+        return;
+      }
       if (!mounted) {
         _callingInProgress = false;
         return;
@@ -336,18 +333,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _textController.clear();
     _sending = true;
 
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
-      _sending = false;
-      return;
-    }
-
     try {
-      final AiseeMessage msg = await _chatService.sendMessage(
-        tokens.accessToken,
-        widget.contact.id,
-        text,
-      );
+      final AiseeMessage? msg = await AiseeTokenProvider.instance
+          .withAccessToken(
+            (String accessToken) =>
+                _chatService.sendMessage(accessToken, widget.contact.id, text),
+          );
+      if (msg == null) {
+        _sending = false;
+        return;
+      }
       if (!mounted) return;
       setState(() => _messages.insert(0, msg));
     } catch (e) {
@@ -489,8 +484,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   Future<void> _uploadAndSend(File file, {required bool isImage}) async {
     if (_uploadingMedia) return;
     setState(() => _uploadingMedia = true);
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) {
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null) {
       if (mounted) setState(() => _uploadingMedia = false);
       return;
     }
@@ -498,13 +493,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       debugPrint(
         '[AiSee:Upload] Begin upload path=${file.path} isImage=$isImage',
       );
-      final String url = await _uploadService.uploadFile(
-        tokens.accessToken,
-        file,
-      );
+      final String url = await _uploadService.uploadFile(accessToken, file);
       debugPrint('[AiSee:Upload] Begin sendMessage after upload');
       final AiseeMessage msg = await _chatService.sendMessage(
-        tokens.accessToken,
+        accessToken,
         widget.contact.id,
         '',
         voiceUrl: isImage ? null : url,

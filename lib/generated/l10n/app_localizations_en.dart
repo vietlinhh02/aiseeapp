@@ -2332,7 +2332,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get supporterPersonalPeopleSupported => 'People supported';
 
   @override
-  String get supporterPersonalAITurnsGifted => 'AI turns gifted';
+  String get supporterPersonalAITurnsGifted => 'Support credits gifted';
 
   @override
   String get supporterPersonalAdsWatched => 'Ads watched';
@@ -2348,14 +2348,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String supporterBalanceConversion(int count) {
-    return '$count AI turns';
+    return '$count support credits';
   }
 
   @override
   String get supporterRedeemButton => 'Redeem to support';
 
   @override
-  String get supporterRateHint => '1 ad = 100 coins = 1 AI turn';
+  String get supporterRateHint =>
+      'Watch ads → earn coins → redeem support credits';
 
   @override
   String get supporterCommunityTitle => 'Community';
@@ -2364,7 +2365,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get supporterCommunityPeopleSupported => 'People being supported';
 
   @override
-  String get supporterCommunityAITurnsGifted => 'AI turns gifted';
+  String get supporterCommunityAITurnsGifted => 'Support credits gifted';
 
   @override
   String get supporterCommunityActiveSupporters => 'Active supporters';
@@ -2376,7 +2377,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get supporterInfoStep1 => 'Watch ads → earn coins';
 
   @override
-  String get supporterInfoStep2 => 'Save enough coins → redeem AI turns';
+  String get supporterInfoStep2 => 'Save enough coins → redeem support credits';
 
   @override
   String get supporterInfoStep3 => 'Gift to family or community fund';
@@ -2398,21 +2399,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String supporterRedeemSuccess(int turns) {
-    return 'Redeemed $turns AI turns';
+    return 'Redeemed $turns support credits';
   }
 
   @override
   String get supporterAdWatchSuccess => 'Received 100 coins';
 
   @override
-  String get supporterRedeemDialogTitle => 'Redeem coins for AI turns';
+  String get supporterRedeemDialogTitle => 'Redeem coins for support credits';
 
   @override
   String get supporterRedeemCommunityFund => 'Community fund';
 
   @override
   String supporterRedeemConfirm(int amount, int turns) {
-    return 'Redeem $amount coins = $turns AI turns';
+    return 'Redeem $amount coins = $turns support credits';
   }
 
   @override

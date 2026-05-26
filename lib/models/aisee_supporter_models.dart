@@ -31,11 +31,13 @@ class CommunitySupporterStats {
   final int totalCaredUsers;
   final int totalAITurnsGifted;
   final int activeSupporters;
+  final List<CommunitySupporterProfile> supporters;
 
   const CommunitySupporterStats({
     required this.totalCaredUsers,
     required this.totalAITurnsGifted,
     required this.activeSupporters,
+    this.supporters = const <CommunitySupporterProfile>[],
   });
 
   factory CommunitySupporterStats.fromJson(Map<String, dynamic> j) {
@@ -43,6 +45,36 @@ class CommunitySupporterStats {
       totalCaredUsers: (j['total_cared_users'] as num).toInt(),
       totalAITurnsGifted: (j['total_ai_turns_gifted'] as num).toInt(),
       activeSupporters: (j['active_supporters'] as num).toInt(),
+      supporters:
+          (j['supporters'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map(
+                (Map value) => CommunitySupporterProfile.fromJson(
+                  Map<String, dynamic>.from(value),
+                ),
+              )
+              .toList() ??
+          const <CommunitySupporterProfile>[],
+    );
+  }
+}
+
+class CommunitySupporterProfile {
+  final String id;
+  final String displayName;
+  final String? avatarUrl;
+
+  const CommunitySupporterProfile({
+    required this.id,
+    required this.displayName,
+    this.avatarUrl,
+  });
+
+  factory CommunitySupporterProfile.fromJson(Map<String, dynamic> j) {
+    return CommunitySupporterProfile(
+      id: j['id'] as String? ?? '',
+      displayName: j['display_name'] as String? ?? '',
+      avatarUrl: j['avatar_url'] as String?,
     );
   }
 }

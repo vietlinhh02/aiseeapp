@@ -16,8 +16,7 @@ import '../config/app_env.dart';
 import '../debug/aisee_performance_debug.dart';
 import '../models/aisee_api_models.dart';
 import '../models/livekit_join_credentials.dart';
-import '../services/aisee_auth_service.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../services/aisee_voice_foreground.dart';
 import '../models/agent_state.dart';
 import '../models/aisee_reminder.dart';
@@ -223,9 +222,7 @@ class AiseeLiveKitVoiceSession {
       );
       _log('WakeRPC', 'wake_conversation_ready ok');
     } catch (e, st) {
-      debugPrint(
-        '[AiSee:WakeRPC] wake_conversation_ready failed: $e\n$st',
-      );
+      debugPrint('[AiSee:WakeRPC] wake_conversation_ready failed: $e\n$st');
     }
   }
 
@@ -533,23 +530,20 @@ class AiseeLiveKitVoiceSession {
   }
 
   Future<LiveKitJoinCredentials> _fetchWithRefreshIfNeeded() async {
-    final AiseeAuthTokens? stored = await AiseeSessionStore.instance.read();
-    if (stored == null) {
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null) {
       throw AiseeApiException('Chưa có phiên đăng nhập');
     }
     try {
-      return await _fetchJoinCredentials(stored.accessToken);
+      return await _fetchJoinCredentials(accessToken);
     } on AiseeCallsTokenUnauthorized {
-      final AiseeAuthService auth = AiseeAuthService();
-      try {
-        final AiseeAuthTokens rotated = await auth.refreshTokens(
-          stored.refreshToken,
-        );
-        await AiseeSessionStore.instance.write(rotated);
-        return await _fetchJoinCredentials(rotated.accessToken);
-      } finally {
-        auth.close();
+      final String? refreshed = await AiseeTokenProvider.instance.accessToken(
+        forceRefresh: true,
+      );
+      if (refreshed == null) {
+        throw AiseeApiException('Chưa có phiên đăng nhập');
       }
+      return await _fetchJoinCredentials(refreshed);
     }
   }
 
@@ -945,14 +939,15 @@ class AiseeLiveKitVoiceSession {
       if (receiverId.isEmpty || text.isEmpty) {
         throw RpcError(code: 2020, message: 'Missing receiver_id or text');
       }
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final AiseeChatService svc = AiseeChatService();
       try {
         final AiseeMessage msg = await svc.sendMessage(
-          tokens.accessToken,
+          accessToken,
           receiverId,
           text,
         );
@@ -970,8 +965,9 @@ class AiseeLiveKitVoiceSession {
       RpcInvocationData data,
     ) async {
       _log('RPC', 'read_unread_messages called');
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final Map<String, dynamic> params = data.payload.isNotEmpty
@@ -985,14 +981,14 @@ class AiseeLiveKitVoiceSession {
       try {
         if (contactId.isNotEmpty) {
           final List<AiseeMessage> messages = await svc.fetchMessages(
-            tokens.accessToken,
+            accessToken,
             contactId,
           );
           final List<AiseeMessage> unread = messages
               .where((AiseeMessage m) => !m.isRead && m.senderId == contactId)
               .toList();
           for (final AiseeMessage m in unread) {
-            await svc.markRead(tokens.accessToken, m.id);
+            await svc.markRead(accessToken, m.id);
           }
           return jsonEncode({
             'status': 'ok',
@@ -1009,7 +1005,7 @@ class AiseeLiveKitVoiceSession {
                 .toList(),
           });
         }
-        final int count = await svc.fetchUnreadCount(tokens.accessToken);
+        final int count = await svc.fetchUnreadCount(accessToken);
         return jsonEncode({'status': 'ok', 'unread_count': count});
       } finally {
         svc.close();
@@ -1076,13 +1072,14 @@ class AiseeLiveKitVoiceSession {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       _log('RPC', 'mark_medication_taken');
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final AiseeHealthService svc = AiseeHealthService();
       try {
-        await svc.markMedicationTaken(tokens.accessToken, params);
+        await svc.markMedicationTaken(accessToken, params);
         unawaited(
           AiseeAnalyticsService.instance.track(
             AiseeAnalyticsEvent.medicationTaken,
@@ -1102,13 +1099,14 @@ class AiseeLiveKitVoiceSession {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       _log('RPC', 'mark_medication_skipped');
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final AiseeHealthService svc = AiseeHealthService();
       try {
-        await svc.markMedicationSkipped(tokens.accessToken, params);
+        await svc.markMedicationSkipped(accessToken, params);
         unawaited(
           AiseeAnalyticsService.instance.track(
             AiseeAnalyticsEvent.medicationSkipped,
@@ -1128,13 +1126,14 @@ class AiseeLiveKitVoiceSession {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       _log('RPC', 'log_health_symptom');
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final AiseeHealthService svc = AiseeHealthService();
       try {
-        await svc.logSymptom(tokens.accessToken, params);
+        await svc.logSymptom(accessToken, params);
         return jsonEncode({'status': 'ok'});
       } finally {
         svc.close();
@@ -1148,13 +1147,14 @@ class AiseeLiveKitVoiceSession {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       _log('RPC', 'log_health_metric');
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final AiseeHealthService svc = AiseeHealthService();
       try {
-        await svc.logMetric(tokens.accessToken, params);
+        await svc.logMetric(accessToken, params);
         return jsonEncode({'status': 'ok'});
       } finally {
         svc.close();
@@ -1200,14 +1200,15 @@ class AiseeLiveKitVoiceSession {
       final String message = _paramString(params, const ['message', 'reason']);
       final AiseeLocationResult loc =
           await AiseeLocationService.getCurrentLocation();
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final AiseeHealthService svc = AiseeHealthService();
       try {
         final Map<String, dynamic> result = await svc
-            .sendEmergencyAlert(tokens.accessToken, {
+            .sendEmergencyAlert(accessToken, {
               'message': message,
               'location_lat': loc.lat,
               'location_lng': loc.lng,
@@ -1248,13 +1249,14 @@ class AiseeLiveKitVoiceSession {
       final Map<String, dynamic> params =
           jsonDecode(data.payload) as Map<String, dynamic>;
       _log('RPC', 'rate_volunteer');
-      final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-      if (tokens == null) {
+      final String? accessToken = await AiseeTokenProvider.instance
+          .accessToken();
+      if (accessToken == null) {
         throw RpcError(code: 2021, message: 'Not authenticated');
       }
       final AiseeHealthService svc = AiseeHealthService();
       try {
-        await svc.rateVolunteer(tokens.accessToken, params);
+        await svc.rateVolunteer(accessToken, params);
         return jsonEncode({'status': 'ok'});
       } finally {
         svc.close();
@@ -1407,7 +1409,10 @@ class AiseeLiveKitVoiceSession {
       'accessibility': 'low_vision',
       'has_family_link': hasFamilyLink ? 'true' : 'false',
     });
-    _log('Connect', 'User attributes published: locale=${AiseeLocaleController.instance.value.languageCode}');
+    _log(
+      'Connect',
+      'User attributes published: locale=${AiseeLocaleController.instance.value.languageCode}',
+    );
     await completeConnectedSetup();
   }
 

@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:aiseeapp/api/upload_api.dart';
 import 'package:aiseeapp/services/aisee_upload_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
+import 'package:retrofit/dio.dart';
 
 void main() {
   test('uploadFile sends m4a with audio/mp4 content type', () async {
-    final _RecordingMultipartClient client = _RecordingMultipartClient();
-    final AiseeUploadService service = AiseeUploadService(httpClient: client);
+    final _FakeUploadApiClient client = _FakeUploadApiClient();
+    final AiseeUploadService service = AiseeUploadService(apiClient: client);
     final File file = await _createTempFile('.m4a');
 
     addTearDown(() async {
@@ -20,11 +22,8 @@ void main() {
 
     await service.uploadFile('token', file);
 
-    expect(client.lastRequest, isA<http.MultipartRequest>());
-    final http.MultipartRequest request =
-        client.lastRequest! as http.MultipartRequest;
-    expect(request.files, hasLength(1));
-    expect(request.files.single.contentType.mimeType, 'audio/mp4');
+    expect(client.lastPath, file.path);
+    expect(client.lastMimeType, 'audio/mp4');
   });
 }
 
@@ -35,18 +34,31 @@ Future<File> _createTempFile(String extension) async {
   return file;
 }
 
-class _RecordingMultipartClient extends http.BaseClient {
-  http.BaseRequest? lastRequest;
+class _FakeUploadApiClient extends AiseeUploadApiClient {
+  _FakeUploadApiClient() : super(Dio());
+
+  String? lastPath;
+  String? lastMimeType;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    lastRequest = request;
-    return http.StreamedResponse(
-      Stream<List<int>>.value(
-        utf8.encode('{"url":"https://example.com/f.m4a"}'),
-      ),
-      200,
-      headers: const <String, String>{'content-type': 'application/json'},
+  Future<HttpResponse<dynamic>> uploadFile(
+    String authorization,
+    String path,
+    String mimeType,
+  ) async {
+    lastPath = path;
+    lastMimeType = mimeType;
+    final RequestOptions requestOptions = RequestOptions(
+      path: '/api/v1/upload',
     );
+    final Map<String, dynamic> data = <String, dynamic>{
+      'url': 'https://example.com/f.m4a',
+    };
+    final Response<dynamic> response = Response<dynamic>(
+      requestOptions: requestOptions,
+      data: data,
+      statusCode: 200,
+    );
+    return HttpResponse<dynamic>(data, response);
   }
 }

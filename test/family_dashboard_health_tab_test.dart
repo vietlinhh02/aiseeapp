@@ -51,7 +51,7 @@ void main() {
           onRefresh: () async {},
           overviewChartBuilder: (chartConfig) {
             return Text(
-              'chartjs-${chartConfig['type']}',
+              'bars-${chartConfig.bars.length}',
               key: const Key('health-overview-chart'),
             );
           },
@@ -60,7 +60,7 @@ void main() {
     );
   }
 
-  testWidgets('hiển thị overview bằng Chart.js và chi tiết dạng card', (
+  testWidgets('hiển thị overview bằng chart native và chi tiết dạng card', (
     tester,
   ) async {
     await tester.pumpWidget(buildHealthTab());
@@ -68,7 +68,7 @@ void main() {
 
     expect(find.text('Tổng quan'), findsOneWidget);
     expect(find.byKey(const Key('health-overview-chart')), findsOneWidget);
-    expect(find.text('chartjs-bar'), findsOneWidget);
+    expect(find.text('bars-4'), findsOneWidget);
     expect(find.textContaining('Đã uống hôm nay'), findsOneWidget);
     expect(find.textContaining('Triệu chứng'), findsWidgets);
     expect(find.textContaining('Chỉ số'), findsWidgets);

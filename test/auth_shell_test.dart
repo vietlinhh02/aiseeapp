@@ -7,7 +7,6 @@ import 'package:aiseeapp/services/aisee_onboarding_store.dart';
 import 'package:aiseeapp/widgets/auth_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 
 void main() {
   testWidgets('first launch shows onboarding before login UI', (
@@ -192,12 +191,10 @@ void main() {
   );
 }
 
-class _FakeAuthService extends AiseeAuthService {
-  _FakeAuthService() : super(httpClient: _NoopClient());
-}
+class _FakeAuthService extends AiseeAuthService {}
 
 class _ResumingAuthService extends AiseeAuthService {
-  _ResumingAuthService(this.resumeCompleter) : super(httpClient: _NoopClient());
+  _ResumingAuthService(this.resumeCompleter);
 
   final Completer<({AiseeUserProfile profile, AiseeAuthTokens tokens})?>
   resumeCompleter;
@@ -235,12 +232,5 @@ class _FakeOnboardingStore extends AiseeOnboardingStore {
     _hasCompletedAppOnboardingValue = true;
     selectedRole = role;
     completedRoles.add(role);
-  }
-}
-
-class _NoopClient extends http.BaseClient {
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
-    throw UnimplementedError('HTTP should not be used in this test');
   }
 }

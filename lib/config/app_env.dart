@@ -35,6 +35,10 @@ abstract final class AppEnv {
     'CARE_WEB_BASE_URL',
     defaultValue: '',
   );
+  static const String _admobRewardedAdUnitIdDefine = String.fromEnvironment(
+    'ADMOB_REWARDED_AD_UNIT_ID',
+    defaultValue: '',
+  );
   static const String _defaultBackendUrl = 'http://192.168.1.10:8081';
   static const String _defaultCareWebBaseUrl = 'https://aaisee.me';
 
@@ -113,6 +117,14 @@ abstract final class AppEnv {
       t = _dotenv('MAPBOX_ACCESS_TOKEN');
     }
     return t;
+  }
+
+  static String get admobRewardedAdUnitId {
+    String id = _admobRewardedAdUnitIdDefine.trim();
+    if (id.isEmpty) {
+      id = _dotenv('ADMOB_REWARDED_AD_UNIT_ID');
+    }
+    return id;
   }
 
   /// Public SDK key RevenueCat — ưu tiên key theo nền tảng ([REVENUECAT_API_KEY_ANDROID] / [REVENUECAT_API_KEY_IOS]) rồi mới tới [REVENUECAT_API_KEY].

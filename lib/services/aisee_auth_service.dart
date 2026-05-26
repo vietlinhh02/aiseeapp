@@ -1,21 +1,31 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:retrofit/dio.dart';
 
-import '../config/app_env.dart';
+import '../api/aisee_api_auth.dart';
+import '../api/aisee_api_dio.dart';
+import '../api/auth_api.dart';
 import '../models/aisee_api_models.dart';
-import '../utils/aisee_api_error_parse.dart';
 
 class AiseeAuthService {
-  AiseeAuthService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  AiseeAuthService({AiseeAuthApiClient? apiClient, Dio? dio})
+    : this._(dio: dio ?? AiseeApiDioFactory.create(), apiClient: apiClient);
 
-  final http.Client _http;
+  AiseeAuthService._({required Dio dio, AiseeAuthApiClient? apiClient})
+    : _dio = dio,
+      _ownsDio = apiClient == null,
+      _apiClient = apiClient ?? AiseeAuthApiClient(dio);
 
-  void close() => _http.close();
+  final Dio _dio;
+  final bool _ownsDio;
+  final AiseeAuthApiClient _apiClient;
 
-  Uri _uri(String path) => Uri.parse('${AppEnv.apiBaseUrl}$path');
+  void close() {
+    if (_ownsDio) {
+      _dio.close(force: true);
+    }
+  }
 
   /// Go backend trả JSON trần; docs cũ bọc trong `data` — hỗ trợ cả hai.
   Map<String, dynamic> _unwrapPayload(Map<String, dynamic> map) {
@@ -38,16 +48,14 @@ class AiseeAuthService {
     String idToken, {
     String role = 'user',
   }) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/auth/google'),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-      body: jsonEncode({'id_token': idToken, 'role': role}),
+    final HttpResponse<dynamic> res = await _apiClient.signInWithGoogle(
+      <String, dynamic>{'id_token': idToken, 'role': role},
     );
     final Map<String, dynamic> map = _parseJsonBody(
       res,
       fallback: 'Đăng nhập máy chủ thất bại',
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _errorFromBody(map, fallback: 'Đăng nhập máy chủ thất bại');
     }
     final AiseeAuthTokens tokens = _parseTokenPair(map);
@@ -60,34 +68,28 @@ class AiseeAuthService {
   }
 
   Future<AiseeUserProfile> fetchCurrentUser(String accessToken) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/users/me'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Accept': 'application/json',
-      },
+    final HttpResponse<dynamic> res = await _apiClient.fetchCurrentUser(
+      AiseeApiAuth.bearer(accessToken),
     );
     final Map<String, dynamic> map = _parseJsonBody(
       res,
       fallback: 'Không tải được hồ sơ',
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _errorFromBody(map, fallback: 'Không tải được hồ sơ');
     }
     return AiseeUserProfile.fromJson(_unwrapPayload(map));
   }
 
   Future<AiseeAuthTokens> refreshTokens(String refreshToken) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/auth/refresh'),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-      body: jsonEncode({'refresh_token': refreshToken}),
+    final HttpResponse<dynamic> res = await _apiClient.refreshTokens(
+      <String, dynamic>{'refresh_token': refreshToken},
     );
     final Map<String, dynamic> map = _parseJsonBody(
       res,
       fallback: 'Phiên hết hạn, vui lòng đăng nhập lại',
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _errorFromBody(
         map,
         fallback: 'Phiên hết hạn, vui lòng đăng nhập lại',
@@ -102,14 +104,10 @@ class AiseeAuthService {
   ) async {
     String access = initial.accessToken;
     String refresh = initial.refreshToken;
-    http.Response res = await _http.get(
-      _uri('/api/v1/users/me'),
-      headers: {
-        'Authorization': 'Bearer $access',
-        'Accept': 'application/json',
-      },
+    HttpResponse<dynamic> res = await _apiClient.fetchCurrentUser(
+      AiseeApiAuth.bearer(access),
     );
-    if (res.statusCode == 401) {
+    if (res.response.statusCode == 401) {
       developer.log(
         'resumeSession: access token expired, attempting refresh',
         name: 'AiSeeAuth',
@@ -119,19 +117,13 @@ class AiseeAuthService {
         access = rotated.accessToken;
         refresh = rotated.refreshToken;
         developer.log('resumeSession: refresh succeeded', name: 'AiSeeAuth');
-        res = await _http.get(
-          _uri('/api/v1/users/me'),
-          headers: {
-            'Authorization': 'Bearer $access',
-            'Accept': 'application/json',
-          },
-        );
+        res = await _apiClient.fetchCurrentUser(AiseeApiAuth.bearer(access));
       } catch (_) {
         developer.log('resumeSession: refresh failed', name: 'AiSeeAuth');
         return null;
       }
     }
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       return null;
     }
     Map<String, dynamic> map;
@@ -152,31 +144,37 @@ class AiseeAuthService {
   /// Parse response body as JSON map. Throws [AiseeApiException] with
   /// [fallback] if body is empty or not valid JSON (e.g. `404 page not found`).
   Map<String, dynamic> _parseJsonBody(
-    http.Response res, {
+    HttpResponse<dynamic> res, {
     required String fallback,
   }) {
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) {
+    final dynamic data = res.data;
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    if (data == null) {
       throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}, phản hồi trống)',
+        '$fallback (HTTP ${res.response.statusCode}, phản hồi trống)',
       );
     }
-    try {
-      final Object? decoded = jsonDecode(raw);
-      if (decoded is Map<String, dynamic>) return decoded;
-      throw AiseeApiException(
-        '$fallback (HTTP ${res.statusCode}, phản hồi không phải JSON object)',
-      );
-    } on FormatException {
-      final String preview = raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
-      throw AiseeApiException('$fallback (HTTP ${res.statusCode}): $preview');
-    }
+    throw AiseeApiException(
+      '$fallback (HTTP ${res.response.statusCode}, phản hồi không phải JSON object)',
+    );
   }
 
   AiseeApiException _errorFromBody(
     Map<String, dynamic> map, {
     required String fallback,
   }) {
-    return aiseeApiExceptionFromJsonMap(map, fallback);
+    final Map<String, dynamic>? error = map['error'] as Map<String, dynamic>?;
+    if (error != null) {
+      return AiseeApiException(
+        error['message'] as String? ?? fallback,
+        code: error['code'] as String?,
+      );
+    }
+    return AiseeApiException(map['message'] as String? ?? fallback);
   }
 }

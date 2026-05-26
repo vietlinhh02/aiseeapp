@@ -1,38 +1,40 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/app_env.dart';
+import 'package:dio/dio.dart';
+import 'package:retrofit/dio.dart';
+
+import '../api/aisee_api_auth.dart';
+import '../api/aisee_api_dio.dart';
+import '../api/volunteer_api.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_volunteer_status.dart';
 
 class AiseeVolunteerService {
-  AiseeVolunteerService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  AiseeVolunteerService({AiseeVolunteerApiClient? apiClient, Dio? dio})
+    : this._(dio: dio ?? AiseeApiDioFactory.create(), apiClient: apiClient);
 
-  final http.Client _http;
-  void close() => _http.close();
+  AiseeVolunteerService._({
+    required Dio dio,
+    AiseeVolunteerApiClient? apiClient,
+  }) : _dio = dio,
+       _ownsDio = apiClient == null,
+       _apiClient = apiClient ?? AiseeVolunteerApiClient(dio);
 
-  Uri _uri(String path) => Uri.parse('${AppEnv.apiBaseUrl}$path');
+  final Dio _dio;
+  final bool _ownsDio;
+  final AiseeVolunteerApiClient _apiClient;
 
-  Map<String, String> _authHeaders(String accessToken) => {
-    'Authorization': 'Bearer $accessToken',
-    'Content-Type': 'application/json; charset=utf-8',
-    'Accept': 'application/json',
-  };
+  void close() {
+    if (_ownsDio) {
+      _dio.close(force: true);
+    }
+  }
 
-  AiseeApiException _error(http.Response res, String fallback) {
-    final String prefix = 'HTTP ${res.statusCode}';
+  AiseeApiException _error(HttpResponse<dynamic> res, String fallback) {
+    final int statusCode = res.response.statusCode ?? 0;
+    final String prefix = 'HTTP $statusCode';
     try {
-      final String raw = utf8.decode(res.bodyBytes).trim();
-      if (raw.isEmpty) {
+      final Map<String, dynamic>? decoded = _asMap(res.data);
+      if (decoded == null) {
         return AiseeApiException('$prefix: $fallback');
-      }
-      final Object? decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) {
-        return AiseeApiException(
-          raw.length > 160
-              ? '$prefix: ${raw.substring(0, 160)}…'
-              : '$prefix: $raw',
-        );
       }
       final String? extracted = _extractErrorMessage(decoded);
       final String? code = _extractErrorCode(decoded);
@@ -45,6 +47,16 @@ class AiseeVolunteerService {
     } catch (_) {
       return AiseeApiException('$prefix: $fallback');
     }
+  }
+
+  Map<String, dynamic>? _asMap(Object? data) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return null;
   }
 
   /// Thông điệp lỗi — hỗ trợ nhiều kiểu JSON (Gin, chi tiết chuỗi, v.v.).
@@ -86,20 +98,15 @@ class AiseeVolunteerService {
 
   /// Trạng thái đăng ký + `available` từ server (sau khi đăng nhập lại vẫn đúng).
   Future<AiseeVolunteerStatus> fetchStatus(String accessToken) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/volunteers/status'),
-      headers: _authHeaders(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.fetchStatus(
+      AiseeApiAuth.bearer(accessToken),
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được trạng thái tình nguyện viên');
     }
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) {
+    final Map<String, dynamic>? decoded = _asMap(res.data);
+    if (decoded == null) {
       throw AiseeApiException('Phản hồi trống');
-    }
-    final Object? decoded = jsonDecode(raw);
-    if (decoded is! Map<String, dynamic>) {
-      throw AiseeApiException('Phản hồi không hợp lệ');
     }
     return AiseeVolunteerStatus.fromJson(decoded);
   }
@@ -108,16 +115,16 @@ class AiseeVolunteerService {
     String accessToken, {
     List<String> languages = const <String>['vi'],
   }) async {
-    final res = await _http.post(
-      _uri('/api/v1/volunteers/register'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode(<String, dynamic>{'languages': languages}),
+    final HttpResponse<dynamic> res = await _apiClient.register(
+      AiseeApiAuth.bearer(accessToken),
+      <String, dynamic>{'languages': languages},
     );
-    if (_registerOk(res.statusCode)) {
+    final int statusCode = res.response.statusCode ?? 0;
+    if (_registerOk(statusCode)) {
       return;
     }
     // Đã là tình nguyện viên — coi như thành công để đồng bộ UI.
-    if (res.statusCode == 409) {
+    if (statusCode == 409) {
       return;
     }
     throw _error(
@@ -130,12 +137,12 @@ class AiseeVolunteerService {
     String accessToken, {
     required bool available,
   }) async {
-    final res = await _http.put(
-      _uri('/api/v1/volunteers/availability'),
-      headers: _authHeaders(accessToken),
-      body: jsonEncode({'available': available}),
+    final HttpResponse<dynamic> res = await _apiClient.setAvailability(
+      AiseeApiAuth.bearer(accessToken),
+      <String, dynamic>{'available': available},
     );
-    if (res.statusCode == 200 || res.statusCode == 204) {
+    final int statusCode = res.response.statusCode ?? 0;
+    if (statusCode == 200 || statusCode == 204) {
       return;
     }
     throw _error(res, 'Không cập nhật trạng thái sẵn sàng được.');

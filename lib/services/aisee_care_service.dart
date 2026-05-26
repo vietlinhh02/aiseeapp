@@ -1,40 +1,65 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
+import 'package:retrofit/dio.dart';
 
-import 'package:http/http.dart' as http;
-
-import '../config/app_env.dart';
+import '../api/aisee_api_auth.dart';
+import '../api/aisee_api_dio.dart';
+import '../api/care_api.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_care_models.dart';
 import '../utils/aisee_api_error_parse.dart';
 
 class AiseeCareService {
-  AiseeCareService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  AiseeCareService({AiseeCareApiClient? apiClient, Dio? dio})
+    : this._(dio: dio ?? AiseeApiDioFactory.create(), apiClient: apiClient);
 
-  final http.Client _http;
+  AiseeCareService._({required Dio dio, AiseeCareApiClient? apiClient})
+    : _dio = dio,
+      _ownsDio = apiClient == null,
+      _apiClient = apiClient ?? AiseeCareApiClient(dio);
 
-  void close() => _http.close();
+  final Dio _dio;
+  final bool _ownsDio;
+  final AiseeCareApiClient _apiClient;
 
-  Uri _uri(String path) => Uri.parse('${AppEnv.apiBaseUrl}$path');
-
-  Map<String, String> _headers(String accessToken) => <String, String>{
-    'Authorization': 'Bearer $accessToken',
-    'Content-Type': 'application/json; charset=utf-8',
-    'Accept': 'application/json',
-  };
-
-  AiseeApiException _error(http.Response res, String fallback) {
-    return aiseeApiExceptionFromResponse(res, fallback);
+  void close() {
+    if (_ownsDio) {
+      _dio.close(force: true);
+    }
   }
 
-  Map<String, dynamic> _decodeMap(http.Response res, String fallback) {
-    final String raw = utf8.decode(res.bodyBytes).trim();
-    if (raw.isEmpty) {
+  AiseeApiException _error(HttpResponse<dynamic> res, String fallback) {
+    final Map<String, dynamic>? body = _asMap(res.data);
+    if (res.response.statusCode == 402 && body != null) {
+      final AiseeQuotaApiException? quota = aiseeQuotaExceptionFromJsonMap(
+        body,
+      );
+      if (quota != null) {
+        return quota;
+      }
+    }
+    final Map<String, dynamic>? error = body?['error'] as Map<String, dynamic>?;
+    return AiseeApiException(
+      error?['message'] as String? ?? body?['message'] as String? ?? fallback,
+      code: error?['code'] as String?,
+    );
+  }
+
+  Map<String, dynamic> _decodeMap(HttpResponse<dynamic> res, String fallback) {
+    final Map<String, dynamic>? decoded = _asMap(res.data);
+    if (decoded == null) {
       throw AiseeApiException('$fallback (phản hồi trống)');
     }
-    final Object? decoded = jsonDecode(raw);
-    if (decoded is Map<String, dynamic>) return decoded;
-    throw AiseeApiException('$fallback (JSON không hợp lệ)');
+    return decoded;
+  }
+
+  Map<String, dynamic>? _asMap(Object? data) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return null;
   }
 
   Future<CareTimelineResponse> getTimeline(
@@ -43,15 +68,12 @@ class AiseeCareService {
     int days = 7,
     int limit = 50,
   }) async {
-    final Uri u = _uri(
-      '/api/v1/dashboard/$caredUserId/care/timeline'
-      '?days=$days&limit=$limit',
+    final HttpResponse<dynamic> res = await _apiClient.getTimeline(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
+      <String, dynamic>{'days': days, 'limit': limit},
     );
-    final http.Response res = await _http.get(
-      u,
-      headers: _headers(accessToken),
-    );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được timeline chăm sóc');
     }
     return CareTimelineResponse.fromJson(_decodeMap(res, 'timeline'));
@@ -62,12 +84,12 @@ class AiseeCareService {
     String caredUserId, {
     String? date,
   }) async {
-    final String q = date != null && date.isNotEmpty ? '?date=$date' : '';
-    final http.Response res = await _http.get(
-      _uri('/api/v1/dashboard/$caredUserId/care/daily-brief$q'),
-      headers: _headers(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.getDailyBrief(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
+      date != null && date.isNotEmpty ? <String, dynamic>{'date': date} : null,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được tóm tắt ngày');
     }
     return CareDailyBriefResponse.fromJson(_decodeMap(res, 'daily_brief'));
@@ -78,14 +100,14 @@ class AiseeCareService {
     String caredUserId, {
     String? endDate,
   }) async {
-    final String q = endDate != null && endDate.isNotEmpty
-        ? '?end_date=$endDate'
-        : '';
-    final http.Response res = await _http.get(
-      _uri('/api/v1/dashboard/$caredUserId/care/weekly-report$q'),
-      headers: _headers(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.getWeeklyReport(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
+      endDate != null && endDate.isNotEmpty
+          ? <String, dynamic>{'end_date': endDate}
+          : null,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được báo cáo tuần');
     }
     return CareWeeklyReportResponse.fromJson(_decodeMap(res, 'weekly_report'));
@@ -95,11 +117,11 @@ class AiseeCareService {
     String accessToken,
     String caredUserId,
   ) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/dashboard/$caredUserId/care/incident-report'),
-      headers: _headers(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.getIncidentReport(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được báo cáo sự cố');
     }
     return CareIncidentReportResponse.fromJson(
@@ -120,12 +142,12 @@ class AiseeCareService {
     if (date != null && date.isNotEmpty) body['date'] = date;
     if (endDate != null && endDate.isNotEmpty) body['end_date'] = endDate;
 
-    final http.Response res = await _http.post(
-      _uri('/api/v1/dashboard/$caredUserId/care/export/pdf'),
-      headers: _headers(accessToken),
-      body: jsonEncode(body),
+    final HttpResponse<dynamic> res = await _apiClient.exportPdf(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
+      body,
     );
-    if (res.statusCode != 200 && res.statusCode != 201) {
+    if (res.response.statusCode != 200 && res.response.statusCode != 201) {
       throw _error(res, 'Không xuất được báo cáo');
     }
     return CareExportResponse.fromJson(_decodeMap(res, 'export'));
@@ -137,13 +159,16 @@ class AiseeCareService {
     String? status,
     int limit = 50,
   }) async {
-    final String q =
-        '?limit=$limit${status != null && status.isNotEmpty ? '&status=$status' : ''}';
-    final http.Response res = await _http.get(
-      _uri('/api/v1/care/users/$caredUserId/alerts$q'),
-      headers: _headers(accessToken),
+    final Map<String, dynamic> query = <String, dynamic>{'limit': limit};
+    if (status != null && status.isNotEmpty) {
+      query['status'] = status;
+    }
+    final HttpResponse<dynamic> res = await _apiClient.listAlerts(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
+      query,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được cảnh báo');
     }
     final Map<String, dynamic> map = _decodeMap(res, 'alerts');
@@ -154,34 +179,31 @@ class AiseeCareService {
   }
 
   Future<void> ackAlert(String accessToken, String alertId) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/care/alerts/$alertId/ack'),
-      headers: _headers(accessToken),
-      body: '{}',
+    final HttpResponse<dynamic> res = await _apiClient.ackAlert(
+      AiseeApiAuth.bearer(accessToken),
+      alertId,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không xác nhận được cảnh báo');
     }
   }
 
   Future<void> resolveAlert(String accessToken, String alertId) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/care/alerts/$alertId/resolve'),
-      headers: _headers(accessToken),
-      body: '{}',
+    final HttpResponse<dynamic> res = await _apiClient.resolveAlert(
+      AiseeApiAuth.bearer(accessToken),
+      alertId,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không đóng được cảnh báo');
     }
   }
 
   Future<void> dismissAlert(String accessToken, String alertId) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/care/alerts/$alertId/dismiss'),
-      headers: _headers(accessToken),
-      body: '{}',
+    final HttpResponse<dynamic> res = await _apiClient.dismissAlert(
+      AiseeApiAuth.bearer(accessToken),
+      alertId,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không bỏ qua được cảnh báo');
     }
   }
@@ -191,11 +213,12 @@ class AiseeCareService {
     String caredUserId, {
     int limit = 100,
   }) async {
-    final http.Response res = await _http.get(
-      _uri('/api/v1/care/users/$caredUserId/tasks?limit=$limit'),
-      headers: _headers(accessToken),
+    final HttpResponse<dynamic> res = await _apiClient.listTasks(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
+      <String, dynamic>{'limit': limit},
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không tải được việc cần làm');
     }
     final Map<String, dynamic> map = _decodeMap(res, 'tasks');
@@ -219,12 +242,12 @@ class AiseeCareService {
     if (metadata != null && metadata.isNotEmpty) {
       body['metadata'] = metadata;
     }
-    final http.Response res = await _http.post(
-      _uri('/api/v1/care/users/$caredUserId/tasks'),
-      headers: _headers(accessToken),
-      body: jsonEncode(body),
+    final HttpResponse<dynamic> res = await _apiClient.createTask(
+      AiseeApiAuth.bearer(accessToken),
+      caredUserId,
+      body,
     );
-    if (res.statusCode != 200 && res.statusCode != 201) {
+    if (res.response.statusCode != 200 && res.response.statusCode != 201) {
       throw _error(res, 'Không tạo được việc cần làm');
     }
     final Map<String, dynamic> map = _decodeMap(res, 'task_create');
@@ -248,23 +271,22 @@ class AiseeCareService {
     if (status != null) body['status'] = status;
     if (metadata != null) body['metadata'] = metadata;
 
-    final http.Response res = await _http.put(
-      _uri('/api/v1/care/tasks/$taskId'),
-      headers: _headers(accessToken),
-      body: jsonEncode(body),
+    final HttpResponse<dynamic> res = await _apiClient.updateTask(
+      AiseeApiAuth.bearer(accessToken),
+      taskId,
+      body,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không cập nhật được việc cần làm');
     }
   }
 
   Future<void> completeTask(String accessToken, String taskId) async {
-    final http.Response res = await _http.post(
-      _uri('/api/v1/care/tasks/$taskId/complete'),
-      headers: _headers(accessToken),
-      body: '{}',
+    final HttpResponse<dynamic> res = await _apiClient.completeTask(
+      AiseeApiAuth.bearer(accessToken),
+      taskId,
     );
-    if (res.statusCode != 200) {
+    if (res.response.statusCode != 200) {
       throw _error(res, 'Không hoàn thành được việc');
     }
   }

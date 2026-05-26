@@ -9,7 +9,7 @@ import '../models/aisee_api_models.dart';
 import '../services/aisee_analytics_service.dart';
 import '../services/aisee_health_service.dart';
 import '../services/aisee_reminder_service.dart';
-import '../services/aisee_session_store.dart';
+import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../generated/l10n/app_localizations.dart';
 
@@ -50,20 +50,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
       _loading = true;
       _error = null;
     });
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null || !mounted) return;
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null || !mounted) return;
 
     final AiseeHealthService svc = AiseeHealthService();
     try {
       final ReminderFilter f = widget.initialFilter;
       if (f == ReminderFilter.all || f == ReminderFilter.medication) {
-        _medications = await svc.fetchMedications(tokens.accessToken);
+        _medications = await svc.fetchMedications(accessToken);
       }
       if (f == ReminderFilter.all || f == ReminderFilter.appointment) {
-        _appointments = await svc.fetchAppointments(tokens.accessToken);
+        _appointments = await svc.fetchAppointments(accessToken);
       }
       if (f == ReminderFilter.all || f == ReminderFilter.health) {
-        _healthLogs = await svc.fetchHealthLogs(tokens.accessToken);
+        _healthLogs = await svc.fetchHealthLogs(accessToken);
       }
       if (!mounted) return;
       setState(() => _loading = false);
@@ -840,8 +840,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
     required bool taken,
   }) async {
     HapticFeedback.lightImpact();
-    final AiseeAuthTokens? tokens = await AiseeSessionStore.instance.read();
-    if (tokens == null) return;
+    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    if (accessToken == null) return;
     final AiseeHealthService svc = AiseeHealthService();
     try {
       final Map<String, dynamic> data = {
@@ -849,7 +849,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         'medication_name': _itemTitle(item),
       };
       if (taken) {
-        await svc.markMedicationTaken(tokens.accessToken, data);
+        await svc.markMedicationTaken(accessToken, data);
         unawaited(
           AiseeAnalyticsService.instance.track(
             AiseeAnalyticsEvent.medicationTaken,
@@ -857,7 +857,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
           ),
         );
       } else {
-        await svc.markMedicationSkipped(tokens.accessToken, data);
+        await svc.markMedicationSkipped(accessToken, data);
         unawaited(
           AiseeAnalyticsService.instance.track(
             AiseeAnalyticsEvent.medicationSkipped,
