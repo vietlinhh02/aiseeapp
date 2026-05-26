@@ -4364,7 +4364,7 @@ abstract class AppLocalizations {
   /// No description provided for @supporterInfoDailyLimit.
   ///
   /// In vi, this message translates to:
-  /// **'Mỗi ngày bạn có thể xem tối đa 10 quảng cáo'**
+  /// **'Mỗi ngày bạn có thể xem tối đa 50 quảng cáo'**
   String get supporterInfoDailyLimit;
 
   /// No description provided for @supporterInfoLearnMore.

@@ -2383,7 +2383,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get supporterInfoStep3 => 'Gift to family or community fund';
 
   @override
-  String get supporterInfoDailyLimit => 'You can watch up to 10 ads per day';
+  String get supporterInfoDailyLimit => 'You can watch up to 50 ads per day';
 
   @override
   String get supporterInfoLearnMore => 'Learn more';

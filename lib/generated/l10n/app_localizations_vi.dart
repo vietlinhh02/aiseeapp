@@ -2387,7 +2387,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get supporterInfoDailyLimit =>
-      'Mỗi ngày bạn có thể xem tối đa 10 quảng cáo';
+      'Mỗi ngày bạn có thể xem tối đa 50 quảng cáo';
 
   @override
   String get supporterInfoLearnMore => 'Tìm hiểu thêm';

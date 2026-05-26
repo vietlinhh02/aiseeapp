@@ -6,7 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/aisee_supporter_models.dart';
 import '../theme/style_tokens.dart';
 
-const int _dailyAdLimit = 10;
+const int _dailyAdLimit = 50;
 const Color _medicalInk = StyleTokens.textPrimary;
 const Color _medicalBlue = StyleTokens.buttonPrimary;
 const Color _medicalMint = Color(0xFF4CB8A8);
