@@ -35,8 +35,9 @@ class AiseeAiRecordMicrophoneInput implements AiseeAiMicrophoneInput {
   final AiseeRealtimeNoiseSuppressor _noiseSuppressor;
 
   StreamSubscription<Uint8List>? _streamSub;
-  Future<void> _processingChain = Future<void>.value();
   bool _streaming = false;
+  bool _processing = false;
+  Uint8List? _pendingFrame;
 
   @override
   Future<void> start({required void Function(Uint8List bytes) onFrame}) async {
@@ -51,31 +52,51 @@ class AiseeAiRecordMicrophoneInput implements AiseeAiMicrophoneInput {
 
     final Stream<Uint8List> stream = await _recorder.startStream(_config);
     _streamSub = stream.listen((Uint8List bytes) {
-      if (bytes.isEmpty) {
+      if (bytes.isEmpty || !_streaming) {
         return;
       }
-      _processingChain = _processingChain.catchError((_) {}).then((_) async {
+      // Chỉ giữ frame mới nhất, drop frame cũ nếu processing跟不上
+      _pendingFrame = bytes;
+      if (!_processing) {
+        _drainPending(onFrame);
+      }
+    });
+    _streaming = true;
+  }
+
+  Future<void> _drainPending(void Function(Uint8List bytes) onFrame) async {
+    _processing = true;
+    while (_pendingFrame != null && _streaming) {
+      final Uint8List frame = _pendingFrame!;
+      _pendingFrame = null;
+      try {
         final Uint8List cleaned = await _noiseSuppressor.process(
-          Uint8List.fromList(bytes),
+          Uint8List.fromList(frame),
           sampleRate: _sampleRate,
         );
         if (cleaned.isNotEmpty && _streaming) {
           onFrame(cleaned);
         }
-      });
-    });
-    _streaming = true;
+      } catch (_) {
+        // Bỏ qua lỗi processing, tiếp tục frame tiếp theo
+      }
+    }
+    _processing = false;
   }
 
   @override
   Future<void> stop() async {
     await _streamSub?.cancel();
     _streamSub = null;
+    _pendingFrame = null;
     if (_streaming) {
       _streaming = false;
       await _recorder.stop();
     }
-    await _processingChain.catchError((_) {});
+    // Chờ processing hiện tại hoàn thành
+    while (_processing) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
   }
 
   @override

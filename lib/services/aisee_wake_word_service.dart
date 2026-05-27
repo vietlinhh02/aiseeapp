@@ -251,17 +251,20 @@ class AiseeWakeWordService {
     );
     final Completer<void> completer = Completer<void>();
     _detectionStopCompleter = completer;
+    // Phải chờ native mic release TRƯỚC khi gọi callback
+    // để coordinator không bị lỗi "audio in use"
     _wakeModel
         .stopListening()
         .then((_) {
           debugPrint('[AiSee:WakeWord] Native mic released after detection');
           completer.complete();
+          onWakePhrase?.call(phrase.isEmpty ? 'wake' : phrase);
         })
         .catchError((Object e, StackTrace st) {
           debugPrint('[AiSee:WakeWord] stopListening after detection: $e\n$st');
           completer.complete();
+          onWakePhrase?.call(phrase.isEmpty ? 'wake' : phrase);
         });
-    onWakePhrase?.call(phrase.isEmpty ? 'wake' : phrase);
   }
 
   Future<void> stop() async {

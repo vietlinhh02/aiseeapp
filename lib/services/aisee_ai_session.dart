@@ -435,12 +435,13 @@ class AiseeAiSession {
     connectionStatus.value = AiseeAiSessionConnectionStatus.disconnected;
   }
 
-  void dispose() {
+  Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-    unawaited(stop());
+    // Await stop() để đảm bảo agentState không bị dispose khi đang được dùng
+    await stop(resetState: false);
     agentState.dispose();
     connectionStatus.dispose();
     sessionConfig.dispose();
@@ -599,10 +600,8 @@ class AiseeAiSession {
       name: name,
       params: params,
     );
+    // Chỉ gửi đến toolRequestController — không duplicate sang deviceCommand
     _toolRequestController.add(request);
-    _deviceCommandController.add(
-      AiseeAiDeviceCommandRequest.fromToolRequest(request),
-    );
   }
 
   void _handleDeviceCommand(String requestId, Map<String, dynamic> payload) {
@@ -626,10 +625,8 @@ class AiseeAiSession {
       name: name,
       params: params,
     );
+    // Chỉ gửi đến deviceCommandController — không duplicate sang toolRequest
     _deviceCommandController.add(request);
-    _toolRequestController.add(
-      AiseeAiToolRequest(requestId: requestId, name: name, params: params),
-    );
   }
 
   void _onSocketError(Object error, StackTrace stackTrace) {

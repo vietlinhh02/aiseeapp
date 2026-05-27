@@ -97,7 +97,17 @@ class AssistantAudioCoordinator {
         'WakeLatency t=${wakeLatency.elapsedMilliseconds}ms after '
         '${postWakeDelayMs}ms post-wake delay',
       );
-      await enableAssistantMic();
+      // Retry enableAssistantMic tối đa 3 lần nếu native mic chưa release
+      for (int attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await enableAssistantMic();
+          break;
+        } catch (e) {
+          if (attempt == 3) rethrow;
+          _log('enableAssistantMic attempt $attempt failed: $e, retrying...');
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+        }
+      }
       _log(
         'WakeLatency t=${wakeLatency.elapsedMilliseconds}ms after enableAssistantMic',
       );

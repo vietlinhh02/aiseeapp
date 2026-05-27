@@ -337,13 +337,12 @@ class AiseeAiAssistantController {
     final bool assistantOutputActive =
         _audioPlayer.hasPendingAudio ||
         _session.agentState.value == AgentState.speaking;
-    if (assistantOutputActive) {
-      return;
-    }
 
+    // Để uplink gate quyết định: nếu assistant đang nói, gate sẽ drop
+    // nhưng vẫn cho phép barge-in nếu user nói to (energy threshold)
     final AiseeAudioUplinkDecision decision = _audioUplinkGate.process(
       bytes,
-      assistantOutputActive: false,
+      assistantOutputActive: assistantOutputActive,
     );
 
     for (final Uint8List frame in decision.frames) {
