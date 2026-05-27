@@ -285,8 +285,14 @@ class AiseeAiSession {
 
     socket.pingInterval = _socketPingInterval;
     _socket = socket;
-    _reconnectAttempts = 0;
-    reconnectAttempt.value = 0;
+    // Chỉ reset reconnect counter sau khi kết nối sống sót > 10 giây
+    // để tránh rapid reconnect loop khi upstream liên tục disconnect
+    Future<void>.delayed(const Duration(seconds: 10), () {
+      if (_socket == socket && !_disposed) {
+        _reconnectAttempts = 0;
+        reconnectAttempt.value = 0;
+      }
+    });
     _socketSub = socket.stream.listen(
       _onSocketData,
       onError: _onSocketError,
