@@ -83,7 +83,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     return widget.aiseeProfile?.email ?? '—';
   }
 
-  static const List<String> _tabNames = ['Tro ly', 'Lien lac', 'Ca nhan'];
+  static const List<String> _tabNames = ['Trợ lý', 'Liên lạc', 'Cá nhân'];
 
   void _onTabChanged(int index) {
     if (index == _tabIndex) return;
@@ -309,7 +309,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     }
     WidgetsBinding.instance.removeObserver(this);
     _tabFade.dispose();
-    debugPrint('[AiSee:UI] UserHomeScreen dispose — ngat AI assistant');
+    debugPrint('[AiSee:UI] UserHomeScreen dispose — ngắt AI assistant');
     if (_wakeWordEnabled) {
       _assistantController.agentState.removeListener(_onAgentStateChanged);
     }
@@ -408,7 +408,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     if (!mounted) return;
     debugPrint('');
     debugPrint('====================================');
-    debugPrint('[AiSee:UI] BAT DAU KET NOI AI WS');
+    debugPrint('[AiSee:UI] BẮT ĐẦU KẾT NỐI AI WS');
     debugPrint('====================================');
     setState(() {
       _assistantConnecting = true;
@@ -419,7 +419,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     try {
       final Future<bool> familyLinkFuture = _computeHasFamilyLink();
       debugPrint(
-        '[AiSee:UI] fetchFamily chay song song voi ket noi AI session',
+        '[AiSee:UI] fetchFamily chạy song song với kết nối AI session',
       );
       final String? accessToken = await AiseeTokenProvider.instance
           .accessToken();
@@ -460,7 +460,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       );
       debugPrint('');
       debugPrint('====================================');
-      debugPrint('[AiSee:UI] KET NOI THANH CONG!');
+      debugPrint('[AiSee:UI] KẾT NỐI THÀNH CÔNG!');
       debugPrint(
         '[AiSee:UI] State: connecting=false connected=true error=null',
       );
@@ -501,7 +501,7 @@ class _UserHomeScreenState extends State<UserHomeScreen>
       });
       debugPrint('');
       debugPrint('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-      debugPrint('[AiSee:UI] LOI KET NOI AI WS');
+      debugPrint('[AiSee:UI] LỖI KẾT NỐI AI WS');
       debugPrint('[AiSee:UI] Error: $msg');
       debugPrint('[AiSee:UI] State: connecting=false connected=false');
       debugPrint('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');

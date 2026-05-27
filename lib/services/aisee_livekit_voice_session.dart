@@ -136,7 +136,7 @@ class AiseeLiveKitVoiceSession {
     _log('Connect', 'Sync camera preview...');
     syncLocalCameraPreviewTrack();
     startWaveDecayTimer();
-    _log('Connect', 'Ket noi hoan tat. San sang nhan lenh tu agent.');
+    _log('Connect', 'Kết nối hoàn tất. Sẵn sàng nhận lệnh từ agent.');
   }
 
   @visibleForTesting
@@ -201,7 +201,7 @@ class AiseeLiveKitVoiceSession {
       try {
         agent = await completer.future;
       } on TimeoutException {
-        _log('WakeRPC', 'Het thoi gian cho AGENT');
+        _log('WakeRPC', 'Hết thời gian chờ AGENT');
         return;
       } catch (_) {
         return;
@@ -1309,7 +1309,7 @@ class AiseeLiveKitVoiceSession {
     required String userId,
     Future<bool>? resolveHasFamilyLink,
   }) async {
-    _log('Connect', 'Bat dau ket noi LiveKit...');
+    _log('Connect', 'Bắt đầu kết nối LiveKit...');
     if (_room != null) {
       await disconnect();
     }
