@@ -30,6 +30,12 @@ class AiseePushService {
   final AiseeIncomingCallController _incomingCalls =
       AiseeIncomingCallController.instance;
 
+  /// Called before navigating to call screen — pause AI mic.
+  Future<void> Function()? onBeforeIncomingCallAnswered;
+
+  /// Called when call screen is dismissed — resume AI mic.
+  Future<void> Function()? onCallScreenDismissed;
+
   /// Gọi từ [AiseeApp] ngay khi khởi động — trước đăng nhập — để bắt Accept/Decline.
   void attachCallKitListenerEarly() {
     if (_callKitListenerAttached) {
@@ -186,6 +192,7 @@ class AiseePushService {
       'Incoming call: source=$source room=${call.roomName} '
       'type=${call.callType} foreground=${_incomingCalls.isAppForeground}',
     );
+    // Always notify AI so it can announce via audio + accept voice commands.
     unawaited(
       AiseeAssistantIncomingCallBridge.instance.notifyIncomingCall(call),
     );
@@ -398,6 +405,12 @@ class AiseePushService {
       return;
     }
     AiseeAssistantIncomingCallBridge.instance.clearPending();
+    // Pause AI mic before navigating to call screen.
+    try {
+      await onBeforeIncomingCallAnswered?.call();
+    } catch (e) {
+      _log('onBeforeIncomingCallAnswered error: $e');
+    }
     _navigateToCall(call.toCallInfo());
   }
 
@@ -455,11 +468,18 @@ class AiseePushService {
     if (nav == null) {
       return false;
     }
-    nav.push(
-      MaterialPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) => CallScreen(callInfo: callInfo),
-      ),
+    final Route<void> route = MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => CallScreen(callInfo: callInfo),
+    );
+    unawaited(
+      nav.push(route).whenComplete(() {
+        try {
+          onCallScreenDismissed?.call();
+        } catch (e) {
+          _log('onCallScreenDismissed error: $e');
+        }
+      }),
     );
     return true;
   }

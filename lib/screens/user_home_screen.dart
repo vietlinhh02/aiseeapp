@@ -237,6 +237,16 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     );
     _assistantController.nowPlayingTitle.addListener(_onMusicUiChanged);
     _assistantController.cameraPreview.addListener(_onCameraPreviewChanged);
+    AiseePushService.instance.onBeforeIncomingCallAnswered = () async {
+      await _assistantController.disableAssistantMic();
+      await _assistantController.audioPlayerStop();
+    };
+    AiseePushService.instance.onCallScreenDismissed = () async {
+      // Reset wake word so user can say "Hey AiSee" again.
+      if (_wakeWordEnabled) {
+        await AiseeWakeWordService.instance.startIdleListening();
+      }
+    };
     if (_wakeWordEnabled) {
       _assistantController.agentState.addListener(_onAgentStateChanged);
       AiseeWakeWordService.instance.onWakePhrase = (String phrase) {
@@ -305,6 +315,8 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     }
     _assistantController.nowPlayingTitle.removeListener(_onMusicUiChanged);
     _assistantController.cameraPreview.removeListener(_onCameraPreviewChanged);
+    AiseePushService.instance.onBeforeIncomingCallAnswered = null;
+    AiseePushService.instance.onCallScreenDismissed = null;
     unawaited(_assistantController.dispose());
     super.dispose();
   }

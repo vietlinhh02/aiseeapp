@@ -272,6 +272,10 @@ class AiseeAiAssistantController {
     await _stopForeground();
   }
 
+  Future<void> audioPlayerStop() async {
+    await _audioPlayer.stop(reason: 'incoming-call-accepted');
+  }
+
   Future<Map<String, Object?>> enableCamera(Map<String, dynamic> params) async {
     _ensureNotDisposed();
     await _cameraStreamer.start(

@@ -1231,7 +1231,7 @@ class AiseeLiveKitVoiceSession {
       RpcInvocationData data,
     ) async {
       _log('RPC', 'escalate_to_family');
-      return _handleMakeCall(data, 'voice');
+      return _handleMakeCall(data, 'video');
     });
 
     // ── Tool 21: escalate_to_volunteer ──
@@ -1239,7 +1239,7 @@ class AiseeLiveKitVoiceSession {
       RpcInvocationData data,
     ) async {
       _log('RPC', 'escalate_to_volunteer');
-      return _handleMakeCall(data, 'voice');
+      return _handleMakeCall(data, 'video');
     });
 
     // ── Tool 22: rate_volunteer ──

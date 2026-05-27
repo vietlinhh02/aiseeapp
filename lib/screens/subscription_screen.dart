@@ -209,7 +209,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           () async {
             await AiseeRevenueCatService.instance.identify(
               profile,
-              careGroupId: overview.careGroup.id,
+              careGroupId: overview.careGroup.id.isEmpty
+                  ? null
+                  : overview.careGroup.id,
             );
             return AiseeRevenueCatService.instance.availablePackageOptions();
           }();
@@ -319,7 +321,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     try {
       await AiseeRevenueCatService.instance.identify(
         profile,
-        careGroupId: overview.careGroup.id,
+        careGroupId:
+            overview.careGroup.id.isEmpty ? null : overview.careGroup.id,
       );
       final customerInfo = await AiseeRevenueCatService.instance
           .refreshPurchasesForCurrentPlatform();
@@ -368,7 +371,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     try {
       await AiseeRevenueCatService.instance.identify(
         profile,
-        careGroupId: overview.careGroup.id,
+        careGroupId:
+            overview.careGroup.id.isEmpty ? null : overview.careGroup.id,
       );
       await AiseeRevenueCatService.instance.presentCustomerCenter();
       if (mounted) await _load();
@@ -735,7 +739,10 @@ bool canManageSubscriptionForGroup(
   AiseeBillingOverview overview, {
   required bool familyFirst,
 }) {
-  return familyFirst && overview.careGroup.currentUserRole == 'owner';
+  if (!familyFirst) return false;
+  // Solo users (no group) can manage their own subscription.
+  if (overview.careGroup.id.isEmpty) return true;
+  return overview.careGroup.currentUserRole == 'owner';
 }
 
 bool canShowSubscriptionPurchaseCta(

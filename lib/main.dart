@@ -52,12 +52,13 @@ Future<void> main() async {
       } catch (e) {
         debugPrint('[AiSee] Firebase init skipped: $e');
       }
-      try {
-        await MobileAds.instance.initialize();
-        debugPrint('[AiSee] AdMob initialized');
-      } catch (e) {
-        debugPrint('[AiSee] AdMob init skipped: $e');
-      }
+      unawaited(
+        MobileAds.instance.initialize().then((_) {
+          debugPrint('[AiSee] AdMob initialized');
+        }).catchError((Object e) {
+          debugPrint('[AiSee] AdMob init skipped: $e');
+        }),
+      );
       FlutterError.onError = (FlutterErrorDetails details) {
         FlutterError.presentError(details);
         AiseeAnalyticsService.instance.recordFlutterFatalError(details);

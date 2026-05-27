@@ -193,7 +193,11 @@ class _CallScreenState extends State<CallScreen> {
       await FlutterCallkitIncoming.setCallConnected(widget.callInfo.roomName);
       await room.localParticipant?.setMicrophoneEnabled(true);
       if (_isVideo) {
-        await room.localParticipant?.setCameraEnabled(true);
+        final CameraCaptureOptions camOpts = await _rearCameraCaptureOptions();
+        await room.localParticipant?.setCameraEnabled(
+          true,
+          cameraCaptureOptions: camOpts,
+        );
       }
 
       // Check if remote participant already connected
@@ -310,7 +314,15 @@ class _CallScreenState extends State<CallScreen> {
     _toggling = true;
     try {
       final bool next = !_cameraEnabled;
-      await _room?.localParticipant?.setCameraEnabled(next);
+      if (next) {
+        final CameraCaptureOptions camOpts = await _rearCameraCaptureOptions();
+        await _room?.localParticipant?.setCameraEnabled(
+          true,
+          cameraCaptureOptions: camOpts,
+        );
+      } else {
+        await _room?.localParticipant?.setCameraEnabled(false);
+      }
       if (!mounted) return;
       setState(() => _cameraEnabled = next);
     } catch (e) {
@@ -318,6 +330,18 @@ class _CallScreenState extends State<CallScreen> {
     } finally {
       _toggling = false;
     }
+  }
+
+  Future<CameraCaptureOptions> _rearCameraCaptureOptions() async {
+    try {
+      final List<MediaDevice> inputs = await Hardware.instance.videoInputs();
+      if (inputs.isNotEmpty) {
+        return CameraCaptureOptions(deviceId: inputs[0].deviceId);
+      }
+    } catch (e) {
+      debugPrint('[AiSee:Call] videoInputs error: $e');
+    }
+    return const CameraCaptureOptions(cameraPosition: CameraPosition.back);
   }
 
   Future<void> _endCall() async {
