@@ -1,12 +1,20 @@
 import 'dart:async';
 
+
 import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/agent_state.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../widgets/assistant_orb.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 /// Tab Trợ lý — mặc định trong [UserHomeScreen], không phải route riêng.
 class UserAssistantTab extends StatelessWidget {
@@ -54,7 +62,7 @@ class UserAssistantTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (aiseeLoading)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
+            const Expanded(child: AppLoadingIndicator())
           else if (aiseeError != null)
             Expanded(
               child: Center(
@@ -69,7 +77,7 @@ class UserAssistantTab extends StatelessWidget {
               ),
             )
           else if (assistantConnecting)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
+            const Expanded(child: AppLoadingIndicator())
           else if (assistantError != null)
             Expanded(
               child: Center(

@@ -1,23 +1,41 @@
 // lib/screens/family_messages_tab.dart
 import 'dart:async';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/aisee_call_info.dart';
+
 import '../models/aisee_family_member.dart';
+
 import '../services/aisee_call_service.dart';
+
 import '../services/aisee_chat_service.dart';
+
 import '../services/aisee_chat_socket.dart';
+
 import '../services/aisee_family_service.dart';
+
 import '../services/in_app_message_controller.dart';
+
 import '../services/aisee_token_provider.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../utils/app_toast.dart';
+
 import 'call_screen.dart';
+
 import 'chat_detail_screen.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 String _avatarUrl(String seed) =>
     'https://api.dicebear.com/9.x/notionists/png?seed=${Uri.encodeComponent(seed)}&size=96&backgroundColor=e8e8e8';
@@ -177,7 +195,7 @@ class _FamilyMessagesTabState extends State<FamilyMessagesTab> {
     final AppLocalizations l = AppLocalizations.of(context);
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(color: StyleTokens.buttonPrimary),
+        child: AppLoadingIndicator(),
       );
     }
     if (_error != null) {

@@ -89,13 +89,8 @@ class AiseeAssistantCallLauncher {
           ),
           outgoingAnswerTimeout: answerTimeout,
           onAnswered: () {
-            _completeResult(result, <String, Object?>{
-              'status': 'answered',
-              'room_name': roomName,
-              'call_type': callType,
-              'contact_name': contactName,
-              'contact_role': contactRole,
-            });
+            // Keep the assistant tool request open while the user is in-call.
+            // The final result is reported from onEnded with duration/reason.
           },
           onNoAnswer: () {
             _completeResult(result, <String, Object?>{
@@ -121,6 +116,27 @@ class AiseeAssistantCallLauncher {
               'call_type': callType,
             });
           },
+          onEnded:
+              ({
+                required bool answered,
+                required Duration duration,
+                required bool remoteEnded,
+              }) {
+                _completeResult(result, <String, Object?>{
+                  'status': aiseeAssistantCallEndStatus(
+                    answered: answered,
+                    remoteEnded: remoteEnded,
+                    duration: duration,
+                  ),
+                  'answered': answered,
+                  'remote_ended': remoteEnded,
+                  'duration_seconds': duration.inSeconds,
+                  'room_name': roomName,
+                  'call_type': callType,
+                  'contact_name': contactName,
+                  'contact_role': contactRole,
+                });
+              },
         ),
       ),
     );

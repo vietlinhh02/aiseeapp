@@ -1,25 +1,46 @@
 import 'dart:async';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/aisee_api_models.dart';
+
 import '../models/aisee_call_info.dart';
+
 import '../models/aisee_family_member.dart';
+
 import '../services/aisee_call_service.dart';
+
 import '../services/aisee_analytics_service.dart';
+
 import '../services/aisee_chat_service.dart';
+
 import '../services/aisee_chat_socket.dart';
+
 import '../services/aisee_family_service.dart';
+
 import '../services/in_app_message_controller.dart';
+
 import '../services/aisee_token_provider.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../utils/app_toast.dart';
+
 import 'call_screen.dart';
+
 import 'chat_detail_screen.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 /// DiceBear seed avatar URL — generates unique avatar from any string seed.
 String _avatarUrl(String seed) =>
@@ -471,7 +492,7 @@ class _ContactsTabState extends State<ContactsTab> {
       return const Padding(
         padding: EdgeInsets.only(top: 48),
         child: Center(
-          child: CircularProgressIndicator(color: StyleTokens.buttonPrimary),
+          child: AppLoadingIndicator(),
         ),
       );
     }

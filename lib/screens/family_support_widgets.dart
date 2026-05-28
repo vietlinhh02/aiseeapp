@@ -286,7 +286,6 @@ class SupporterHeroCard extends StatelessWidget {
                     style: aiseeTextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      fontStyle: FontStyle.italic,
                       height: 1.1,
                       letterSpacing: 0,
                       color: _medicalBlue,
@@ -996,11 +995,7 @@ class _CommunityAvatarStack extends StatelessWidget {
             Positioned(
               left: i * _communityAvatarOverlap,
               child: _CommunityAvatar(
-                key: ValueKey<String>(
-                  supporters[i].id.isNotEmpty
-                      ? supporters[i].id
-                      : supporters[i].displayName,
-                ),
+                key: ValueKey<String>(supporters[i].anonSeed),
                 supporter: supporters[i],
                 accent: colors[i % colors.length],
               ),
@@ -1084,10 +1079,7 @@ class _CommunityAvatarState extends State<_CommunityAvatar> {
   }
 
   List<String> _avatarUrls() {
-    final String seed = widget.supporter.id.isNotEmpty
-        ? widget.supporter.id
-        : widget.supporter.displayName;
-    return <String>[_dicebearAvatarUrl(seed)];
+    return <String>[_dicebearAvatarUrl(widget.supporter.anonSeed)];
   }
 }
 
@@ -1118,113 +1110,111 @@ class SupporterBalancePoolCard extends StatelessWidget {
     final double nextTurnProgress = ((coinBalance % 100) / 100).clamp(0.0, 1.0);
 
     return _SupportCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       backgroundColor: _medicalSurface,
       borderColor: _medicalBorder,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              _IconBadge(
-                icon: PhosphorIcons.wallet(PhosphorIconsStyle.duotone),
-                backgroundColor: _medicalBlue.withValues(alpha: 0.10),
-                iconColor: _medicalBlue,
-                size: 34,
-                iconSize: 18,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          _IconBadge(
+            icon: PhosphorIcons.wallet(PhosphorIconsStyle.duotone),
+            backgroundColor: _medicalBlue.withValues(alpha: 0.10),
+            iconColor: _medicalBlue,
+            size: 34,
+            iconSize: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
                   children: <Widget>[
-                    Text(
-                      title,
-                      style: aiseeTextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: _medicalInk,
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: aiseeTextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _medicalInk,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
-                      conversionLabel,
+                      '$coinBalance $coinLabel',
                       style: aiseeTextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: _medicalInk.withValues(alpha: 0.64),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                        color: _medicalInk,
                       ),
                     ),
                   ],
                 ),
-              ),
-              Text(
-                '$coinBalance',
-                style: aiseeTextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                  color: _medicalInk,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 5,
-              value: coinBalance == 0 ? 0 : nextTurnProgress,
-              backgroundColor: _medicalMintSoft,
-              valueColor: const AlwaysStoppedAnimation<Color>(_medicalBlue),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  rateHint,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: aiseeTextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _medicalInk.withValues(alpha: 0.58),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    value: coinBalance == 0 ? 0 : nextTurnProgress,
+                    backgroundColor: _medicalMintSoft,
+                    valueColor: const AlwaysStoppedAnimation<Color>(_medicalBlue),
                   ),
                 ),
-              ),
-              if (onRedeem != null) ...[
-                const SizedBox(width: 10),
-                OutlinedButton(
-                  onPressed: busy ? null : onRedeem,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 36),
-                    side: const BorderSide(color: _medicalBlue),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  child: busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          redeemLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: aiseeTextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: _medicalBlue,
-                          ),
+                const SizedBox(height: 4),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        rateHint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: aiseeTextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: _medicalInk.withValues(alpha: 0.50),
                         ),
+                      ),
+                    ),
+                    if (onRedeem != null) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: busy ? null : onRedeem,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _medicalBlue.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: busy
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  redeemLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: aiseeTextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _medicalBlue,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
-            ],
+            ),
           ),
         ],
       ),

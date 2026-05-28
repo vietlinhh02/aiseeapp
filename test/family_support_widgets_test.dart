@@ -82,8 +82,8 @@ void main() {
                   totalAITurns: 300,
                   activeSupporters: 2,
                   supporters: <CommunitySupporterProfile>[
-                    CommunitySupporterProfile(id: 'u1', displayName: 'Linh'),
-                    CommunitySupporterProfile(id: 'u2', displayName: 'Dang'),
+                    CommunitySupporterProfile(anonSeed: 'seed1'),
+                    CommunitySupporterProfile(anonSeed: 'seed2'),
                   ],
                   title: 'Cộng đồng',
                   labelPeople: 'Người được hỗ trợ',

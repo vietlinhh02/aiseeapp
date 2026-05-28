@@ -297,11 +297,7 @@ class _AvatarStrip extends StatelessWidget {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Image.network(
-                  _avatarUrl(
-                    supporters[i].id.isNotEmpty
-                        ? supporters[i].id
-                        : supporters[i].displayName,
-                  ),
+                  _avatarUrl(supporters[i].anonSeed),
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) =>
                       const ColoredBox(color: _communityLilac),
@@ -380,9 +376,7 @@ class _ActivityTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           _ActivityAvatar(
-            seed: activity.actorId.isNotEmpty
-                ? activity.actorId
-                : activity.actorDisplayName,
+            seed: activity.anonSeed,
             visual: visual,
           ),
           const SizedBox(width: 10),
@@ -426,13 +420,10 @@ class _ActivityTile extends StatelessWidget {
     CommunitySupporterActivity activity,
   ) {
     final bool vi = Localizations.localeOf(context).languageCode == 'vi';
-    final String name = activity.actorDisplayName.trim().isEmpty
-        ? (vi ? 'Người hỗ trợ' : 'Supporter')
-        : activity.actorDisplayName.trim();
     return switch (activity.type) {
-      'watch_ad' => vi ? '$name xem quảng cáo' : '$name watched an ad',
-      'redeem' => vi ? '$name đổi lượt hỗ trợ' : '$name redeemed support',
-      _ => vi ? '$name vừa hoạt động' : '$name was active',
+      'watch_ad' => vi ? 'Người hỗ trợ xem quảng cáo' : 'A supporter watched an ad',
+      'redeem' => vi ? 'Người hỗ trợ đổi lượt' : 'A supporter redeemed credits',
+      _ => vi ? 'Người hỗ trợ vừa hoạt động' : 'A supporter was active',
     };
   }
 

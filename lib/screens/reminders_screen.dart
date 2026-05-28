@@ -1,17 +1,30 @@
 import 'dart:async';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
 
+
 import '../models/aisee_api_models.dart';
+
 import '../services/aisee_analytics_service.dart';
+
 import '../services/aisee_health_service.dart';
+
 import '../services/aisee_reminder_service.dart';
+
 import '../services/aisee_token_provider.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../generated/l10n/app_localizations.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 enum ReminderFilter { all, medication, appointment, health }
 
@@ -122,12 +135,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
         child: _loading
-            ? const Center(
-                key: ValueKey<String>('loading'),
-                child: CircularProgressIndicator(
-                  color: StyleTokens.buttonPrimary,
-                ),
-              )
+            ? const AppLoadingIndicator(key: ValueKey<String>('loading'))
             : _buildBody(),
       ),
     );

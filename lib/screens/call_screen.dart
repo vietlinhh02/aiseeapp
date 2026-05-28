@@ -37,6 +37,31 @@ bool aiseeShouldRefreshLocalVideoUi({
 enum _CallState { ringing, connected, ended }
 
 typedef AiseeCallErrorCallback = void Function(String message);
+typedef AiseeCallEndedCallback =
+    void Function({
+      required bool answered,
+      required bool remoteEnded,
+      required Duration duration,
+    });
+
+const Duration aiseeQuickRemoteEndThreshold = Duration(seconds: 3);
+
+String aiseeAssistantCallEndStatus({
+  required bool answered,
+  required bool remoteEnded,
+  required Duration duration,
+}) {
+  if (!answered) {
+    return 'cancelled';
+  }
+  if (remoteEnded && duration <= aiseeQuickRemoteEndThreshold) {
+    return 'remote_ended_quickly';
+  }
+  if (remoteEnded) {
+    return 'remote_ended';
+  }
+  return 'ended';
+}
 
 class CallScreen extends StatefulWidget {
   const CallScreen({
@@ -47,6 +72,7 @@ class CallScreen extends StatefulWidget {
     this.onNoAnswer,
     this.onStartFailed,
     this.onCancelledWhileRinging,
+    this.onEnded,
   });
 
   final AiseeCallInfo callInfo;
@@ -55,6 +81,7 @@ class CallScreen extends StatefulWidget {
   final VoidCallback? onNoAnswer;
   final AiseeCallErrorCallback? onStartFailed;
   final VoidCallback? onCancelledWhileRinging;
+  final AiseeCallEndedCallback? onEnded;
 
   /// Tránh mở trùng từ [AiseePushService.syncActiveAcceptedCall] + pending.
   static int openRouteCount = 0;
@@ -184,9 +211,11 @@ class _CallScreenState extends State<CallScreen> {
         });
       })
       ..on<ParticipantDisconnectedEvent>(
-        (ParticipantDisconnectedEvent e) => _endCall(),
+        (ParticipantDisconnectedEvent e) => _endCall(remoteEnded: true),
       )
-      ..on<RoomDisconnectedEvent>((RoomDisconnectedEvent e) => _endCall());
+      ..on<RoomDisconnectedEvent>(
+        (RoomDisconnectedEvent e) => _endCall(remoteEnded: true),
+      );
 
     try {
       await room.connect(AppEnv.liveKitWsUrl, widget.callInfo.token);
@@ -344,13 +373,19 @@ class _CallScreenState extends State<CallScreen> {
     return const CameraCaptureOptions(cameraPosition: CameraPosition.back);
   }
 
-  Future<void> _endCall() async {
+  Future<void> _endCall({bool remoteEnded = false}) async {
     if (_state == _CallState.ended) return;
     AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
     _answerTimeoutTimer?.cancel();
     if (_state == _CallState.ringing && !_ringingEndNotified) {
       _ringingEndNotified = true;
       widget.onCancelledWhileRinging?.call();
+    } else {
+      widget.onEnded?.call(
+        answered: _answeredNotified,
+        remoteEnded: remoteEnded,
+        duration: _duration.value,
+      );
     }
     setState(() => _state = _CallState.ended);
     _durationTimer?.cancel();

@@ -25,6 +25,15 @@ class SupporterPersonalStats {
       totalRedeemed: (j['total_redeemed'] as num).toInt(),
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'supported_people_count': supportedPeopleCount,
+    'total_ai_turns_gifted': totalAITurnsGifted,
+    'ads_watched_today': adsWatchedToday,
+    'coin_balance': coinBalance,
+    'total_earned': totalEarned,
+    'total_redeemed': totalRedeemed,
+  };
 }
 
 class CommunitySupporterStats {
@@ -69,40 +78,42 @@ class CommunitySupporterStats {
           const <CommunitySupporterActivity>[],
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'total_cared_users': totalCaredUsers,
+    'total_ai_turns_gifted': totalAITurnsGifted,
+    'active_supporters': activeSupporters,
+    'supporters': supporters.map((e) => e.toJson()).toList(),
+    'activities': activities?.map((e) => e.toJson()).toList(),
+  };
 }
 
 class CommunitySupporterProfile {
-  final String id;
-  final String displayName;
-  final String? avatarUrl;
+  final String anonSeed;
 
   const CommunitySupporterProfile({
-    required this.id,
-    required this.displayName,
-    this.avatarUrl,
+    required this.anonSeed,
   });
 
   factory CommunitySupporterProfile.fromJson(Map<String, dynamic> j) {
     return CommunitySupporterProfile(
-      id: j['id'] as String? ?? '',
-      displayName: j['display_name'] as String? ?? '',
-      avatarUrl: j['avatar_url'] as String?,
+      anonSeed: j['anon_seed'] as String? ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'anon_seed': anonSeed,
+  };
 }
 
 class CommunitySupporterActivity {
-  final String actorId;
-  final String actorDisplayName;
-  final String? actorAvatarUrl;
+  final String anonSeed;
   final String type;
   final int amount;
   final String occurredAt;
 
   const CommunitySupporterActivity({
-    required this.actorId,
-    required this.actorDisplayName,
-    this.actorAvatarUrl,
+    required this.anonSeed,
     required this.type,
     required this.amount,
     required this.occurredAt,
@@ -110,14 +121,19 @@ class CommunitySupporterActivity {
 
   factory CommunitySupporterActivity.fromJson(Map<String, dynamic> j) {
     return CommunitySupporterActivity(
-      actorId: j['actor_id'] as String? ?? '',
-      actorDisplayName: j['actor_display_name'] as String? ?? '',
-      actorAvatarUrl: j['actor_avatar_url'] as String?,
+      anonSeed: j['anon_seed'] as String? ?? '',
       type: j['type'] as String? ?? '',
       amount: (j['amount'] as num?)?.toInt() ?? 0,
       occurredAt: j['occurred_at'] as String? ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'anon_seed': anonSeed,
+    'type': type,
+    'amount': amount,
+    'occurred_at': occurredAt,
+  };
 }
 
 class SupporterOverviewResponse {
@@ -139,6 +155,11 @@ class SupporterOverviewResponse {
       ),
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'personal': personal.toJson(),
+    'community': community.toJson(),
+  };
 }
 
 class WatchAdResponse {

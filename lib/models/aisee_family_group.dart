@@ -26,6 +26,15 @@ class AiseeCareGroupPerson {
     );
   }
 
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'id': id,
+    'email': email,
+    'account_role': accountRole,
+    'group_role': groupRole,
+    'display_name': displayName,
+    'avatar_url': avatarUrl,
+  };
+
   String get label =>
       displayName?.trim().isNotEmpty == true ? displayName! : email;
 
@@ -77,4 +86,15 @@ class AiseeCurrentGroup {
       caredUsers: parsePeople('cared_users'),
     );
   }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'id': id,
+    'name': name,
+    'owner_user_id': ownerUserId,
+    'current_user_role': currentUserRole,
+    'can_manage_group': canManageGroup,
+    'can_manage_billing': canManageBilling,
+    'family_members': familyMembers.map((e) => e.toJson()).toList(),
+    'cared_users': caredUsers.map((e) => e.toJson()).toList(),
+  };
 }

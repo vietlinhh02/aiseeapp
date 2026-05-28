@@ -1,19 +1,36 @@
 import 'dart:async';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
 
+
 import '../models/aisee_family_group.dart';
+
 import '../models/aisee_family_member.dart';
+
 import '../services/aisee_analytics_service.dart';
+
+import '../services/aisee_family_group_cache.dart';
+
 import '../services/aisee_family_service.dart';
+
 import '../services/aisee_token_provider.dart';
+
 import '../services/in_app_message_controller.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../utils/app_toast.dart';
+
 import '../generated/l10n/app_localizations.dart';
+import '../widgets/app_loading_indicator.dart';
+
 // import 'family_dashboard_screen.dart';
 
 class FamilyContactsTab extends StatefulWidget {
@@ -51,6 +68,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
     _familyService = widget.familyService ?? AiseeFamilyService();
     _readAccessToken = widget.readAccessToken ?? _defaultReadAccessToken;
     _ownsFamilyService = widget.familyService == null;
+    AiseeFamilyGroupCache.instance.clear();
     _loadGroup();
   }
 
@@ -105,9 +123,11 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
           .toList();
       if (!mounted) return;
       AiseeInAppMessageController.instance.rememberContacts(caredUsers);
+      AiseeFamilyGroupCache.instance.write(group);
       setState(() {
         _group = group;
         _caredUsers = caredUsers;
+        _error = null;
         if (!silent) _loading = false;
       });
       widget.onFamilyListChanged?.call();
@@ -495,7 +515,7 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoadingIndicator();
     }
     if (_error != null) {
       return Center(

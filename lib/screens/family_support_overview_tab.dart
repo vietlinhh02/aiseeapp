@@ -1,23 +1,39 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
+
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import '../generated/l10n/app_localizations.dart';
-import '../models/aisee_supporter_models.dart';
-import '../services/aisee_rewarded_ad_service.dart';
-import '../services/aisee_supporter_service.dart';
-import '../services/aisee_token_provider.dart';
-import '../theme/style_tokens.dart';
-import '../utils/app_toast.dart';
-import '../utils/jwt_expiry.dart';
-import 'family_contacts_tab.dart';
-import 'family_support_community_screen.dart';
-import 'family_support_widgets.dart';
 
-const Color _supportInk = Color(0xFF1B4965);
-const Color _supportPrimary = Color(0xFF1B4965);
-const Color _supportBorder = Color(0xFFC0E2EA);
+import '../generated/l10n/app_localizations.dart';
+
+import '../models/aisee_supporter_models.dart';
+
+import '../services/aisee_rewarded_ad_service.dart';
+
+import '../services/aisee_supporter_cache.dart';
+
+import '../services/aisee_supporter_service.dart';
+
+import '../services/aisee_token_provider.dart';
+
+import '../theme/style_tokens.dart';
+
+import '../utils/app_toast.dart';
+
+import '../utils/jwt_expiry.dart';
+
+import 'family_contacts_tab.dart';
+
+import 'family_support_community_screen.dart';
+
+import 'family_support_widgets.dart';
+import '../widgets/app_loading_indicator.dart';
+
+
+const Color _supportInk = StyleTokens.buttonPrimary;
 
 class FamilySupportOverviewTab extends StatefulWidget {
   const FamilySupportOverviewTab({super.key});
@@ -33,6 +49,7 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
 
   SupporterOverviewResponse? _data;
   bool _loading = true;
+  bool _initialCacheLoaded = false;
   String? _error;
   bool _busy = false;
 
@@ -42,6 +59,7 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
   void initState() {
     super.initState();
     _service = AiseeSupporterService();
+    _loadCached();
     _load();
   }
 
@@ -56,11 +74,24 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
     return AiseeTokenProvider.instance.withAccessToken(action);
   }
 
+  Future<void> _loadCached() async {
+    final cached = await AiseeSupporterCache.instance.read();
+    if (cached != null && mounted) {
+      setState(() {
+        _data = cached;
+        _loading = false;
+        _initialCacheLoaded = true;
+      });
+    }
+  }
+
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!_initialCacheLoaded) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final data = await _withFreshToken(_service.getOverview);
       if (data == null) {
@@ -68,9 +99,11 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
         return;
       }
       if (!mounted) return;
+      AiseeSupporterCache.instance.write(data);
       setState(() {
         _data = data;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -112,148 +145,264 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
       return;
     }
 
+    final int maxCoins = (coinBalance ~/ 100) * 100;
+    double sliderValue = maxCoins.toDouble();
+
     final int? amount = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      backgroundColor: StyleTokens.surfaceCard,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
-        int selected = (coinBalance ~/ 100) * 100;
         return StatefulBuilder(
           builder: (BuildContext ctx, StateSetter setDialogState) {
-            final int turns = selected ~/ 100;
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.paddingOf(ctx).bottom + 16,
+            final int currentCoins = sliderValue.round();
+            final int turns = (currentCoins / 100).floor();
+
+            return Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              decoration: BoxDecoration(
+                color: StyleTokens.surfaceCard,
+                borderRadius: BorderRadius.circular(24),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const SizedBox(height: 8),
-                  Center(
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
                     child: Container(
-                      width: 36,
+                      width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: _supportBorder,
+                        color: StyleTokens.cardBorder,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      l.supporterRedeemDialogTitle,
-                      style: aiseeTextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: _supportInk,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      l.supporterRedeemConfirm(selected, turns),
-                      style: aiseeTextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: StyleTokens.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      l.supporterRedeemRecipientLabel,
-                      style: StyleTokens.bodySmall(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(13),
-                        border: Border.all(color: _supportBorder),
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              l.supporterRedeemCommunityFund,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        // -- Title
+                        Text(
+                          l.supporterRedeemDialogTitle,
+                          style: aiseeTextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: StyleTokens.textPrimary,
+                          ),
+                        ),
+
+                        // -- Slider row: label left, value right
+                        const SizedBox(height: 14),
+                        Row(
+                          children: <Widget>[
+                            Text(
+                              _coinInputLabel(ctx),
                               style: aiseeTextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
+                                color: StyleTokens.textSecondary,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '$currentCoins',
+                              style: aiseeTextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
                                 color: _supportInk,
+                                fontFeatures: const <FontFeature>[
+                                  FontFeature.tabularFigures(),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
-                            size: 20,
-                            color: _supportPrimary,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            style: TextButton.styleFrom(
-                              foregroundColor: _supportInk,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: const BorderSide(color: _supportBorder),
-                              ),
-                              textStyle: aiseeTextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                            const SizedBox(width: 4),
+                            Text(
+                              l.supporterCoinLabel,
+                              style: aiseeTextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: StyleTokens.textMuted,
                               ),
                             ),
-                            child: Text(l.actionCancel),
+                          ],
+                        ),
+
+                        // -- Slider
+                        const SizedBox(height: 4),
+                        SliderTheme(
+                          data: SliderTheme.of(ctx).copyWith(
+                            trackHeight: 6,
+                            activeTrackColor: _supportInk,
+                            inactiveTrackColor:
+                                _supportInk.withValues(alpha: 0.12),
+                            thumbColor: _supportInk,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 10,
+                            ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 18,
+                            ),
+                            overlayColor:
+                                _supportInk.withValues(alpha: 0.12),
+                          ),
+                          child: Slider(
+                            value: sliderValue,
+                            min: 0,
+                            max: maxCoins.toDouble(),
+                            divisions: maxCoins > 0 ? maxCoins ~/ 100 : 1,
+                            onChanged: (double v) {
+                              setDialogState(() => sliderValue = v);
+                            },
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => Navigator.pop(ctx, selected),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _supportInk,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+
+                        // -- Turns display
+                        Row(
+                          children: <Widget>[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
                               ),
-                              textStyle: aiseeTextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                              decoration: BoxDecoration(
+                                color: _supportInk.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '$currentCoins ${l.supporterCoinLabel} = $turns',
+                                style: aiseeTextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _supportInk,
+                                ),
                               ),
                             ),
-                            child: Text(l.actionConfirm),
+                            const Spacer(),
+                            Text(
+                              l.supporterBalanceConversion(turns),
+                              style: aiseeTextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: StyleTokens.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // -- Recipient field
+                        const SizedBox(height: 14),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
                           ),
+                          decoration: BoxDecoration(
+                            color: StyleTokens.background,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: StyleTokens.cardBorder,
+                            ),
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  l.supporterRedeemCommunityFund,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: aiseeTextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: StyleTokens.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                PhosphorIcons.checkCircle(
+                                  PhosphorIconsStyle.fill,
+                                ),
+                                size: 18,
+                                color: _supportInk,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // -- Action buttons
+                        const SizedBox(height: 18),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: Material(
+                                color: StyleTokens.surfaceCard,
+                                borderRadius: BorderRadius.circular(31),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(31),
+                                  onTap: () => Navigator.pop(ctx),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 13,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(31),
+                                      border: Border.all(
+                                        color: StyleTokens.cardBorder,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        l.actionCancel,
+                                        style: aiseeTextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: StyleTokens.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Material(
+                                color: _supportInk,
+                                borderRadius: BorderRadius.circular(31),
+                                clipBehavior: Clip.antiAlias,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(31),
+                                  onTap: turns > 0
+                                      ? () =>
+                                          Navigator.pop(ctx, currentCoins)
+                                      : null,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 13,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        l.actionConfirm,
+                                        style: aiseeTextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height:
+                              MediaQuery.paddingOf(ctx).bottom + 16,
                         ),
                       ],
                     ),
@@ -286,11 +435,11 @@ class _FamilySupportOverviewTabState extends State<FamilySupportOverviewTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+    if (_loading && _data == null) {
+      return const AppLoadingIndicator();
     }
 
-    if (_error != null) {
+    if (_error != null && _data == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -470,3 +619,9 @@ class _SectionTitle extends StatelessWidget {
     );
   }
 }
+
+String _coinInputLabel(BuildContext context) {
+  final bool vi = Localizations.localeOf(context).languageCode == 'vi';
+  return vi ? 'Số xu muốn đổi' : 'Coins to redeem';
+}
+

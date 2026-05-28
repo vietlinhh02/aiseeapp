@@ -1,31 +1,58 @@
 import 'dart:async';
+
 import 'dart:io';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
+
 import 'package:image_picker/image_picker.dart';
+
 import 'package:just_audio/just_audio.dart';
+
 import 'package:permission_handler/permission_handler.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/aisee_api_models.dart';
+
 import '../models/aisee_call_info.dart';
+
 import '../models/aisee_family_member.dart';
+
 import '../models/aisee_message.dart';
+
 import '../services/aisee_call_service.dart';
+
 import '../services/aisee_chat_service.dart';
+
 import '../services/aisee_chat_socket.dart';
+
 import '../services/aisee_token_provider.dart';
+
 import '../services/in_app_message_controller.dart';
+
 import '../services/chat_recording_lifecycle_policy.dart';
+
 import '../services/aisee_upload_service.dart';
+
 import '../services/aisee_voice_recorder.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../utils/app_toast.dart';
+
 import '../widgets/app_wordmark.dart';
+
 import 'call_screen.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 class ChatDetailScreen extends StatefulWidget {
   const ChatDetailScreen({
@@ -683,9 +710,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   Widget _buildMessageList(AppLocalizations l) {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: StyleTokens.buttonPrimary),
-      );
+      return const AppLoadingIndicator();
     }
 
     if (_error != null) {

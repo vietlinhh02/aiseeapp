@@ -1,17 +1,30 @@
 import 'dart:async';
+
 import 'dart:convert';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/aisee_care_models.dart';
+
 import '../services/aisee_analytics_service.dart';
+
 import '../services/aisee_care_service.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../utils/app_toast.dart';
+
 import 'family_care_support.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 String _ymd(DateTime d) {
   return '${d.year.toString().padLeft(4, '0')}-'
@@ -99,7 +112,7 @@ class _CareTimelinePageState extends State<CareTimelinePage> {
         children: const <Widget>[
           SizedBox(
             height: 120,
-            child: Center(child: CircularProgressIndicator()),
+            child: AppLoadingIndicator(),
           ),
         ],
       );
@@ -266,7 +279,7 @@ class _CareDailyBriefPageState extends State<CareDailyBriefPage> {
         children: const <Widget>[
           SizedBox(
             height: 120,
-            child: Center(child: CircularProgressIndicator()),
+            child: AppLoadingIndicator(),
           ),
         ],
       );
@@ -422,7 +435,7 @@ class _CareWeeklyReportPageState extends State<CareWeeklyReportPage> {
         children: const <Widget>[
           SizedBox(
             height: 120,
-            child: Center(child: CircularProgressIndicator()),
+            child: AppLoadingIndicator(),
           ),
         ],
       );
@@ -580,7 +593,7 @@ class _CareIncidentPageState extends State<CareIncidentPage> {
         children: const <Widget>[
           SizedBox(
             height: 120,
-            child: Center(child: CircularProgressIndicator()),
+            child: AppLoadingIndicator(),
           ),
         ],
       );

@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/aisee_dashboard_models.dart';
+
 import '../theme/style_tokens.dart';
+
 import 'family_dashboard_format.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 class FamilyDashboardAuditTab extends StatelessWidget {
   const FamilyDashboardAuditTab({
@@ -26,7 +34,7 @@ class FamilyDashboardAuditTab extends StatelessWidget {
     if (loading) {
       return const ColoredBox(
         color: StyleTokens.background,
-        child: Center(child: CircularProgressIndicator()),
+        child: AppLoadingIndicator(),
       );
     }
     if (logs.isEmpty) {

@@ -1,23 +1,42 @@
 import 'dart:async';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
+
 import 'package:url_launcher/url_launcher.dart';
 
+
 import '../models/aisee_api_models.dart';
+
 import '../models/aisee_billing_models.dart';
+
 import '../models/aisee_family_group.dart';
+
 import '../services/aisee_analytics_service.dart';
+
 import '../services/aisee_billing_service.dart';
+
 import '../services/aisee_family_service.dart';
+
 import '../services/aisee_profile_cache.dart';
+
 import '../services/aisee_revenuecat_service.dart';
+
 import '../services/aisee_token_provider.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../utils/app_toast.dart';
+
 import '../widgets/app_wordmark.dart';
+
 import '../generated/l10n/app_localizations.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({
@@ -413,7 +432,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoadingIndicator();
     }
     if (_error != null) {
       return Center(

@@ -1,20 +1,37 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
+
 import 'package:google_sign_in/google_sign_in.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/aisee_api_models.dart';
+
 import '../models/aisee_call_info.dart';
+
 import '../services/aisee_chat_socket.dart';
+
 import '../services/aisee_push_service.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../widgets/app_wordmark.dart';
+
 import '../widgets/user_low_vision_bottom_nav.dart';
+
 import 'call_screen.dart';
+
 import 'family_support_overview_tab.dart';
+
 import 'family_messages_tab.dart';
+
 import 'family_personal_tab.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 /// Home thành viên gia đình — 3 tab + pill nav nổi, khớp layout UserHomeScreen.
 class FamilyHomeScreen extends StatefulWidget {
@@ -119,7 +136,7 @@ class _FamilyHomeScreenState extends State<FamilyHomeScreen>
   @override
   Widget build(BuildContext context) {
     if (widget.aiseeLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppLoadingIndicator());
     }
 
     final profile = widget.aiseeProfile;

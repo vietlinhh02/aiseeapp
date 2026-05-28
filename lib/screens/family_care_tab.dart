@@ -1,17 +1,30 @@
 import 'dart:async';
 
+
 import 'package:flutter/material.dart';
+
 import 'package:aiseeapp/theme/aisee_typography.dart';
 
+
 import '../generated/l10n/app_localizations.dart';
+
 import '../models/aisee_care_models.dart';
+
 import '../services/aisee_analytics_service.dart';
+
 import '../services/aisee_care_service.dart';
+
 import '../theme/style_tokens.dart';
+
 import '../utils/app_toast.dart';
+
 import 'family_care_pages.dart' show CareDailyBriefPage;
+
 import 'family_care_support.dart';
+
 import 'family_care_widgets.dart';
+import '../widgets/app_loading_indicator.dart';
+
 
 /// Tab Chăm sóc — hub Care MVP (biểu đồ + bảng) + cảnh báo + việc cần làm.
 class FamilyCareTab extends StatefulWidget {
@@ -336,7 +349,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
             if (_loadingBrief)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()),
+                child: AppLoadingIndicator(),
               )
             else if (_briefError != null)
               _ErrorCard(
@@ -381,7 +394,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
             if (_loadingAlerts)
               const Padding(
                 padding: EdgeInsets.all(20),
-                child: Center(child: CircularProgressIndicator()),
+                child: AppLoadingIndicator(),
               )
             else if (_alertsError != null)
               Padding(
@@ -431,7 +444,7 @@ class _FamilyCareTabState extends State<FamilyCareTab> {
             if (_loadingTasks)
               const Padding(
                 padding: EdgeInsets.all(20),
-                child: Center(child: CircularProgressIndicator()),
+                child: AppLoadingIndicator(),
               )
             else if (_tasksError != null)
               Padding(

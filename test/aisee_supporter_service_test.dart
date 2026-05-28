@@ -23,16 +23,12 @@ void main() {
           'active_supporters': 2,
           'supporters': <Object?>[
             <String, Object?>{
-              'id': 'u1',
-              'display_name': 'Linh',
-              'avatar_url': 'https://example.com/a.png',
+              'anon_seed': 'abc123def456',
             },
           ],
           'activities': <Object?>[
             <String, Object?>{
-              'actor_id': 'u1',
-              'actor_display_name': 'Linh',
-              'actor_avatar_url': 'https://example.com/a.png',
+              'anon_seed': 'abc123def456',
               'type': 'redeem',
               'amount': 300,
               'occurred_at': '2026-05-27T00:00:00Z',
@@ -50,8 +46,7 @@ void main() {
     );
 
     expect(response.community.supporters, hasLength(1));
-    expect(response.community.supporters.first.displayName, 'Linh');
-    expect(response.community.supporters.first.avatarUrl, contains('a.png'));
+    expect(response.community.supporters.first.anonSeed, 'abc123def456');
     final List<CommunitySupporterActivity> activities =
         response.community.activities ?? const <CommunitySupporterActivity>[];
     expect(activities, hasLength(1));
