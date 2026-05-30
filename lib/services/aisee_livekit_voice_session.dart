@@ -29,6 +29,8 @@ import '../models/aisee_family_member.dart';
 import '../models/aisee_message.dart';
 import '../utils/app_toast.dart';
 import 'aisee_analytics_service.dart';
+import 'aisee_audio_route_service.dart';
+import 'aisee_camera_selection_service.dart';
 import 'aisee_content_guard_service.dart';
 import 'aisee_nsfw_classifier.dart';
 import '../config/aisee_locale_controller.dart';
@@ -257,12 +259,17 @@ class AiseeLiveKitVoiceSession {
     }
   }
 
-  /// Camera đầu tiên trong danh sách thiết bị (index 0) — thường là camera sau trên Android.
+  /// Select camera for Agent vision, preferring standard wide back camera.
+  ///
+  /// Uses [AiseeCameraSelectionService] to avoid ultra-wide/fisheye lenses
+  /// that distort text and make OCR inaccurate.
   Future<CameraCaptureOptions> _agentCameraCaptureOptions() async {
     try {
-      final List<MediaDevice> inputs = await Hardware.instance.videoInputs();
-      if (inputs.isNotEmpty) {
-        return CameraCaptureOptions(deviceId: inputs[0].deviceId);
+      final MediaDevice? device =
+          await AiseeCameraSelectionService.selectLiveKitDeviceForAgentVision();
+      if (device != null) {
+        _log('Camera', 'Agent vision camera selected: ${device.label}');
+        return CameraCaptureOptions(deviceId: device.deviceId);
       }
     } catch (e, st) {
       debugPrint('videoInputs: $e\n$st');
@@ -498,23 +505,9 @@ class AiseeLiveKitVoiceSession {
   Future<void> _configureAudioSession() async {
     if (kIsWeb) return;
     try {
-      final AudioSession session = await AudioSession.instance;
-      await session.configure(
-        AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-          avAudioSessionCategoryOptions:
-              AVAudioSessionCategoryOptions.defaultToSpeaker |
-              AVAudioSessionCategoryOptions.allowBluetooth |
-              AVAudioSessionCategoryOptions.allowBluetoothA2dp,
-          avAudioSessionMode: AVAudioSessionMode.voiceChat,
-          androidAudioAttributes: const AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.speech,
-            usage: AndroidAudioUsage.voiceCommunication,
-          ),
-          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        ),
-      );
-      _log('Audio', 'Audio session configured (headphone + BT)');
+      await AiseeAudioRouteService.instance.enterAgentMode();
+      _log('Audio', 'Audio session configured via AudioRouteService '
+          '(headphone + BT, speaker)');
     } catch (e) {
       _log('Audio', 'Audio session config failed: $e');
     }
@@ -661,6 +654,7 @@ class AiseeLiveKitVoiceSession {
         await _ensurePermission(Permission.camera, nameVi: 'camera');
       }
       final CameraCaptureOptions camOpts = await _agentCameraCaptureOptions();
+      _log('RPC', 'enable_camera deviceId=${camOpts.deviceId}');
       await lp.setCameraEnabled(true, cameraCaptureOptions: camOpts);
       unawaited(
         AiseeAnalyticsService.instance.trackOnce(
@@ -1420,9 +1414,12 @@ class AiseeLiveKitVoiceSession {
     await setRoomMicrophoneEnabled(true);
     try {
       await configureAudioSession();
+      // Ensure audio is routed to speaker (not earpiece) when Agent mic
+      // is enabled — this is critical after a family/support call ends.
+      await AiseeAudioRouteService.instance.enterAgentMode();
       await ensureForegroundStartedAfterConnected();
       _assistantMicEnabled = true;
-      _log('Connect', 'Assistant mic ON by wake handoff');
+      _log('Connect', 'Assistant mic ON by wake handoff (speaker mode)');
     } catch (e) {
       try {
         await setRoomMicrophoneEnabled(false);

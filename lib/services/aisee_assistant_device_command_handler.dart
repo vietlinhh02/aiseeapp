@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +10,7 @@ import '../models/aisee_incoming_call.dart';
 import '../services/aisee_location_service.dart';
 import 'aisee_ai_session.dart';
 import 'aisee_assistant_incoming_call_bridge.dart';
+import 'aisee_audio_route_service.dart';
 import 'aisee_device_command_contract.dart';
 
 typedef AiseeAssistantCameraCommand =
@@ -296,10 +296,14 @@ class AiseeDefaultAssistantDeviceCommandHandler
       case AudioControlActions.stop:
         await player.stop();
         _nowPlayingTitle.value = null;
+        // Restore Agent voice mode when music is explicitly stopped.
+        unawaited(AiseeAudioRouteService.instance.restoreAgentMode());
       case AudioControlActions.next:
       case AudioControlActions.previous:
         await player.stop();
         _nowPlayingTitle.value = null;
+        // Restore Agent voice mode when music is stopped (next/prev).
+        unawaited(AiseeAudioRouteService.instance.restoreAgentMode());
       default:
         throw AiseeAssistantDeviceCommandException(
           message: 'Unsupported command: $command',
@@ -382,18 +386,16 @@ class AiseeDefaultAssistantDeviceCommandHandler
       if (!state.playing &&
           state.processingState == ProcessingState.completed) {
         _nowPlayingTitle.value = null;
+        // Restore Agent voice mode after music finishes playing.
+        unawaited(AiseeAudioRouteService.instance.restoreAgentMode());
       }
     });
     return player;
   }
 
   Future<void> _configureMusicAudioSession() async {
-    if (kIsWeb) {
-      return;
-    }
-
-    final AudioSession session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.music());
+    if (kIsWeb) return;
+    await AiseeAudioRouteService.instance.enterMusicMode();
   }
 
   String _paramString(Map<String, dynamic> params, List<String> keys) {

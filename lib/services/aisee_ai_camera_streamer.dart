@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'aisee_camera_selection_service.dart';
 import 'aisee_nsfw_classifier.dart';
 
 abstract interface class AiseeAiCameraStreamer {
@@ -61,23 +62,20 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
       }
     }
 
-    final List<CameraDescription> cameras = await availableCameras();
-    if (cameras.isEmpty) {
+    // Use camera selection service to pick standard wide back camera,
+    // avoiding ultra-wide/fisheye lenses that distort text for OCR.
+    final CameraDescription? camera =
+        await AiseeCameraSelectionService.selectForAgentVision();
+    if (camera == null) {
       throw StateError('Thiết bị không có camera khả dụng.');
     }
+    debugPrint('[AiSee:AICamera] selected camera: ${camera.name} '
+        '(${camera.lensDirection})');
 
-    final CameraDescription camera = cameras.firstWhere(
-      (CameraDescription item) =>
-          item.lensDirection == CameraLensDirection.back,
-      orElse: () => cameras.first,
-    );
-
-    final CameraController controller = CameraController(
-      camera,
-      ResolutionPreset.medium,
-      enableAudio: false,
-    );
-    await controller.initialize();
+    // Use high resolution (1080p) for better OCR text recognition.
+    // Also enable autofocus for reading labels and text.
+    final CameraController controller =
+        await AiseeCameraSelectionService.createOCRController(camera);
     if (_disposed) {
       await controller.dispose();
       return;

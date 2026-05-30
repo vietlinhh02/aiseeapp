@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -10,7 +11,9 @@ import '../config/app_env.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../models/aisee_api_models.dart';
 import '../models/aisee_call_info.dart';
+import '../services/aisee_audio_route_service.dart';
 import '../services/aisee_call_service.dart';
+import '../services/aisee_camera_selection_service.dart';
 import '../services/aisee_notification_feedback.dart';
 import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
@@ -140,6 +143,12 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   Future<void> _connectToRoom() async {
+    debugPrint('[AiSee:Call] _connectToRoom start');
+    debugPrint('[AiSee:Call] callType=${widget.callInfo.callType} '
+        'isVideo=$_isVideo '
+        'contactRole=${widget.callInfo.contact.role} '
+        'contactName=${widget.callInfo.contact.displayName}');
+
     final Room room = Room(
       roomOptions: const RoomOptions(
         adaptiveStream: true,
@@ -155,6 +164,8 @@ class _CallScreenState extends State<CallScreen> {
 
     listener
       ..on<ParticipantConnectedEvent>((ParticipantConnectedEvent e) {
+        debugPrint('[AiSee:Call] remoteParticipantConnected '
+            'identity=${e.participant.identity}');
         if (!mounted) return;
         _markAnswered(e.participant);
       })
@@ -163,6 +174,8 @@ class _CallScreenState extends State<CallScreen> {
         _markAnswered(e.participant);
       })
       ..on<LocalTrackPublishedEvent>((LocalTrackPublishedEvent e) {
+        debugPrint('[AiSee:Call] localTrackPublished '
+            'source=${e.publication.source}');
         if (!mounted) return;
         if (!aiseeShouldRefreshLocalVideoUi(
           isLocalParticipant: true,
@@ -175,6 +188,8 @@ class _CallScreenState extends State<CallScreen> {
         });
       })
       ..on<LocalTrackUnpublishedEvent>((LocalTrackUnpublishedEvent e) {
+        debugPrint('[AiSee:Call] localTrackUnpublished '
+            'source=${e.publication.source}');
         if (!mounted) return;
         if (!aiseeShouldRefreshLocalVideoUi(
           isLocalParticipant: true,
@@ -211,18 +226,33 @@ class _CallScreenState extends State<CallScreen> {
         });
       })
       ..on<ParticipantDisconnectedEvent>(
-        (ParticipantDisconnectedEvent e) => _endCall(remoteEnded: true),
+        (ParticipantDisconnectedEvent e) {
+          debugPrint('[AiSee:Call] remoteParticipantDisconnected '
+              'identity=${e.participant.identity}');
+          _endCall(remoteEnded: true);
+        },
       )
       ..on<RoomDisconnectedEvent>(
-        (RoomDisconnectedEvent e) => _endCall(remoteEnded: true),
+        (RoomDisconnectedEvent e) {
+          debugPrint('[AiSee:Call] roomDisconnected');
+          _endCall(remoteEnded: true);
+        },
       );
 
     try {
       await room.connect(AppEnv.liveKitWsUrl, widget.callInfo.token);
       await FlutterCallkitIncoming.setCallConnected(widget.callInfo.roomName);
+
+      // Mark audio context as phone call.
+      await AiseeAudioRouteService.instance.enterPhoneCallMode();
+
       await room.localParticipant?.setMicrophoneEnabled(true);
+      debugPrint('[AiSee:Call] microphone enabled');
+
       if (_isVideo) {
-        final CameraCaptureOptions camOpts = await _rearCameraCaptureOptions();
+        final CameraCaptureOptions camOpts = await _callCameraCaptureOptions();
+        debugPrint('[AiSee:Call] video enabled, '
+            'cameraDeviceId=${camOpts.deviceId}');
         await room.localParticipant?.setCameraEnabled(
           true,
           cameraCaptureOptions: camOpts,
@@ -241,6 +271,7 @@ class _CallScreenState extends State<CallScreen> {
 
       if (aiseeShouldEnableSpeakerByDefault(widget.callInfo.callType)) {
         await room.setSpeakerOn(true);
+        debugPrint('[AiSee:Call] speaker ON');
       }
     } catch (e, st) {
       debugPrint('[AiSee:Call] connect error: $e\n$st');
@@ -344,12 +375,14 @@ class _CallScreenState extends State<CallScreen> {
     try {
       final bool next = !_cameraEnabled;
       if (next) {
-        final CameraCaptureOptions camOpts = await _rearCameraCaptureOptions();
+        final CameraCaptureOptions camOpts = await _callCameraCaptureOptions();
+        debugPrint('[AiSee:Call] toggleCamera ON, deviceId=${camOpts.deviceId}');
         await _room?.localParticipant?.setCameraEnabled(
           true,
           cameraCaptureOptions: camOpts,
         );
       } else {
+        debugPrint('[AiSee:Call] toggleCamera OFF');
         await _room?.localParticipant?.setCameraEnabled(false);
       }
       if (!mounted) return;
@@ -361,20 +394,30 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  Future<CameraCaptureOptions> _rearCameraCaptureOptions() async {
+  /// Select camera for the call, preferring back camera for support calls.
+  Future<CameraCaptureOptions> _callCameraCaptureOptions() async {
     try {
-      final List<MediaDevice> inputs = await Hardware.instance.videoInputs();
-      if (inputs.isNotEmpty) {
-        return CameraCaptureOptions(deviceId: inputs[0].deviceId);
+      final String role = widget.callInfo.contact.role;
+      // Support/volunteer call: use back camera (standard wide).
+      // Family face call: also back camera (user shows themselves).
+      // Both use the camera selection service to avoid ultra-wide lenses.
+      final MediaDevice? device =
+          await AiseeCameraSelectionService.selectLiveKitDeviceForAgentVision();
+      if (device != null) {
+        debugPrint('[AiSee:Call] selected camera: ${device.label} '
+            'role=$role');
+        return CameraCaptureOptions(deviceId: device.deviceId);
       }
     } catch (e) {
-      debugPrint('[AiSee:Call] videoInputs error: $e');
+      debugPrint('[AiSee:Call] camera selection error: $e');
     }
     return const CameraCaptureOptions(cameraPosition: CameraPosition.back);
   }
 
   Future<void> _endCall({bool remoteEnded = false}) async {
     if (_state == _CallState.ended) return;
+    debugPrint('[AiSee:Call] _endCall remoteEnded=$remoteEnded '
+        'answered=$_answeredNotified duration=${_duration.value}');
     AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
     _answerTimeoutTimer?.cancel();
     if (_state == _CallState.ringing && !_ringingEndNotified) {
@@ -392,6 +435,12 @@ class _CallScreenState extends State<CallScreen> {
 
     // Fire-and-forget: backend cleanup + LiveKit disconnect run in background.
     unawaited(_cleanupRoom());
+
+    // Restore audio session for Agent mode.
+    // Without this, audio gets stuck on earpiece after call ends because
+    // LiveKit's room.disconnect() tears down the native audio session
+    // configuration that the Agent was using (playAndRecord + defaultToSpeaker).
+    unawaited(AiseeAudioRouteService.instance.restoreAgentMode());
 
     // Pop immediately — no delay.
     if (mounted) {

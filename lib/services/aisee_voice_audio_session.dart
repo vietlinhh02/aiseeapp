@@ -1,25 +1,11 @@
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 
-Future<void> configureAiseeVoiceAudioSession() async {
-  if (kIsWeb) {
-    return;
-  }
+import 'aisee_audio_route_service.dart';
 
-  final AudioSession session = await AudioSession.instance;
-  await session.configure(
-    AudioSessionConfiguration(
-      avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-      avAudioSessionCategoryOptions:
-          AVAudioSessionCategoryOptions.defaultToSpeaker |
-          AVAudioSessionCategoryOptions.allowBluetooth |
-          AVAudioSessionCategoryOptions.allowBluetoothA2dp,
-      avAudioSessionMode: AVAudioSessionMode.voiceChat,
-      androidAudioAttributes: const AndroidAudioAttributes(
-        contentType: AndroidAudioContentType.speech,
-        usage: AndroidAudioUsage.voiceCommunication,
-      ),
-      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-    ),
-  );
+/// Configure audio session for Agent voice mode.
+///
+/// Delegates to [AiseeAudioRouteService] for centralized audio routing.
+Future<void> configureAiseeVoiceAudioSession() async {
+  if (kIsWeb) return;
+  await AiseeAudioRouteService.instance.enterAgentMode();
 }
