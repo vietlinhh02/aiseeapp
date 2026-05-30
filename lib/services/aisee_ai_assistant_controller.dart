@@ -9,6 +9,7 @@ import 'aisee_ai_camera_streamer.dart';
 import 'aisee_ai_microphone_input.dart';
 import 'aisee_ai_session.dart';
 import 'aisee_assistant_device_command_handler.dart';
+import 'aisee_device_command_contract.dart';
 import 'aisee_assistant_incoming_call_bridge.dart';
 import 'aisee_audio_uplink_gate.dart';
 import 'aisee_pcm_audio_player.dart';
@@ -246,7 +247,7 @@ class AiseeAiAssistantController {
           _handleMicrophoneFrame(bytes);
         },
       );
-      await _session.sendControl('wake_greeting');
+      await _session.sendControl(AiControlActions.wakeGreeting);
       _micEnabled = true;
       _startWaveDecayTimer();
     } catch (_) {
@@ -352,16 +353,17 @@ class AiseeAiAssistantController {
   }
 
   Future<void> _handleDeviceCommand(AiseeAiDeviceCommandRequest request) async {
-    final bool isMusicPlaybackCommand = request.name == 'play_audio';
-    final bool isStartCallCommand = request.name == 'start_call';
-    final bool micWasEnabledBeforeCall = isStartCallCommand && _micEnabled;
+    final String name = request.name;
+    final bool needsMicPause = DeviceCommandContract.requiresMicPause(name);
+    final bool needsAudioStop = DeviceCommandContract.requiresAudioStop(name);
+    final bool micWasEnabledBeforeCall =
+        DeviceCommandContract.shouldResumeMicAfter(name) && _micEnabled;
     Map<String, Object?> result;
     try {
-      if (isMusicPlaybackCommand) {
+      if (needsAudioStop) {
         await disableAssistantMic();
         await _audioPlayer.stop(reason: 'play-audio-command');
-      }
-      if (isStartCallCommand) {
+      } else if (needsMicPause) {
         await disableAssistantMic();
         await _audioPlayer.stop(reason: 'start-call-command');
       }
@@ -377,21 +379,33 @@ class AiseeAiAssistantController {
         'status': 'error',
         'message': error.message,
         if (error.rpcCode != null) 'code': error.rpcCode,
+        'recoverable': true,
       };
     } catch (error) {
+      final String errorString = error.toString();
+      final bool isPermissionError =
+          errorString.contains('permission') ||
+          errorString.contains('Permission') ||
+          errorString.contains('Cần quyền');
       result = <String, Object?>{
         'status': 'error',
-        'message': error.toString(),
+        'message': errorString,
+        'recoverable': !isPermissionError,
       };
     }
 
     try {
       await _session.sendToolResult(request.requestId, result);
+    } catch (sendError) {
+      debugPrint(
+        '[AiSee:ToolCall] failed to send tool_result '
+        'name=${request.name} requestId=${request.requestId} error=$sendError',
+      );
     } finally {
-      if (isMusicPlaybackCommand) {
+      if (needsAudioStop) {
         await _resumeWakeAfterMusicPlayback();
       }
-      if (isStartCallCommand && micWasEnabledBeforeCall) {
+      if (DeviceCommandContract.shouldResumeMicAfter(name) && micWasEnabledBeforeCall) {
         await _resumeAssistantAfterCall();
       }
     }
@@ -417,7 +431,7 @@ class AiseeAiAssistantController {
     }
     try {
       await _session.sendControl(
-        'incoming_call',
+        AiControlActions.incomingCall,
         payload: <String, Object?>{
           'room_name': call.roomName,
           'caller_name': call.callerName,
@@ -438,7 +452,7 @@ class AiseeAiAssistantController {
     }
     try {
       await _session.sendControl(
-        'incoming_call_cleared',
+        AiControlActions.incomingCallCleared,
         payload: <String, Object?>{'room_name': roomName},
       );
     } catch (error, stack) {

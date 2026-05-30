@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/app_env.dart';
 import '../models/agent_state.dart';
+import 'aisee_device_command_contract.dart';
 
 enum AiseeAiSessionConnectionStatus {
   disconnected,
@@ -349,7 +350,7 @@ class AiseeAiSession {
     final AiseeAiSessionSocket socket = _requireSocket();
     await _ensureMediaMode(AiseeAiSessionMediaMode.audioPcm);
     if (!_audioStreaming) {
-      await _sendEnvelope('audio_start');
+      await _sendEnvelope(AiWsOutboundTypes.audioStart);
       _audioStreaming = true;
     }
     socket.add(Uint8List.fromList(bytes));
@@ -358,7 +359,7 @@ class AiseeAiSession {
   Future<void> sendCameraFrame(Uint8List bytes) async {
     final AiseeAiSessionSocket socket = _requireSocket();
     if (_audioStreaming) {
-      await _sendEnvelope('audio_stop');
+      await _sendEnvelope(AiWsOutboundTypes.audioStop);
       _audioStreaming = false;
     }
     await _ensureMediaMode(AiseeAiSessionMediaMode.cameraJpeg);
@@ -370,20 +371,20 @@ class AiseeAiSession {
     Map<String, Object?> payload = const <String, Object?>{},
   }) {
     return _sendEnvelope(
-      'control',
+      AiWsOutboundTypes.control,
       payload: <String, Object?>{'action': action, ...payload},
     );
   }
 
   Future<void> sendNsfwDetected() {
-    return _sendEnvelope('nsfw_detected');
+    return _sendEnvelope(AiWsOutboundTypes.nsfwDetected);
   }
 
   Future<void> stopAudioStream() async {
     if (!_audioStreaming) {
       return;
     }
-    await _sendEnvelope('audio_stop');
+    await _sendEnvelope(AiWsOutboundTypes.audioStop);
     _audioStreaming = false;
   }
 
@@ -397,11 +398,11 @@ class AiseeAiSession {
       _ => <String, dynamic>{'result': result},
     };
 
-    return _sendEnvelope('tool_result', requestId: requestId, payload: payload);
+    return _sendEnvelope(AiWsOutboundTypes.toolResult, requestId: requestId, payload: payload);
   }
 
   Future<void> interrupt() {
-    return _sendEnvelope('interrupt');
+    return _sendEnvelope(AiWsOutboundTypes.interrupt);
   }
 
   Future<void> stop({
@@ -417,7 +418,7 @@ class AiseeAiSession {
     if (socket != null && _audioStreaming) {
       socket.add(
         jsonEncode(<String, Object?>{
-          'type': 'audio_stop',
+          'type': AiWsOutboundTypes.audioStop,
           'payload': const <String, Object?>{},
         }),
       );
@@ -466,7 +467,7 @@ class AiseeAiSession {
       return;
     }
     await _sendEnvelope(
-      'media_mode',
+      AiWsOutboundTypes.mediaMode,
       payload: <String, Object?>{'mode': mode.wireValue},
     );
     _outgoingMediaMode = mode;
@@ -530,27 +531,27 @@ class AiseeAiSession {
         : payload;
 
     switch (type) {
-      case 'ready':
+      case AiWsInboundTypes.ready:
         connectionStatus.value = AiseeAiSessionConnectionStatus.ready;
         break;
-      case 'agent_state':
+      case AiWsInboundTypes.agentState:
         _handleAgentState(eventPayload);
         break;
-      case 'tool_request':
+      case AiWsInboundTypes.toolRequest:
         _handleToolRequest(requestId, eventPayload);
         break;
-      case 'device_command':
+      case AiWsInboundTypes.deviceCommand:
         _handleDeviceCommand(requestId, eventPayload);
         break;
-      case 'assistant_audio_interrupted':
+      case AiWsInboundTypes.assistantAudioInterrupted:
         _assistantAudioInterruptedController.add(null);
         break;
-      case 'ping':
+      case AiWsInboundTypes.ping:
         unawaited(
-          _sendEnvelope('pong', requestId: requestId, payload: payload),
+          _sendEnvelope(AiWsOutboundTypes.pong, requestId: requestId, payload: payload),
         );
         break;
-      case 'error':
+      case AiWsInboundTypes.error:
         if (connectionStatus.value !=
             AiseeAiSessionConnectionStatus.disconnected) {
           connectionStatus.value = AiseeAiSessionConnectionStatus.failed;

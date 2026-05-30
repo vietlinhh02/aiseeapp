@@ -46,9 +46,11 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
       throw StateError('AI camera streamer has been disposed.');
     }
 
+    debugPrint('[AiSee:AICamera] start() called, wasBlocked=$_blocked, hasController=${_controller != null}');
     _onFrame = onFrame;
     _blocked = false;
     if (_controller != null) {
+      debugPrint('[AiSee:AICamera] start() reusing existing controller');
       return;
     }
 
@@ -92,6 +94,7 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
 
   @override
   Future<void> stop() async {
+    debugPrint('[AiSee:AICamera] stop() called');
     _frameTimer?.cancel();
     _frameTimer = null;
     _onFrame = null;
@@ -124,10 +127,12 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
   Future<void> _captureAndSend() async {
     final CameraController? controller = _controller;
     final void Function(Uint8List jpeg)? onFrame = _onFrame;
+    if (_blocked) {
+      return;
+    }
     if (controller == null ||
         onFrame == null ||
         _capturing ||
-        _blocked ||
         !controller.value.isInitialized ||
         controller.value.isTakingPicture) {
       return;
@@ -149,6 +154,7 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
       final score = classifier.runInference(classifyInput.tfliteInput);
 
       if (score > AiseeNsfwClassifier.defaultThreshold) {
+        debugPrint('[AiSee:AICamera] NSFW detected, score=$score — blocking camera');
         _blocked = true;
         unawaited(_handleUnsafeContent());
         return;
@@ -177,6 +183,7 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
   }
 
   Future<void> _handleUnsafeContent() async {
+    debugPrint('[AiSee:AICamera] _handleUnsafeContent — stopping camera and notifying backend');
     await stop();
     await onUnsafeContent?.call();
   }

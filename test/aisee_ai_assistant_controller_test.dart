@@ -590,6 +590,7 @@ void main() {
     expect(session.toolResults.single.result, <String, Object?>{
       'status': 'error',
       'message': 'cannot open maps',
+      'recoverable': true,
     });
 
     await controller.dispose();

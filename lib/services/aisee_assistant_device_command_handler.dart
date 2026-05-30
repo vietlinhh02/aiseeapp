@@ -11,6 +11,7 @@ import '../models/aisee_incoming_call.dart';
 import '../services/aisee_location_service.dart';
 import 'aisee_ai_session.dart';
 import 'aisee_assistant_incoming_call_bridge.dart';
+import 'aisee_device_command_contract.dart';
 
 typedef AiseeAssistantCameraCommand =
     Future<Map<String, Object?>> Function(Map<String, dynamic> params);
@@ -77,15 +78,15 @@ class AiseeDefaultAssistantDeviceCommandHandler
     AiseeAiDeviceCommandRequest request,
   ) async {
     return switch (request.name) {
-      'enable_camera' => _handleEnableCamera(request.params),
-      'disable_camera' => _handleDisableCamera(request.params),
-      'start_call' => _handleStartCall(request.params),
-      'answer_incoming_call' => _handleAnswerIncomingCall(request.params),
-      'decline_incoming_call' => _handleDeclineIncomingCall(request.params),
-      'play_audio' => _handlePlayAudio(request.params),
-      'control_audio' => _handleControlAudio(request.params),
-      'get_location' => _handleGetLocation(),
-      'open_maps' => _handleOpenMaps(request.params),
+      DeviceCommandNames.enableCamera => _handleEnableCamera(request.params),
+      DeviceCommandNames.disableCamera => _handleDisableCamera(request.params),
+      DeviceCommandNames.startCall => _handleStartCall(request.params),
+      DeviceCommandNames.answerIncomingCall => _handleAnswerIncomingCall(request.params),
+      DeviceCommandNames.declineIncomingCall => _handleDeclineIncomingCall(request.params),
+      DeviceCommandNames.playAudio => _handlePlayAudio(request.params),
+      DeviceCommandNames.controlAudio => _handleControlAudio(request.params),
+      DeviceCommandNames.getLocation => _handleGetLocation(),
+      DeviceCommandNames.openMaps => _handleOpenMaps(request.params),
       _ => throw AiseeAssistantDeviceCommandException(
         message: 'Unsupported command: ${request.name}',
         rpcCode: 2002,
@@ -268,12 +269,13 @@ class AiseeDefaultAssistantDeviceCommandHandler
       'action',
       'op',
     ]).toLowerCase();
-    if (command == 'volume_up' || command == 'volume_down') {
+    if (command == AudioControlActions.volumeUp ||
+        command == AudioControlActions.volumeDown) {
       final VolumeController controller = VolumeController.instance;
       controller.showSystemUI = true;
       final double current = await controller.getVolume();
       const double step = 0.1;
-      final double next = command == 'volume_up'
+      final double next = command == AudioControlActions.volumeUp
           ? (current + step).clamp(0.0, 1.0)
           : (current - step).clamp(0.0, 1.0);
       await controller.setVolume(next);
@@ -286,16 +288,16 @@ class AiseeDefaultAssistantDeviceCommandHandler
     }
 
     switch (command) {
-      case 'pause':
+      case AudioControlActions.pause:
         await player.pause();
-      case 'resume':
-      case 'play':
+      case AudioControlActions.resume:
+      case AudioControlActions.play:
         await player.play();
-      case 'stop':
+      case AudioControlActions.stop:
         await player.stop();
         _nowPlayingTitle.value = null;
-      case 'next':
-      case 'previous':
+      case AudioControlActions.next:
+      case AudioControlActions.previous:
         await player.stop();
         _nowPlayingTitle.value = null;
       default:
