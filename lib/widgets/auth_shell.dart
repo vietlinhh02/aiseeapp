@@ -28,6 +28,7 @@ import 'permission_bootstrap_gate.dart';
 import '../services/aisee_profile_cache.dart';
 import '../services/aisee_session_store.dart';
 import '../utils/app_toast.dart';
+import '../utils/jwt_expiry.dart';
 
 void _authLog(String message) {
   debugPrint('[AiSeeAuth] $message');
@@ -134,8 +135,21 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_aiseeProfile == null) return;
     if (state == AppLifecycleState.resumed) {
+      _refreshTokenOnResume();
       _connectChatSocketIfNeeded();
     }
+  }
+
+  Future<void> _refreshTokenOnResume() async {
+    final AiseeAuthTokens? stored = await _readStoredSession();
+    if (stored == null) return;
+    if (!isJwtExpiringSoon(stored.accessToken)) return;
+    final String? token = await AiseeTokenProvider.instance.accessToken(
+      forceRefresh: true,
+    );
+    if (token != null) return;
+    _authLog('resume: refresh token expired, về login');
+    await _clearSessionAndRouteToLogin(showExpiredToast: true);
   }
 
   Future<void> _connectChatSocketIfNeeded() async {
@@ -303,6 +317,19 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       return;
     }
     if (resumed == null) {
+      final ({AiseeUserProfile profile, AiseeAuthTokens tokens})? recovered =
+          await _resumeLatestStoredSession(tokens);
+      if (!mounted) {
+        return;
+      }
+      if (recovered != null) {
+        _authLog(
+          'syncSession(nền): recovered from rotated stored token '
+          'userId=${recovered.profile.id}',
+        );
+        await _applySessionFromServer(recovered);
+        return;
+      }
       _authLog('syncSession(nền): refresh failed, về login');
       await _clearSessionAndRouteToLogin(showExpiredToast: true);
       return;
@@ -312,6 +339,21 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
       'role=${resumed.profile.role ?? "null"}',
     );
     await _applySessionFromServer(resumed);
+  }
+
+  Future<({AiseeUserProfile profile, AiseeAuthTokens tokens})?>
+  _resumeLatestStoredSession(AiseeAuthTokens failedTokens) async {
+    final AiseeAuthTokens? latest = await _readStoredSession();
+    if (latest == null || _sameTokens(latest, failedTokens)) {
+      return null;
+    }
+    _authLog('syncSession(nền): retry latest stored token after refresh race');
+    return _aiseeAuth.resumeSession(latest);
+  }
+
+  bool _sameTokens(AiseeAuthTokens first, AiseeAuthTokens second) {
+    return first.accessToken == second.accessToken &&
+        first.refreshToken == second.refreshToken;
   }
 
   void _onAuthEvent(GoogleSignInAuthenticationEvent event) {
@@ -356,9 +398,17 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         AiseeInAppMessageController.instance.setActiveConversation(null);
         unawaited(_completeSignInWithRole(role));
       case GoogleSignInAuthenticationEventSignOut():
-        _authLog('googleSignOut');
-        final bool showOutToast = _toastAfterSignOut;
+        final bool userInitiated = _toastAfterSignOut;
         _toastAfterSignOut = false;
+        if (!userInitiated && _aiseeProfile != null) {
+          _authLog(
+            'googleSignOut: không phải user-initiated, '
+            'giữ phiên AiSee backend',
+          );
+          setState(() => _user = null);
+          return;
+        }
+        _authLog('googleSignOut${userInitiated ? " (user-initiated)" : ""}');
         unawaited(AiseeSessionStore.instance.clear());
         unawaited(AiseeProfileCache.instance.clear());
         setState(() {
@@ -369,7 +419,7 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         });
         AiseeInAppMessageController.instance.setCurrentUserId(null);
         AiseeInAppMessageController.instance.setActiveConversation(null);
-        if (showOutToast) {
+        if (userInitiated) {
           unawaited(AppToast.show(_l().authSignedOut, isError: false));
         }
     }
@@ -519,6 +569,11 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
 
   void _onAuthError(Object error, StackTrace stackTrace) {
     if (!mounted) return;
+    if (_aiseeProfile != null && !_toastAfterSignIn) {
+      _authLog('googleSignIn: lỗi nền, giữ phiên AiSee backend — $error');
+      setState(() => _user = null);
+      return;
+    }
     unawaited(AiseeSessionStore.instance.clear());
     unawaited(AiseeProfileCache.instance.clear());
     setState(() {

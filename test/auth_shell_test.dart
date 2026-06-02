@@ -189,6 +189,65 @@ void main() {
       expect(find.byKey(const ValueKey<String>('home-ui')), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'background revalidation keeps home when another refresh rotates tokens',
+    (WidgetTester tester) async {
+      AiseeAuthTokens storedTokens = const AiseeAuthTokens(
+        accessToken: 'old-access',
+        refreshToken: 'old-refresh',
+      );
+      int clearSessionCalls = 0;
+      final AiseeUserProfile profile = const AiseeUserProfile(
+        id: 'u1',
+        email: 'u1@example.com',
+        role: 'user',
+        displayName: 'User One',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('vi'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AuthShell(
+            authService: _RefreshRaceAuthService(
+              profile: profile,
+              rotateStoredTokens: () {
+                storedTokens = const AiseeAuthTokens(
+                  accessToken: 'fresh-access',
+                  refreshToken: 'fresh-refresh',
+                );
+              },
+            ),
+            enableGoogleBootstrap: false,
+            onboardingStore: _FakeOnboardingStore(
+              hasCompletedAppOnboardingValue: true,
+              selectedRole: 'user',
+            ),
+            readCachedProfile: () async => profile,
+            readStoredSession: () async => storedTokens,
+            clearStoredSession: () async {
+              clearSessionCalls += 1;
+            },
+            clearCachedProfile: () async {},
+            buildPermissionGate: (Widget child, VoidCallback onCompleted) =>
+                const Placeholder(key: ValueKey<String>('home-ui')),
+            buildLoginScreen: (_, _) =>
+                const Placeholder(key: ValueKey<String>('login-ui')),
+            activateAuthenticatedSession: (_, _) async {},
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(clearSessionCalls, 0);
+      expect(find.byKey(const ValueKey<String>('home-ui')), findsOneWidget);
+      expect(find.byKey(const ValueKey<String>('login-ui')), findsNothing);
+    },
+  );
 }
 
 class _FakeAuthService extends AiseeAuthService {}
@@ -204,6 +263,27 @@ class _ResumingAuthService extends AiseeAuthService {
     AiseeAuthTokens initial,
   ) {
     return resumeCompleter.future;
+  }
+}
+
+class _RefreshRaceAuthService extends AiseeAuthService {
+  _RefreshRaceAuthService({
+    required this.profile,
+    required this.rotateStoredTokens,
+  });
+
+  final AiseeUserProfile profile;
+  final VoidCallback rotateStoredTokens;
+
+  @override
+  Future<({AiseeUserProfile profile, AiseeAuthTokens tokens})?> resumeSession(
+    AiseeAuthTokens initial,
+  ) async {
+    if (initial.refreshToken == 'old-refresh') {
+      rotateStoredTokens();
+      return null;
+    }
+    return (profile: profile, tokens: initial);
   }
 }
 
