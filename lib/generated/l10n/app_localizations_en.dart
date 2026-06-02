@@ -2116,7 +2116,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get subscriptionPlanCancelled => 'Cancelled';
 
   @override
-  String get subscriptionPlanUpdated2 => 'Cập nhật gói';
+  String get subscriptionPlanUpdated2 => 'Updated plan';
 
   @override
   String get subscriptionGrantedManually => 'Granted manually';

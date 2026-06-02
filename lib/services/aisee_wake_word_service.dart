@@ -4,74 +4,102 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_wake_word/instance_config.dart';
-import 'package:flutter_wake_word/use_model.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 const String _aiseeWakeInstanceId = 'aisee_wake';
-const MethodChannel _wakeWordMethodChannel = MethodChannel('flutter_wake_word');
+const MethodChannel _wakeWordMethodChannel = MethodChannel(
+  'com.aisee.aiseeapp/livekit_wake_word',
+);
 const MethodChannel _nativePlatformMethodChannel = MethodChannel(
   'com.aisee.aiseeapp/platform',
 );
 
 abstract class AiseeWakeWordBackend {
-  Future<void> setKeywordDetectionLicense(String license);
-  Future<void> addInstanceMulti(
-    MultiInstanceConfig config,
-    void Function(Map<String, dynamic> event) onDetectionEvent,
-  );
+  void setDetectionHandler(void Function(Map<String, dynamic> event)? handler);
+
+  Future<void> configure({
+    required String id,
+    required List<String> modelNames,
+    required double threshold,
+    required int debounceMs,
+  });
+
   Future<void> startListening();
+
   Future<void> stopListening();
-  Future<void> removeInstance(String id);
+
+  Future<void> dispose();
 }
 
-class _UseModelWakeWordBackend implements AiseeWakeWordBackend {
-  _UseModelWakeWordBackend() : _useModel = UseModel();
+class _LiveKitWakeWordBackend implements AiseeWakeWordBackend {
+  _LiveKitWakeWordBackend() {
+    _wakeWordMethodChannel.setMethodCallHandler(_handleNativeMethodCall);
+  }
 
-  final UseModel _useModel;
+  void Function(Map<String, dynamic> event)? _onDetectionEvent;
 
   @override
-  Future<void> setKeywordDetectionLicense(String license) {
-    return _useModel.setKeywordDetectionLicense(license);
+  void setDetectionHandler(void Function(Map<String, dynamic> event)? handler) {
+    _onDetectionEvent = handler;
+  }
+
+  Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (call.method != 'onWakeWordDetected') {
+      throw MissingPluginException('Unknown wake word method ${call.method}');
+    }
+    final Object? arguments = call.arguments;
+    final Map<String, dynamic> event = <String, dynamic>{};
+    if (arguments is Map) {
+      for (final MapEntry<Object?, Object?> entry in arguments.entries) {
+        event[entry.key.toString()] = entry.value;
+      }
+    }
+    _onDetectionEvent?.call(event);
   }
 
   @override
-  Future<void> addInstanceMulti(
-    MultiInstanceConfig config,
-    void Function(Map<String, dynamic> event) onDetectionEvent,
-  ) {
-    return _useModel.addInstanceMulti(config, onDetectionEvent);
+  Future<void> configure({
+    required String id,
+    required List<String> modelNames,
+    required double threshold,
+    required int debounceMs,
+  }) {
+    return _wakeWordMethodChannel.invokeMethod<void>('configure', {
+      'id': id,
+      'modelNames': modelNames,
+      'threshold': threshold,
+      'debounceMs': debounceMs,
+    });
   }
 
   @override
   Future<void> startListening() {
-    return _useModel.startListening();
+    return _wakeWordMethodChannel.invokeMethod<void>('startListening');
   }
 
   @override
   Future<void> stopListening() {
-    return _useModel.stopListening();
+    return _wakeWordMethodChannel.invokeMethod<void>('stopListening');
   }
 
   @override
-  Future<void> removeInstance(String id) {
-    return _useModel.removeInstance(id);
+  Future<void> dispose() {
+    return _wakeWordMethodChannel.invokeMethod<void>('dispose');
   }
 }
 
-/// DaVoice [flutter_wake_word](https://pub.dev/packages/flutter_wake_word): on-device wake word.
+/// LiveKit/openWakeWord-compatible on-device wake word.
 ///
 /// Cấu hình trong `assets/app_config.env`:
-/// - `DAVOICE_WAKEWORD_LICENSE` — license từ DaVoice
-/// - `DAVOICE_WAKEWORD_MODELS` — tên file `.onnx`, cách nhau bằng dấu phẩy (theo hướng dẫn triển khai model của DaVoice)
+/// - `LIVEKIT_WAKEWORD_MODELS` — tên file `.onnx`, cách nhau bằng dấu phẩy
+/// - `LIVEKIT_WAKEWORD_THRESHOLD` — ngưỡng 0-1, mặc định 0.5
 ///
-/// Nếu thiếu license hoặc danh sách model rỗng, service không khởi chạy (không lỗi).
+/// Nếu danh sách model rỗng, service không khởi chạy (không lỗi).
 class AiseeWakeWordService {
   AiseeWakeWordService._()
-    : _wakeModel = _UseModelWakeWordBackend(),
+    : _wakeModel = _LiveKitWakeWordBackend(),
       _debugIsSupportedPlatform = null,
       _debugMicrophoneGranted = null,
-      _debugLicense = null,
       _debugModelNames = null;
 
   @visibleForTesting
@@ -82,7 +110,6 @@ class AiseeWakeWordService {
     bool pausedForLiveKit = false,
     bool isSupportedPlatform = false,
     bool microphoneGranted = false,
-    String? license,
     List<String>? modelNames,
   }) : _wakeModel = wakeModel,
        _started = started,
@@ -90,7 +117,6 @@ class AiseeWakeWordService {
        _pausedForLiveKit = pausedForLiveKit,
        _debugIsSupportedPlatform = isSupportedPlatform,
        _debugMicrophoneGranted = microphoneGranted,
-       _debugLicense = license,
        _debugModelNames = modelNames;
 
   static final AiseeWakeWordService instance = AiseeWakeWordService._();
@@ -98,19 +124,17 @@ class AiseeWakeWordService {
   final AiseeWakeWordBackend _wakeModel;
   final bool? _debugIsSupportedPlatform;
   final bool? _debugMicrophoneGranted;
-  final String? _debugLicense;
   final List<String>? _debugModelNames;
   bool _started = false;
   bool _listening = false;
 
-  /// Wake đang tắt mic native vì LiveKit giữ phòng — không dùng [UseModel.isListening]
-  /// (package không set cờ đó sau [addInstanceMulti], nên pause trước đây bị bỏ qua nhầm).
+  /// Wake đang tắt mic native vì LiveKit giữ phòng.
   bool _pausedForLiveKit = false;
 
   bool get isConfiguredAndStarted => _started;
   bool get isListening => _listening;
   bool get isFeatureEnabledByConfig {
-    return _loadLicense().isNotEmpty && _loadModelNames().isNotEmpty;
+    return _loadModelNames().isNotEmpty;
   }
 
   /// Gọi khi phát hiện wake (giá trị `phrase` từ native, thường là tên model).
@@ -176,8 +200,9 @@ class AiseeWakeWordService {
     await startIdleListening();
   }
 
-  /// [liveKitMicActive]: true khi phòng LiveKit đã bật mic — wake sẽ khởi tạo engine rồi tạm dừng
-  /// để không tranh AudioRecord với WebRTC (sẽ [resumeAfterExclusiveMic] khi disconnect).
+  /// [liveKitMicActive]: true khi phòng LiveKit đã bật mic.
+  ///
+  /// Wake sẽ khởi tạo engine rồi tạm dừng để không tranh AudioRecord với WebRTC.
   Future<void> startIfConfigured({bool liveKitMicActive = false}) async {
     if (_started) {
       if (liveKitMicActive) {
@@ -189,12 +214,11 @@ class AiseeWakeWordService {
       return;
     }
 
-    final String license = _loadLicense();
     final List<String> modelNames = _loadModelNames();
-    if (license.isEmpty || modelNames.isEmpty) {
+    if (modelNames.isEmpty) {
       debugPrint(
-        '[AiSee:WakeWord] Bỏ qua: đặt DAVOICE_WAKEWORD_LICENSE và '
-        'DAVOICE_WAKEWORD_MODELS trong app_config.env để bật.',
+        '[AiSee:WakeWord] Bỏ qua: đặt LIVEKIT_WAKEWORD_MODELS '
+        'trong app_config.env để bật.',
       );
       return;
     }
@@ -208,31 +232,30 @@ class AiseeWakeWordService {
       return;
     }
 
-    final int n = modelNames.length;
     final double threshold = _parseThreshold();
+    final int debounceMs = _parseDebounceMs();
     try {
-      await _wakeModel.setKeywordDetectionLicense(license);
-      await _wakeModel.addInstanceMulti(
-        MultiInstanceConfig(
-          id: _aiseeWakeInstanceId,
-          modelNames: modelNames,
-          thresholds: List<double>.filled(n, threshold),
-          bufferCnts: List<int>.filled(n, 2),
-          msBetweenCallback: List<int>.filled(n, 800),
-          sticky: false,
-        ),
-        _onDetectionEvent,
+      _wakeModel.setDetectionHandler(_onDetectionEvent);
+      await _wakeModel.configure(
+        id: _aiseeWakeInstanceId,
+        modelNames: modelNames,
+        threshold: threshold,
+        debounceMs: debounceMs,
       );
       _started = true;
-      _listening = true;
       _pausedForLiveKit = false;
       debugPrint(
         '[AiSee:WakeWord] Engine sẵn sàng (${modelNames.length} model).',
       );
-      debugPrint('[AiSee:WakeWord] Idle listening ON');
       if (liveKitMicActive) {
-        await stopForLiveSession();
+        _pausedForLiveKit = true;
+        _listening = false;
+        debugPrint('[AiSee:WakeWord] Idle listening OFF for LiveKit');
+        return;
       }
+      await _wakeModel.startListening();
+      _listening = true;
+      debugPrint('[AiSee:WakeWord] Idle listening ON');
     } catch (e, st) {
       debugPrint('[AiSee:WakeWord] Lỗi khởi tạo: $e\n$st');
       await _cleanupFailedStart();
@@ -272,7 +295,7 @@ class AiseeWakeWordService {
       return;
     }
     try {
-      await _wakeModel.removeInstance(_aiseeWakeInstanceId);
+      await _wakeModel.dispose();
     } catch (e, st) {
       debugPrint('[AiSee:WakeWord] Lỗi stop: $e\n$st');
     }
@@ -280,6 +303,7 @@ class AiseeWakeWordService {
     _pausedForLiveKit = false;
     _started = false;
     onWakePhrase = null;
+    _wakeModel.setDetectionHandler(null);
   }
 
   bool _isSupportedPlatform() {
@@ -287,12 +311,7 @@ class AiseeWakeWordService {
     if (debugIsSupportedPlatform != null) {
       return debugIsSupportedPlatform;
     }
-    return Platform.isAndroid || Platform.isIOS;
-  }
-
-  String _loadLicense() {
-    return (_debugLicense ?? dotenv.env['DAVOICE_WAKEWORD_LICENSE'] ?? '')
-        .trim();
+    return Platform.isAndroid;
   }
 
   List<String> _loadModelNames() {
@@ -303,7 +322,7 @@ class AiseeWakeWordService {
           .where((String s) => s.isNotEmpty)
           .toList();
     }
-    final String modelsRaw = (dotenv.env['DAVOICE_WAKEWORD_MODELS'] ?? '')
+    final String modelsRaw = (dotenv.env['LIVEKIT_WAKEWORD_MODELS'] ?? '')
         .trim();
     return modelsRaw
         .split(',')
@@ -326,17 +345,9 @@ class AiseeWakeWordService {
 
   Future<void> _cleanupFailedStart() async {
     try {
-      await _wakeModel.removeInstance(_aiseeWakeInstanceId);
+      await _wakeModel.dispose();
     } catch (e, st) {
       debugPrint('[AiSee:WakeWord] cleanupFailedStart: $e\n$st');
-    }
-    try {
-      await _wakeWordMethodChannel.invokeMethod<void>(
-        'destroyInstance',
-        <String, Object?>{'instanceId': _aiseeWakeInstanceId},
-      );
-    } catch (_) {
-      // Native instance may not exist or plugin may be unavailable in tests.
     }
     debugPrint('[AiSee:WakeWord] Đã cleanup instance lỗi để có thể thử lại.');
     _started = false;
@@ -397,11 +408,11 @@ class AiseeWakeWordService {
     return const <String>[];
   }
 
-  /// 0–1; mặc định 0.80. Env: `DAVOICE_WAKEWORD_THRESHOLD`.
+  /// 0-1; mặc định 0.5. Env: `LIVEKIT_WAKEWORD_THRESHOLD`.
   static double _parseThreshold() {
     String? raw;
     try {
-      raw = dotenv.env['DAVOICE_WAKEWORD_THRESHOLD']?.trim();
+      raw = dotenv.env['LIVEKIT_WAKEWORD_THRESHOLD']?.trim();
     } catch (_) {
       raw = null;
     }
@@ -411,6 +422,22 @@ class AiseeWakeWordService {
         return v;
       }
     }
-    return 0.80;
+    return 0.50;
+  }
+
+  static int _parseDebounceMs() {
+    String? raw;
+    try {
+      raw = dotenv.env['LIVEKIT_WAKEWORD_DEBOUNCE_MS']?.trim();
+    } catch (_) {
+      raw = null;
+    }
+    if (raw != null && raw.isNotEmpty) {
+      final int? v = int.tryParse(raw);
+      if (v != null && v >= 0) {
+        return v;
+      }
+    }
+    return 2000;
   }
 }

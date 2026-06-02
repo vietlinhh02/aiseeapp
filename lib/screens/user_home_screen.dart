@@ -102,14 +102,14 @@ class _UserHomeScreenState extends State<UserHomeScreen>
     });
   }
 
-  /// Ngay khi wake được chấp nhận (trước khi nhả DaVoice / bật mic) — tương tự chuông vào session của hello-wakeword.
+  /// Ngay khi wake được chấp nhận, trước khi nhả wake engine / bật mic.
   void _signalWakeAcknowledged() {
     _clearWakeReminder();
     HapticFeedback.lightImpact();
     SystemSound.play(SystemSoundType.click);
   }
 
-  /// Sau wake word + mic trợ lý: rung + âm + thông báo trợ năng — user biết lúc được nói.
+  /// Sau wake word + mic trợ lý: rung, âm và thông báo trợ năng.
   void _signalAssistantReadyToUser() {
     if (!mounted) {
       return;
@@ -279,7 +279,8 @@ class _UserHomeScreenState extends State<UserHomeScreen>
   void _onMusicUiChanged() {
     if (!mounted) return;
     debugPrint(
-      '[AiSee:UI] Music UI changed: title=${_assistantController.nowPlayingTitle.value ?? "(none)"}',
+      '[AiSee:UI] Music UI changed: '
+      'title=${_assistantController.nowPlayingTitle.value ?? "(none)"}',
     );
     setState(() {});
   }

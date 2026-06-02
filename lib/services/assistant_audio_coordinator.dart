@@ -88,8 +88,8 @@ class AssistantAudioCoordinator {
       _log(
         'WakeLatency t=${wakeLatency.elapsedMilliseconds}ms after stopWakeListening',
       );
-      // Sau khi DaVoice nhả AudioRecord: chờ tối thiểu trước khi WebRTC chiếm mic.
-      // Android thường cần dài hơn iOS; giảm từ 300ms cố định xuống mức vừa phải.
+      // Sau khi wake engine nhả AudioRecord: chờ tối thiểu trước khi WebRTC chiếm mic.
+      // Android thường cần dài hơn iOS để AudioRecord nhả mic.
       final int postWakeDelayMs =
           defaultTargetPlatform == TargetPlatform.android ? 200 : 100;
       await Future<void>.delayed(Duration(milliseconds: postWakeDelayMs));

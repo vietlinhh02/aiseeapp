@@ -24,10 +24,6 @@
 # Camera plugin
 -keep class io.flutter.plugins.camera.** { *; }
 
-# Wake Word / DaVoice
--keep class com.davoice.keyworddetection.** { *; }
--keep class com.cryart.flutter_wake_word.** { *; }
-
 # PCM Sound
 -keep class com.ymd.flutter_pcm_sound.** { *; }
 

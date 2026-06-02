@@ -660,6 +660,7 @@
   "subscriptionPlanOwnershipTransferred": "Purchase transfer",
   "subscriptionPlanAccountLinked": "Purchase account linked",
   "subscriptionPlanCancelled": "Cancelled",
+  "subscriptionPlanUpdated2": "Updated plan",
   "subscriptionGrantedManually": "Granted manually",
   "subscriptionDavoFeaturesSos": "Emergency SOS",
   "subscriptionDavoFeaturesSosDesc": "Send alerts to loved ones.",

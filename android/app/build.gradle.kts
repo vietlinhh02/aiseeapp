@@ -45,19 +45,11 @@ android {
         applicationId = "com.aisee.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // DaVoice keyworddetection AAR yêu cầu minSdk 29.
         minSdk = maxOf(flutter.minSdkVersion, 29)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["admobApplicationId"] = admobApplicationId
-    }
-
-    // DaVoice: cần libc++_shared.so từ NDK trong jniLibs (README Flutter_WakeWordDetection).
-    sourceSets {
-        getByName("main") {
-            jniLibs.srcDir("src/main/jniLibs")
-        }
     }
 
     packaging {
@@ -90,6 +82,7 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
 }
 
 flutter {

@@ -195,26 +195,26 @@ void main() {
 
   test('failed wake start cleans up stale native instance for retry', () async {
     final _FakeWakeWordBackend backend = _FakeWakeWordBackend()
-      ..failAddInstanceCount = 1;
+      ..failConfigureCount = 1;
     final AiseeWakeWordService service = AiseeWakeWordService.test(
       wakeModel: backend,
       isSupportedPlatform: true,
       microphoneGranted: true,
-      license: 'valid-license',
-      modelNames: const <String>['hey_lookdeep.onnx'],
+      modelNames: const <String>['abc123.onnx'],
     );
 
     await service.startIfConfigured();
 
     expect(service.isConfiguredAndStarted, isFalse);
     expect(service.isListening, isFalse);
-    expect(backend.removeInstanceCalls, 1);
+    expect(backend.disposeCalls, 1);
 
     await service.startIfConfigured();
 
     expect(service.isConfiguredAndStarted, isTrue);
     expect(service.isListening, isTrue);
-    expect(backend.addInstanceMultiCalls, 2);
+    expect(backend.configureCalls, 2);
+    expect(backend.startListeningCalls, 1);
   });
 
   test(
@@ -243,84 +243,102 @@ void main() {
         wakeModel: backend,
         isSupportedPlatform: true,
         microphoneGranted: true,
-        license: 'valid-license',
-        modelNames: const <String>['hey_lookdeep.onnx'],
+        modelNames: const <String>['abc123.onnx'],
       );
 
       await service.startIfConfigured();
 
       expect(service.isConfiguredAndStarted, isFalse);
       expect(service.isListening, isFalse);
-      expect(backend.addInstanceMultiCalls, 0);
-      expect(backend.setLicenseCalls, 0);
+      expect(backend.configureCalls, 0);
+      expect(backend.startListeningCalls, 0);
     },
   );
 
-  test(
-    'wake start skips translated android abi even if probe reports supported',
-    () async {
-      final _FakeWakeWordBackend backend = _FakeWakeWordBackend();
+  test('wake start accepts android abi reported by native runtime', () async {
+    final _FakeWakeWordBackend backend = _FakeWakeWordBackend();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(nativePlatformChannel, (
+          MethodCall call,
+        ) async {
+          if (call.method == 'getWakeWordRuntimeSupport') {
+            return <String, Object?>{
+              'isSupported': true,
+              'reason': 'onnx runtime supports the current abi',
+              'supportedAbis': <String>['x86_64', 'arm64-v8a'],
+              'requiredAbis': <String>['x86_64', 'arm64-v8a'],
+              'isEmulator': true,
+            };
+          }
+          return null;
+        });
+
+    addTearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(nativePlatformChannel, (
-            MethodCall call,
-          ) async {
-            if (call.method == 'getWakeWordRuntimeSupport') {
-              return <String, Object?>{
-                'isSupported': true,
-                'reason': 'legacy any-abi probe allowed arm64 fallback',
-                'supportedAbis': <String>['x86_64', 'arm64-v8a'],
-                'requiredAbis': <String>['arm64-v8a'],
-                'isEmulator': true,
-              };
-            }
-            return null;
-          });
+          .setMockMethodCallHandler(nativePlatformChannel, null);
+    });
 
-      addTearDown(() {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(nativePlatformChannel, null);
-      });
+    final AiseeWakeWordService service = AiseeWakeWordService.test(
+      wakeModel: backend,
+      isSupportedPlatform: true,
+      microphoneGranted: true,
+      modelNames: const <String>['abc123.onnx'],
+    );
 
-      final AiseeWakeWordService service = AiseeWakeWordService.test(
-        wakeModel: backend,
-        isSupportedPlatform: true,
-        microphoneGranted: true,
-        license: 'valid-license',
-        modelNames: const <String>['hey_lookdeep.onnx'],
-      );
+    await service.startIfConfigured();
 
-      await service.startIfConfigured();
-
-      expect(service.isConfiguredAndStarted, isFalse);
-      expect(service.isListening, isFalse);
-      expect(backend.addInstanceMultiCalls, 0);
-      expect(backend.setLicenseCalls, 0);
-    },
-  );
+    expect(service.isConfiguredAndStarted, isTrue);
+    expect(service.isListening, isTrue);
+    expect(backend.configureCalls, 1);
+    expect(backend.startListeningCalls, 1);
+  });
 
   test('wake feature is disabled when config is missing', () {
     final AiseeWakeWordService service = AiseeWakeWordService.test(
       wakeModel: _FakeWakeWordBackend(),
       isSupportedPlatform: true,
       microphoneGranted: true,
-      license: '',
       modelNames: const <String>[],
     );
 
     expect(service.isFeatureEnabledByConfig, isFalse);
   });
 
-  test('wake feature is enabled when license and model exist', () {
+  test('wake feature is enabled when model exists', () {
     final AiseeWakeWordService service = AiseeWakeWordService.test(
       wakeModel: _FakeWakeWordBackend(),
       isSupportedPlatform: true,
       microphoneGranted: true,
-      license: 'valid-license',
-      modelNames: const <String>['hey_lookdeep.onnx'],
+      modelNames: const <String>['abc123.onnx'],
     );
 
     expect(service.isFeatureEnabledByConfig, isTrue);
   });
+
+  test(
+    'wake config can initialize while livekit already owns the mic',
+    () async {
+      final _FakeWakeWordBackend backend = _FakeWakeWordBackend();
+      final AiseeWakeWordService service = AiseeWakeWordService.test(
+        wakeModel: backend,
+        isSupportedPlatform: true,
+        microphoneGranted: true,
+        modelNames: const <String>['abc123.onnx'],
+      );
+
+      await service.startIfConfigured(liveKitMicActive: true);
+
+      expect(service.isConfiguredAndStarted, isTrue);
+      expect(service.isListening, isFalse);
+      expect(backend.configureCalls, 1);
+      expect(backend.startListeningCalls, 0);
+
+      await service.resumeAfterExclusiveMic();
+
+      expect(service.isListening, isTrue);
+      expect(backend.startListeningCalls, 1);
+    },
+  );
 
   test('wake detection enables mic and stops wake listening', () async {
     final _RecordingCoordinatorOps ops = _RecordingCoordinatorOps();
@@ -573,33 +591,35 @@ class _RecordingVoiceSession extends AiseeLiveKitVoiceSession {
 }
 
 class _FakeWakeWordBackend implements AiseeWakeWordBackend {
-  int addInstanceMultiCalls = 0;
-  int removeInstanceCalls = 0;
-  int setLicenseCalls = 0;
+  int configureCalls = 0;
+  int disposeCalls = 0;
   int startListeningCalls = 0;
   int stopListeningCalls = 0;
-  int failAddInstanceCount = 0;
+  int failConfigureCount = 0;
+  void Function(Map<String, dynamic> event)? onDetectionEvent;
 
   @override
-  Future<void> addInstanceMulti(
-    Object config,
-    void Function(Map<String, dynamic> event) onDetectionEvent,
-  ) async {
-    addInstanceMultiCalls += 1;
-    if (failAddInstanceCount > 0) {
-      failAddInstanceCount -= 1;
+  void setDetectionHandler(void Function(Map<String, dynamic> event)? handler) {
+    onDetectionEvent = handler;
+  }
+
+  @override
+  Future<void> configure({
+    required String id,
+    required List<String> modelNames,
+    required double threshold,
+    required int debounceMs,
+  }) async {
+    configureCalls += 1;
+    if (failConfigureCount > 0) {
+      failConfigureCount -= 1;
       throw Exception('INSTANCE_EXISTS');
     }
   }
 
   @override
-  Future<void> removeInstance(String id) async {
-    removeInstanceCalls += 1;
-  }
-
-  @override
-  Future<void> setKeywordDetectionLicense(String license) async {
-    setLicenseCalls += 1;
+  Future<void> dispose() async {
+    disposeCalls += 1;
   }
 
   @override

@@ -12,7 +12,8 @@ import kotlin.math.abs
 
 class MainActivity : FlutterFragmentActivity() {
     private val platformChannel = "com.aisee.aiseeapp/platform"
-    private val supportedWakeWordAbis = setOf("arm64-v8a")
+    private val wakeWordChannel = "com.aisee.aiseeapp/livekit_wake_word"
+    private var wakeWordEngine: LiveKitWakeWordEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,6 +22,45 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val wakeChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            wakeWordChannel,
+        )
+        wakeWordEngine = LiveKitWakeWordEngine(applicationContext, wakeChannel)
+        wakeChannel.setMethodCallHandler { call, result ->
+            try {
+                val engine = requireNotNull(wakeWordEngine)
+                when (call.method) {
+                    "configure" -> {
+                        val modelNames = call.argument<List<String>>("modelNames").orEmpty()
+                        val threshold = call.argument<Double>("threshold")?.toFloat() ?: 0.5f
+                        val debounceMs = call.argument<Int>("debounceMs")?.toLong() ?: 2_000L
+                        engine.configure(modelNames, threshold, debounceMs)
+                        result.success(null)
+                    }
+
+                    "startListening" -> {
+                        engine.startListening()
+                        result.success(null)
+                    }
+
+                    "stopListening" -> {
+                        engine.stopListening()
+                        result.success(null)
+                    }
+
+                    "dispose" -> {
+                        engine.dispose()
+                        result.success(null)
+                    }
+
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                result.error("WAKE_WORD_ERROR", e.message, null)
+            }
+        }
+
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             platformChannel,
@@ -29,19 +69,19 @@ class MainActivity : FlutterFragmentActivity() {
                 "getWakeWordRuntimeSupport" -> {
                     val supportedAbis = Build.SUPPORTED_ABIS?.toList().orEmpty()
                     val processAbi = supportedAbis.firstOrNull()
-                    val isSupported = processAbi != null && supportedWakeWordAbis.contains(processAbi)
                     val reason =
-                        if (isSupported) {
-                            "Wake-word JNI available for process ABI $processAbi"
+                        if (processAbi != null) {
+                            "LiveKit wake-word runtime available for process ABI $processAbi"
                         } else {
-                            "Wake-word JNI is only bundled for ${supportedWakeWordAbis.joinToString()}, process ABI is ${processAbi ?: "unknown"}, device reports ${supportedAbis.joinToString().ifBlank { "unknown" }}"
+                            "Unable to determine process ABI; device reports " +
+                                supportedAbis.joinToString().ifBlank { "unknown" }
                         }
                     result.success(
                         mapOf(
-                            "isSupported" to isSupported,
+                            "isSupported" to (processAbi != null),
                             "reason" to reason,
                             "supportedAbis" to supportedAbis,
-                            "requiredAbis" to supportedWakeWordAbis.toList(),
+                            "requiredAbis" to supportedAbis,
                             "isEmulator" to isProbablyEmulator(),
                         ),
                     )
@@ -50,6 +90,12 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        wakeWordEngine?.dispose()
+        wakeWordEngine = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     /// Chọn [Display.Mode] có refresh gần 60 Hz (giảm nóng so với 90/120 Hz).
