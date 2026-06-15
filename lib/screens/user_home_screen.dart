@@ -38,6 +38,7 @@ import 'call_screen.dart';
 import 'user_assistant_tab.dart';
 import 'user_personal_tab.dart';
 import 'contacts_tab.dart';
+import 'aisee_navigation_screen.dart';
 
 /// Home người dùng chính — 3 tab cố định + nav nổi pill, ưu tiên thị lực thấp / a11y.
 class UserHomeScreen extends StatefulWidget {
@@ -207,6 +208,9 @@ class _UserHomeScreenState extends State<UserHomeScreen>
             _assistantController.enableCamera(params),
         onDisableCamera: (Map<String, dynamic> params) =>
             _assistantController.disableCamera(params),
+        onSetCameraFps: _assistantController.setCameraFps,
+        onShowNavigationScreen: _assistantController.showNavigationScreen,
+        onHideNavigationScreen: _assistantController.hideNavigationScreen,
         onStartCall: (Map<String, dynamic> params) =>
             AiseeAssistantCallLauncher.instance.startCall(params),
         onAnswerIncomingCall: _handleAgentAnswerIncomingCall,
@@ -287,18 +291,20 @@ class _UserHomeScreenState extends State<UserHomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      if (_wakeWordEnabled) {
-        unawaited(
-          _assistantAudioCoordinator.onAppResumed(
-            liveKitConnected: _assistantConnected,
-          ),
-        );
-      }
-    } else if (state == AppLifecycleState.paused) {
-      if (_wakeWordEnabled) {
-        unawaited(_assistantAudioCoordinator.onAppPaused());
-      }
+    switch (state) {
+      case AppLifecycleState.resumed:
+        if (_wakeWordEnabled) {
+          unawaited(
+            _assistantAudioCoordinator.onAppResumed(
+              liveKitConnected: _assistantConnected,
+            ),
+          );
+        }
+      case AppLifecycleState.paused:
+        if (_wakeWordEnabled) {
+          unawaited(_assistantAudioCoordinator.onAppPaused());
+        }
+      case _:
     }
   }
 
@@ -607,6 +613,21 @@ class _UserHomeScreenState extends State<UserHomeScreen>
                 AppLocalizations.of(context),
               ),
             ),
+          ),
+          // ── Navigation overlay: hiện full-screen khi Python start_walking_navigation
+          ValueListenableBuilder<NavigationScreenData?>(
+            valueListenable: _assistantController.navigationScreenData,
+            builder: (BuildContext context, NavigationScreenData? navData, _) {
+              if (navData == null) {
+                return const SizedBox.shrink();
+              }
+              return Positioned.fill(
+                child: AiseeNavigationScreen(
+                  data: navData,
+                  onStop: _assistantController.requestStopNavigation,
+                ),
+              );
+            },
           ),
         ],
       ),
