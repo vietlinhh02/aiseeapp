@@ -15,6 +15,10 @@ import 'aisee_device_command_contract.dart';
 
 typedef AiseeAssistantCameraCommand =
     Future<Map<String, Object?>> Function(Map<String, dynamic> params);
+typedef AiseeAssistantCameraFpsCommand =
+    Future<Map<String, Object?>> Function(Duration interval);
+typedef AiseeAssistantNavigationScreenCommand =
+    Future<Map<String, Object?>> Function(Map<String, dynamic> params);
 typedef AiseeAssistantStartCallCommand =
     Future<Map<String, Object?>> Function(Map<String, dynamic> params);
 typedef AiseeAssistantAnswerIncomingCommand =
@@ -51,17 +55,26 @@ class AiseeDefaultAssistantDeviceCommandHandler
   AiseeDefaultAssistantDeviceCommandHandler({
     AiseeAssistantCameraCommand? onEnableCamera,
     AiseeAssistantCameraCommand? onDisableCamera,
+    AiseeAssistantCameraFpsCommand? onSetCameraFps,
+    AiseeAssistantNavigationScreenCommand? onShowNavigationScreen,
+    AiseeAssistantNavigationScreenCommand? onHideNavigationScreen,
     AiseeAssistantStartCallCommand? onStartCall,
     AiseeAssistantAnswerIncomingCommand? onAnswerIncomingCall,
     AiseeAssistantDeclineIncomingCommand? onDeclineIncomingCall,
   }) : _onEnableCamera = onEnableCamera,
        _onDisableCamera = onDisableCamera,
+       _onSetCameraFps = onSetCameraFps,
+       _onShowNavigationScreen = onShowNavigationScreen,
+       _onHideNavigationScreen = onHideNavigationScreen,
        _onStartCall = onStartCall,
        _onAnswerIncomingCall = onAnswerIncomingCall,
        _onDeclineIncomingCall = onDeclineIncomingCall;
 
   final AiseeAssistantCameraCommand? _onEnableCamera;
   final AiseeAssistantCameraCommand? _onDisableCamera;
+  final AiseeAssistantCameraFpsCommand? _onSetCameraFps;
+  final AiseeAssistantNavigationScreenCommand? _onShowNavigationScreen;
+  final AiseeAssistantNavigationScreenCommand? _onHideNavigationScreen;
   final AiseeAssistantStartCallCommand? _onStartCall;
   final AiseeAssistantAnswerIncomingCommand? _onAnswerIncomingCall;
   final AiseeAssistantDeclineIncomingCommand? _onDeclineIncomingCall;
@@ -80,6 +93,9 @@ class AiseeDefaultAssistantDeviceCommandHandler
     return switch (request.name) {
       DeviceCommandNames.enableCamera => _handleEnableCamera(request.params),
       DeviceCommandNames.disableCamera => _handleDisableCamera(request.params),
+      DeviceCommandNames.setCameraFps => _handleSetCameraFps(request.params),
+      DeviceCommandNames.showNavigationScreen => _handleShowNavigationScreen(request.params),
+      DeviceCommandNames.hideNavigationScreen => _handleHideNavigationScreen(request.params),
       DeviceCommandNames.startCall => _handleStartCall(request.params),
       DeviceCommandNames.answerIncomingCall => _handleAnswerIncomingCall(request.params),
       DeviceCommandNames.declineIncomingCall => _handleDeclineIncomingCall(request.params),
@@ -123,6 +139,43 @@ class AiseeDefaultAssistantDeviceCommandHandler
     Map<String, dynamic> params,
   ) async {
     final AiseeAssistantCameraCommand? callback = _onDisableCamera;
+    if (callback == null) {
+      return const <String, Object?>{'status': 'ok'};
+    }
+    return callback(params);
+  }
+
+  Future<Map<String, Object?>> _handleSetCameraFps(
+    Map<String, dynamic> params,
+  ) async {
+    final AiseeAssistantCameraFpsCommand? callback = _onSetCameraFps;
+    if (callback == null) {
+      return const <String, Object?>{'status': 'ok'};
+    }
+    final Object? raw = params['interval_ms'];
+    if (raw is! int) {
+      return const <String, Object?>{
+        'status': 'error',
+        'message': 'set_camera_fps: missing interval_ms (int)',
+      };
+    }
+    return callback(Duration(milliseconds: raw));
+  }
+
+  Future<Map<String, Object?>> _handleShowNavigationScreen(
+    Map<String, dynamic> params,
+  ) async {
+    final AiseeAssistantNavigationScreenCommand? callback = _onShowNavigationScreen;
+    if (callback == null) {
+      return const <String, Object?>{'status': 'ok'};
+    }
+    return callback(params);
+  }
+
+  Future<Map<String, Object?>> _handleHideNavigationScreen(
+    Map<String, dynamic> params,
+  ) async {
+    final AiseeAssistantNavigationScreenCommand? callback = _onHideNavigationScreen;
     if (callback == null) {
       return const <String, Object?>{'status': 'ok'};
     }

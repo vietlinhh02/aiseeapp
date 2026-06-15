@@ -10,6 +10,9 @@ library;
 abstract final class DeviceCommandNames {
   static const String enableCamera = 'enable_camera';
   static const String disableCamera = 'disable_camera';
+  static const String setCameraFps = 'set_camera_fps';
+  static const String showNavigationScreen = 'show_navigation_screen';
+  static const String hideNavigationScreen = 'hide_navigation_screen';
   static const String startCall = 'start_call';
   static const String scheduleReminder = 'schedule_reminder';
   static const String getLocation = 'get_location';
@@ -23,6 +26,9 @@ abstract final class DeviceCommandNames {
   static const Set<String> all = <String>{
     enableCamera,
     disableCamera,
+    setCameraFps,
+    showNavigationScreen,
+    hideNavigationScreen,
     startCall,
     scheduleReminder,
     getLocation,
@@ -81,6 +87,7 @@ abstract final class AiControlActions {
   static const String incomingCallCleared = 'incoming_call_cleared';
   static const String interrupt = 'interrupt';
   static const String nsfwDetected = 'nsfw_detected';
+  static const String stopNavigation = 'stop_navigation';
 }
 
 /// Media mode wire values.

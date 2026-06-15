@@ -16,16 +16,21 @@ abstract interface class AiseeAiCameraStreamer {
 
   Future<void> stop();
 
+  /// Live-update the capture period (e.g. faster FPS during walking nav).
+  /// No-op if streamer not running.
+  Future<void> setFrameInterval(Duration interval);
+
   Future<void> dispose();
 }
 
 class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
   AiseeCameraPackageStreamer({
-    this.frameInterval = const Duration(seconds: 1),
+    Duration frameInterval = const Duration(seconds: 1),
     this.onUnsafeContent,
-  });
+  }) : _frameInterval = frameInterval;
 
-  final Duration frameInterval;
+  Duration _frameInterval;
+  Duration get frameInterval => _frameInterval;
   final FutureOr<void> Function()? onUnsafeContent;
 
   final ValueNotifier<Widget?> _preview = ValueNotifier<Widget?>(null);
@@ -88,6 +93,22 @@ class AiseeCameraPackageStreamer implements AiseeAiCameraStreamer {
     _frameTimer = Timer.periodic(frameInterval, (_) {
       unawaited(_captureAndSend());
     });
+  }
+
+  @override
+  Future<void> setFrameInterval(Duration interval) async {
+    if (interval == _frameInterval) {
+      return;
+    }
+    debugPrint('[AiSee:AICamera] setFrameInterval: $interval (was $_frameInterval)');
+    _frameInterval = interval;
+    final Timer? existing = _frameTimer;
+    if (existing != null) {
+      existing.cancel();
+      _frameTimer = Timer.periodic(interval, (_) {
+        unawaited(_captureAndSend());
+      });
+    }
   }
 
   @override

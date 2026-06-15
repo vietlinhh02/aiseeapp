@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../models/agent_state.dart';
 import '../models/aisee_incoming_call.dart';
+import '../screens/aisee_navigation_screen.dart';
 import 'aisee_ai_camera_streamer.dart';
 import 'aisee_ai_microphone_input.dart';
 import 'aisee_ai_session.dart';
@@ -292,6 +293,109 @@ class AiseeAiAssistantController {
   ) async {
     await _cameraStreamer.stop();
     return const <String, Object?>{'status': 'ok'};
+  }
+
+  /// Tăng FPS camera cho walking navigation (mặc định 1.0 → 1.67 fps trong nav).
+  /// No-op khi camera chưa bật.
+  Future<void> setNavigationFps({bool active = true}) async {
+    await _cameraStreamer.setFrameInterval(
+      active
+          ? const Duration(milliseconds: 600)
+          : const Duration(seconds: 1),
+    );
+  }
+
+  /// Generic set camera FPS interval (used by Python's set_camera_fps device command).
+  Future<Map<String, Object?>> setCameraFps(Duration interval) async {
+    await _cameraStreamer.setFrameInterval(interval);
+    return <String, Object?>{
+      'status': 'ok',
+      'interval_ms': interval.inMilliseconds,
+    };
+  }
+
+  // ── In-app walking navigation (Mapbox) ──
+
+  /// Notifier cho NavigationScreenData hiện tại. Null = không có nav active.
+  final ValueNotifier<NavigationScreenData?> navigationScreenData =
+      ValueNotifier<NavigationScreenData?>(null);
+
+  /// Khởi tạo navigation screen từ device command `show_navigation_screen`.
+  /// Lưu state và emit qua [navigationScreenData] để UI overlay subscribe.
+  Future<Map<String, Object?>> showNavigationScreen(
+    Map<String, dynamic> params,
+  ) async {
+    final NavigationScreenData data = NavigationScreenData(
+      destinationName: (params['destination_name'] as String?) ?? '',
+      destinationQuery: (params['destination_query'] as String?) ?? '',
+      totalDistanceM: (params['total_distance_m'] as num?)?.toDouble() ?? 0,
+      totalDurationS: (params['total_duration_s'] as num?)?.toDouble() ?? 0,
+      totalSteps: (params['total_steps'] as int?) ?? 0,
+      currentStepIndex: 1,
+      currentStepName: (params['first_step_name'] as String?) ?? '',
+      currentStepVoiceVi:
+          (params['first_step_voice_english'] as String?) ?? '',
+      remainingDistanceM: (params['total_distance_m'] as num?)?.toDouble() ?? 0,
+      progressPct: 0,
+      isDeviated: false,
+      isCompleted: false,
+      outcome: 'in_progress',
+    );
+    navigationScreenData.value = data;
+    return <String, Object?>{'status': 'ok'};
+  }
+
+  /// Cập nhật step hiện tại (gọi từ announce_navigation_step mỗi 5-10s).
+  /// Nếu không có nav active, ignore.
+  void updateNavigationStep({
+    int? currentStepIndex,
+    String? currentStepName,
+    String? currentStepVoiceVi,
+    double? remainingDistanceM,
+    double? progressPct,
+    bool? isDeviated,
+    bool? isCompleted,
+  }) {
+    final NavigationScreenData? prev = navigationScreenData.value;
+    if (prev == null) return;
+    navigationScreenData.value = NavigationScreenData(
+      destinationName: prev.destinationName,
+      destinationQuery: prev.destinationQuery,
+      totalDistanceM: prev.totalDistanceM,
+      totalDurationS: prev.totalDurationS,
+      totalSteps: prev.totalSteps,
+      currentStepIndex: currentStepIndex ?? prev.currentStepIndex,
+      currentStepName: currentStepName ?? prev.currentStepName,
+      currentStepVoiceVi: currentStepVoiceVi ?? prev.currentStepVoiceVi,
+      remainingDistanceM: remainingDistanceM ?? prev.remainingDistanceM,
+      progressPct: progressPct ?? prev.progressPct,
+      isDeviated: isDeviated ?? prev.isDeviated,
+      isCompleted: isCompleted ?? prev.isCompleted,
+      outcome: isCompleted == true ? 'completed' : prev.outcome,
+    );
+  }
+
+  /// Ẩn nav screen từ device command `hide_navigation_screen`.
+  Future<Map<String, Object?>> hideNavigationScreen(
+    Map<String, dynamic> params,
+  ) async {
+    navigationScreenData.value = null;
+    return <String, Object?>{'status': 'ok'};
+  }
+
+  /// User bấm nút "Dừng chỉ đường" trên UI.
+  /// Gửi control action stop_navigation lên Python agent qua WS,
+  /// agent sẽ tự gọi stop_navigation tool + ghi DB + return summary.
+  Future<void> requestStopNavigation() async {
+    navigationScreenData.value = null;
+    try {
+      await _session.sendControl(
+        AiControlActions.stopNavigation,
+        payload: <String, Object?>{'outcome': 'cancelled'},
+      );
+    } catch (e) {
+      debugPrint('[AiSee:Nav] requestStopNavigation: $e');
+    }
   }
 
   Future<void> dispose() async {

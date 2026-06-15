@@ -623,6 +623,32 @@ void main() {
 
     await controller.dispose();
   });
+
+  test('setNavigationFps switches camera frame interval to 600ms during nav',
+      () async {
+    final _FakeAssistantSession session = _FakeAssistantSession();
+    final _FakeCameraStreamer camera = _FakeCameraStreamer();
+    final AiseeAiAssistantController controller = AiseeAiAssistantController(
+      session: session,
+      microphoneInput: _FakeMicrophoneInput(),
+      cameraStreamer: camera,
+      audioPlayer: _FakePcmPlayer(),
+      deviceCommandHandler: _FakeDeviceCommandHandler(),
+    );
+
+    await controller.setNavigationFps(active: true);
+    expect(camera.setFrameIntervalCalls, <Duration>[
+      const Duration(milliseconds: 600),
+    ]);
+
+    await controller.setNavigationFps(active: false);
+    expect(camera.setFrameIntervalCalls, <Duration>[
+      const Duration(milliseconds: 600),
+      const Duration(seconds: 1),
+    ]);
+
+    await controller.dispose();
+  });
 }
 
 class _FakeAssistantSession implements AiseeAiAssistantSessionClient {
@@ -810,6 +836,7 @@ class _FakeCameraStreamer implements AiseeAiCameraStreamer {
   int startCalls = 0;
   int stopCalls = 0;
   int disposeCalls = 0;
+  final List<Duration> setFrameIntervalCalls = <Duration>[];
 
   @override
   ValueListenable<Widget?> get preview => _preview;
@@ -835,6 +862,11 @@ class _FakeCameraStreamer implements AiseeAiCameraStreamer {
     disposeCalls += 1;
     await stop();
     _preview.dispose();
+  }
+
+  @override
+  Future<void> setFrameInterval(Duration interval) async {
+    setFrameIntervalCalls.add(interval);
   }
 }
 
