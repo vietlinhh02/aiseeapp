@@ -208,9 +208,17 @@ class _UserHomeScreenState extends State<UserHomeScreen>
             _assistantController.enableCamera(params),
         onDisableCamera: (Map<String, dynamic> params) =>
             _assistantController.disableCamera(params),
-        onSetCameraFps: _assistantController.setCameraFps,
-        onShowNavigationScreen: _assistantController.showNavigationScreen,
-        onHideNavigationScreen: _assistantController.hideNavigationScreen,
+        // IMPORTANT: these 3 must be arrow-fn closures, NOT method tear-offs.
+        // We're inside the RHS of `_assistantController = ...`, so a
+        // tear-off like `_assistantController.setCameraFps` would read
+        // the `late final` field before Dart has finished assigning it,
+        // throwing LateInitializationError and rendering a gray screen.
+        onSetCameraFps: (Duration interval) =>
+            _assistantController.setCameraFps(interval),
+        onShowNavigationScreen: (Map<String, dynamic> params) =>
+            _assistantController.showNavigationScreen(params),
+        onHideNavigationScreen: (Map<String, dynamic> params) =>
+            _assistantController.hideNavigationScreen(params),
         onStartCall: (Map<String, dynamic> params) =>
             AiseeAssistantCallLauncher.instance.startCall(params),
         onAnswerIncomingCall: _handleAgentAnswerIncomingCall,
