@@ -5,7 +5,10 @@ import '../generated/l10n/app_localizations.dart';
 import '../services/in_app_message_controller.dart';
 import '../theme/style_tokens.dart';
 
-class InAppMessageOverlayHost extends StatelessWidget {
+/// Hiển thị popup thông báo khi có tin nhắn đến (khi app đang foreground).
+/// Popup căn giữa màn hình, có nút Đóng + bấm ra ngoài để tắt, thiết kế to
+/// rõ cho người khiếm thị.
+class InAppMessageOverlayHost extends StatefulWidget {
   const InAppMessageOverlayHost({
     super.key,
     required this.child,
@@ -16,130 +19,273 @@ class InAppMessageOverlayHost extends StatelessWidget {
   final AiseeInAppMessageController controller;
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (BuildContext context, Widget? _) {
-        final AiseeInAppMessageNotification? notification = controller.current;
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            child,
-            if (controller.shouldShow && notification != null)
-              _InAppMessageBanner(
-                notification: notification,
-                onDismiss: controller.hide,
-              ),
-          ],
+  State<InAppMessageOverlayHost> createState() =>
+      _InAppMessageOverlayHostState();
+}
+
+class _InAppMessageOverlayHostState extends State<InAppMessageOverlayHost> {
+  /// OverlayEntry hiện tại (null nếu không có popup).
+  OverlayEntry? _overlayEntry;
+  AiseeInAppMessageNotification? _shownNotification;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant InAppMessageOverlayHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onControllerChanged);
+      widget.controller.addListener(_onControllerChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    // Đợi frame tiếp theo để chắc chắn Overlay đã mount.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncOverlay();
+    });
+  }
+
+  void _syncOverlay() {
+    final AiseeInAppMessageNotification? current = widget.controller.current;
+    final bool shouldShow = widget.controller.shouldShow;
+
+    if (!shouldShow || current == null) {
+      _removeOverlay();
+      return;
+    }
+
+    // Notification mới khác cái đang hiện → thay thế.
+    if (_shownNotification?.message.id != current.message.id) {
+      _removeOverlay();
+      _showOverlay(current);
+    }
+  }
+
+  void _showOverlay(AiseeInAppMessageNotification notification) {
+    final OverlayState? overlayState = Overlay.maybeOf(
+      context,
+      rootOverlay: true,
+    );
+    if (overlayState == null) {
+      return;
+    }
+    _shownNotification = notification;
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (BuildContext overlayContext) {
+        return _MessagePopup(
+          notification: notification,
+          onDismiss: () {
+            // Tránh remove 2 lần nếu popup tự đóng do controller.
+            if (_overlayEntry == entry) {
+              _removeOverlay();
+              widget.controller.hide();
+            }
+          },
         );
       },
     );
+    _overlayEntry = entry;
+    overlayState.insert(entry);
   }
+
+  void _removeOverlay() {
+    final OverlayEntry? entry = _overlayEntry;
+    _overlayEntry = null;
+    _shownNotification = null;
+    entry?.remove();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
-class _InAppMessageBanner extends StatelessWidget {
-  const _InAppMessageBanner({
-    required this.notification,
-    required this.onDismiss,
-  });
+/// Popup căn giữa màn hình, có backdrop mờ + animation scale/fade.
+class _MessagePopup extends StatelessWidget {
+  const _MessagePopup({required this.notification, required this.onDismiss});
 
   final AiseeInAppMessageNotification notification;
   final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            builder: (BuildContext context, double value, Widget? child) {
-              return Opacity(
-                opacity: value,
-                child: Transform.translate(
-                  offset: Offset(0, -14 * (1 - value)),
-                  child: child,
-                ),
-              );
-            },
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 390),
-              child: Material(
-                color: StyleTokens.surfaceCard,
-                elevation: 10,
-                shadowColor: const Color(0x24060913),
-                borderRadius: BorderRadius.circular(22),
-                clipBehavior: Clip.antiAlias,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: StyleTokens.navBarBorder.withValues(alpha: 0.18),
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-                  child: Row(
-                    children: <Widget>[
-                      _MessageAvatar(notification: notification),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              notification.senderName,
-                              maxLines: 1,
+    final AppLocalizations l = AppLocalizations.of(context);
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
+
+    return Semantics(
+      label: l.messageFrom(notification.senderName),
+      liveRegion: true,
+      child: Stack(
+        children: <Widget>[
+          // Backdrop mờ — bấm vào đây để đóng.
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onDismiss,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                builder: (BuildContext context, double value, Widget? _) {
+                  return Container(
+                    color: const Color(0x66000000).withValues(alpha: 0.40 * value),
+                  );
+                },
+              ),
+            ),
+          ),
+          // Card popup căn giữa.
+          Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 24,
+                // Tránh che phím ảo / nav bar.
+                vertical: 16 + mediaQuery.viewInsets.bottom / 4,
+              ),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.85, end: 1),
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutBack,
+                builder: (BuildContext context, double scale, Widget? child) {
+                  return TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    builder: (BuildContext context, double opacity, Widget? c) {
+                      return Opacity(
+                        opacity: opacity,
+                        child: Transform.scale(scale: scale, child: c),
+                      );
+                    },
+                    child: child,
+                  );
+                },
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: Material(
+                    color: StyleTokens.surfaceCard,
+                    elevation: 16,
+                    shadowColor: const Color(0x40060913),
+                    borderRadius: BorderRadius.circular(28),
+                    clipBehavior: Clip.antiAlias,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: StyleTokens.navBarBorder.withValues(alpha: 0.20),
+                        ),
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          _MessageAvatar(notification: notification),
+                          const SizedBox(height: 14),
+                          Text(
+                            notification.senderName,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: aiseeTextStyle(
+                              color: StyleTokens.textPrimary,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          // Tag "Tin nhắn mới" nhỏ phía dưới tên.
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: StyleTokens.brandSecondary.withValues(
+                                alpha: 0.12,
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              l.inAppMessageLabel,
+                              style: aiseeTextStyle(
+                                color: StyleTokens.brandSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Nội dung tin nhắn — to, dễ đọc.
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: StyleTokens.navInactivePill.withValues(
+                                alpha: 0.45,
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Text(
+                              notification.preview,
+                              textAlign: TextAlign.center,
+                              maxLines: 4,
                               overflow: TextOverflow.ellipsis,
                               style: aiseeTextStyle(
                                 color: StyleTokens.textPrimary,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                height: 1.18,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              notification.preview,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: aiseeTextStyle(
-                                color: StyleTokens.textSecondary,
-                                fontSize: 13,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w600,
-                                height: 1.28,
+                                height: 1.32,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Semantics(
-                        label: AppLocalizations.of(context).closeAction,
-                        button: true,
-                        child: IconButton(
-                          onPressed: onDismiss,
-                          icon: const Icon(Icons.close_rounded),
-                          color: StyleTokens.textSecondary,
-                          iconSize: 18,
-                          visualDensity: VisualDensity.compact,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 32,
-                            height: 32,
                           ),
-                        ),
+                          const SizedBox(height: 18),
+                          // Nút Đóng — to, dễ bấm.
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: FilledButton(
+                              onPressed: onDismiss,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: StyleTokens.brandSecondary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                textStyle: aiseeTextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              child: Text(l.closeAction),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -157,12 +303,12 @@ class _MessageAvatar extends StatelessWidget {
         ? '?'
         : notification.senderName.characters.first.toUpperCase();
     return Container(
-      width: 46,
-      height: 46,
+      width: 64,
+      height: 64,
       decoration: BoxDecoration(
         color: StyleTokens.navInactivePill,
         shape: BoxShape.circle,
-        border: Border.all(color: StyleTokens.navGlassBorder),
+        border: Border.all(color: StyleTokens.navGlassBorder, width: 1.5),
       ),
       clipBehavior: Clip.antiAlias,
       child: avatarUrl == null
@@ -191,7 +337,7 @@ class _AvatarFallback extends StatelessWidget {
         initial,
         style: aiseeTextStyle(
           color: StyleTokens.brandSecondary,
-          fontSize: 17,
+          fontSize: 26,
           fontWeight: FontWeight.w800,
         ),
       ),

@@ -115,8 +115,9 @@ void main() {
     expect(find.text('Người thân'), findsOneWidget);
     expect(find.text('Bạn ổn không?'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.tap(find.text('Đóng'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 240));
 
     expect(find.text('Người thân'), findsNothing);
 
@@ -168,23 +169,24 @@ void main() {
     controller.setAppForeground(true);
     controller.setCurrentUserId('user-1');
 
+    // Trong production, host đặt dưới Navigator (xem main.dart), nên
+    // Overlay.maybeOf(context, rootOverlay: true) hoạt động. Test theo
+    // cấu hình thực tế: host là con của Navigator.
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('vi'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (BuildContext context, Widget? child) {
-          return InAppMessageOverlayHost(
-            controller: controller,
-            child: child ?? const SizedBox.shrink(),
-          );
-        },
-        home: const Scaffold(body: SizedBox.expand()),
+        home: InAppMessageOverlayHost(
+          controller: controller,
+          child: const Scaffold(body: SizedBox.expand()),
+        ),
       ),
     );
 
     controller.showMessage(message());
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 240));
 
     expect(tester.takeException(), isNull);
     expect(find.text('Người thân'), findsOneWidget);

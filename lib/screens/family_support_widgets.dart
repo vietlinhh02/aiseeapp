@@ -66,7 +66,7 @@ class SupporterWelcomeBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 178,
+      height: 186,
       width: double.infinity,
       decoration: BoxDecoration(
         color: _medicalBanner,

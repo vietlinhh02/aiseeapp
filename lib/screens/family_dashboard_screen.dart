@@ -2,8 +2,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:aiseeapp/theme/aisee_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -13,15 +11,13 @@ import '../services/aisee_analytics_service.dart';
 import '../services/aisee_dashboard_service.dart';
 import '../services/aisee_family_context_store.dart';
 import '../theme/style_tokens.dart';
+import '../theme/aisee_typography.dart';
 import '../utils/app_toast.dart';
 import '../widgets/app_wordmark.dart';
 import '../widgets/user_low_vision_bottom_nav.dart';
 import 'family_care_tab.dart';
 import 'family_dashboard_audit_tab.dart';
-import 'family_dashboard_health_tab.dart';
 import 'family_dashboard_location_tab.dart';
-import 'family_dashboard_med_form_sheet.dart';
-import 'family_dashboard_meds_tab.dart';
 import 'family_dashboard_nav_items.dart';
 
 class FamilyDashboardScreen extends StatefulWidget {
@@ -44,13 +40,9 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
   int _currentTab = 0;
   late final TabController _tabController;
 
-  DashboardHealth? _health;
-  List<MedStatus> _meds = [];
   List<AuditLogEntry> _logs = [];
   UserLocation? _location;
 
-  bool _loadingHealth = true;
-  bool _loadingMeds = true;
   bool _loadingLogs = true;
   bool _loadingLocation = true;
 
@@ -62,7 +54,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
     unawaited(
       AiseeFamilyContextStore.instance.writeLastCaredUserId(widget.member.id),
     );
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (!mounted) return;
       if (_currentTab != _tabController.index) {
@@ -95,45 +87,9 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
 
   Future<void> _loadAll() async {
     await Future.wait([
-      _loadHealth(),
-      _loadMeds(),
       _loadLogs(),
       _loadLocation(),
     ]);
-  }
-
-  Future<void> _loadHealth() async {
-    setState(() => _loadingHealth = true);
-    try {
-      final health = await _dashService.getHealth(
-        widget.accessToken,
-        widget.member.id,
-      );
-      if (!mounted) return;
-      setState(() {
-        _health = health;
-        _loadingHealth = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loadingHealth = false);
-    }
-  }
-
-  Future<void> _loadMeds() async {
-    setState(() => _loadingMeds = true);
-    try {
-      final meds = await _dashService.getMedications(
-        widget.accessToken,
-        widget.member.id,
-      );
-      if (!mounted) return;
-      setState(() {
-        _meds = meds;
-        _loadingMeds = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loadingMeds = false);
-    }
   }
 
   Future<void> _loadLogs() async {
@@ -229,17 +185,6 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
                   accessToken: widget.accessToken,
                   caredUserId: widget.member.id,
                 ),
-                FamilyDashboardHealthTab(
-                  loading: _loadingHealth,
-                  health: _health,
-                  onRefresh: _loadHealth,
-                ),
-                FamilyDashboardMedsTab(
-                  loading: _loadingMeds,
-                  meds: _meds,
-                  onRefresh: _loadMeds,
-                  onMedAction: _onMedAction,
-                ),
                 FamilyDashboardAuditTab(
                   loading: _loadingLogs,
                   logs: _logs,
@@ -272,150 +217,7 @@ class _FamilyDashboardScreenState extends State<FamilyDashboardScreen>
           ),
         ],
       ),
-      floatingActionButton: _currentTab == 2
-          ? Padding(
-              padding: EdgeInsets.only(bottom: 74 + bottomInset),
-              child: FloatingActionButton.extended(
-                backgroundColor: StyleTokens.buttonPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(31),
-                ),
-                onPressed: _showAddMedDialog,
-                icon: SvgPicture.asset(
-                  'assets/icons/nav/ic_plus.svg',
-                  width: 20,
-                  height: 20,
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                ),
-                label: Text(
-                  l10n.dashboardMedFormAddTitle,
-                  style: aiseeTextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            )
-          : null,
-    );
-  }
-
-  Future<void> _onMedAction(String action, DashboardMedication med) async {
-    if (action == 'delete') {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: Text(
-            l10n.dashboardMedsDelete,
-            style: aiseeTextStyle(fontWeight: FontWeight.w700),
-          ),
-          content: Text(
-            l10n.familyDashboardMedDeleteConfirm(med.name),
-            style: aiseeTextStyle(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.familyDashboardCancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(
-                l10n.dashboardMedsDelete,
-                style: const TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        ),
-      );
-      if (confirm != true) return;
-      try {
-        await _dashService.deleteMedication(
-          widget.accessToken,
-          widget.member.id,
-          med.id,
-        );
-        await _loadMeds();
-        if (mounted) AppToast.show(l10n.familyDashboardMedDeleted(med.name));
-      } catch (e) {
-        if (mounted) AppToast.show(e.toString(), isError: true);
-      }
-    } else if (action == 'edit') {
-      _showEditMedDialog(med);
-    }
-  }
-
-  Future<void> _showAddMedDialog() async {
-    final result = await _showMedForm();
-    if (result == null) return;
-    try {
-      await _dashService.createMedication(
-        widget.accessToken,
-        widget.member.id,
-        name: result['name']!,
-        dosage: result['dosage']!,
-        times: result['times']!.split(',').map((e) => e.trim()).toList(),
-        frequency: result['frequency'] ?? 'daily',
-      );
-      unawaited(
-        AiseeAnalyticsService.instance.track(
-          AiseeAnalyticsEvent.medicationCreated,
-          parameters: <String, Object?>{'source': 'family_dashboard'},
-        ),
-      );
-      await _loadMeds();
-      if (mounted) AppToast.show(l10n.familyDashboardMedAdded);
-    } catch (e) {
-      if (mounted) AppToast.show(e.toString(), isError: true);
-    }
-  }
-
-  Future<void> _showEditMedDialog(DashboardMedication med) async {
-    final result = await _showMedForm(
-      name: med.name,
-      dosage: med.dosage,
-      times: med.times.join(', '),
-      frequency: med.frequency,
-    );
-    if (result == null) return;
-    try {
-      await _dashService.updateMedication(
-        widget.accessToken,
-        widget.member.id,
-        med.id,
-        name: result['name']!,
-        dosage: result['dosage']!,
-        times: result['times']!.split(',').map((e) => e.trim()).toList(),
-        frequency: result['frequency'] ?? 'daily',
-      );
-      await _loadMeds();
-      if (mounted) AppToast.show(l10n.familyDashboardMedUpdated);
-    } catch (e) {
-      if (mounted) AppToast.show(e.toString(), isError: true);
-    }
-  }
-
-  Future<Map<String, String>?> _showMedForm({
-    String name = '',
-    String dosage = '',
-    String times = '',
-    String frequency = 'daily',
-  }) {
-    return showModalBottomSheet<Map<String, String>>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => FamilyDashboardMedFormSheet(
-        name: name,
-        dosage: dosage,
-        times: times,
-        frequency: frequency,
-      ),
+      floatingActionButton: null,
     );
   }
 

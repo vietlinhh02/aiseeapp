@@ -291,69 +291,53 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
         '— chờ máy chủ xác nhận trước khi vào home',
       );
     }
-    final ({AiseeUserProfile profile, AiseeAuthTokens tokens})? resumed =
-        await _aiseeAuth.resumeSession(stored);
-    if (!mounted) {
-      return;
-    }
-    if (resumed == null) {
-      _authLog('restoreSession: refresh failed, về login');
+    try {
+      final AiseeUserProfile? profile = await AiseeTokenProvider.instance
+          .withAccessToken(_aiseeAuth.fetchCurrentUser);
+      if (profile == null) {
+        if (!mounted) return;
+        _authLog('restoreSession: no valid token, về login');
+        await _clearSessionAndRouteToLogin();
+        return;
+      }
+      final AiseeAuthTokens? latest = await _readStoredSession();
+      final AiseeAuthTokens tokens = latest ?? stored;
+      if (!mounted) return;
+      _authLog(
+        'restoreSession: ok userId=${profile.id} '
+        'role=${profile.role ?? "null"}',
+      );
+      await _applySessionFromServer((profile: profile, tokens: tokens));
+    } catch (e) {
+      if (!mounted) return;
+      _authLog('restoreSession: fetch failed, về login — $e');
       await _clearSessionAndRouteToLogin();
-      return;
     }
-    _authLog(
-      'restoreSession: ok userId=${resumed.profile.id} '
-      'role=${resumed.profile.role ?? "null"}',
-    );
-    await _applySessionFromServer(resumed);
   }
 
   Future<void> _revalidateSessionInBackground(AiseeAuthTokens current) async {
-    final AiseeAuthTokens? latest = await _readStoredSession();
-    final AiseeAuthTokens tokens = latest ?? current;
-    final ({AiseeUserProfile profile, AiseeAuthTokens tokens})? resumed =
-        await _aiseeAuth.resumeSession(tokens);
-    if (!mounted) {
-      return;
-    }
-    if (resumed == null) {
-      final ({AiseeUserProfile profile, AiseeAuthTokens tokens})? recovered =
-          await _resumeLatestStoredSession(tokens);
-      if (!mounted) {
+    try {
+      final AiseeUserProfile? profile = await AiseeTokenProvider.instance
+          .withAccessToken(_aiseeAuth.fetchCurrentUser);
+      if (!mounted) return;
+      if (profile == null) {
+        _authLog('syncSession(nền): no valid token, về login');
+        await _clearSessionAndRouteToLogin(showExpiredToast: true);
         return;
       }
-      if (recovered != null) {
-        _authLog(
-          'syncSession(nền): recovered from rotated stored token '
-          'userId=${recovered.profile.id}',
-        );
-        await _applySessionFromServer(recovered);
-        return;
-      }
-      _authLog('syncSession(nền): refresh failed, về login');
+      final AiseeAuthTokens? latest = await _readStoredSession();
+      final AiseeAuthTokens tokens = latest ?? current;
+      if (!mounted) return;
+      _authLog(
+        'syncSession(nền): ok userId=${profile.id} '
+        'role=${profile.role ?? "null"}',
+      );
+      await _applySessionFromServer((profile: profile, tokens: tokens));
+    } catch (e) {
+      if (!mounted) return;
+      _authLog('syncSession(nền): fetch failed, về login — $e');
       await _clearSessionAndRouteToLogin(showExpiredToast: true);
-      return;
     }
-    _authLog(
-      'syncSession(nền): ok userId=${resumed.profile.id} '
-      'role=${resumed.profile.role ?? "null"}',
-    );
-    await _applySessionFromServer(resumed);
-  }
-
-  Future<({AiseeUserProfile profile, AiseeAuthTokens tokens})?>
-  _resumeLatestStoredSession(AiseeAuthTokens failedTokens) async {
-    final AiseeAuthTokens? latest = await _readStoredSession();
-    if (latest == null || _sameTokens(latest, failedTokens)) {
-      return null;
-    }
-    _authLog('syncSession(nền): retry latest stored token after refresh race');
-    return _aiseeAuth.resumeSession(latest);
-  }
-
-  bool _sameTokens(AiseeAuthTokens first, AiseeAuthTokens second) {
-    return first.accessToken == second.accessToken &&
-        first.refreshToken == second.refreshToken;
   }
 
   void _onAuthEvent(GoogleSignInAuthenticationEvent event) {
@@ -449,14 +433,23 @@ class _AuthShellState extends State<AuthShell> with WidgetsBindingObserver {
     }
 
     try {
-      final AiseeAuthTokens tokens = await _aiseeAuth.signInWithGoogle(
-        idToken,
-        role: role,
-      );
+      final AiseeAuthTokens tokens = await _aiseeAuth
+          .signInWithGoogle(idToken, role: role)
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw TimeoutException(
+              'POST /auth/google timed out',
+            ),
+          );
       if (!mounted || _user?.id != accountId) return;
-      final AiseeUserProfile profile = await _aiseeAuth.fetchCurrentUser(
-        tokens.accessToken,
-      );
+      final AiseeUserProfile profile = await _aiseeAuth
+          .fetchCurrentUser(tokens.accessToken)
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw TimeoutException(
+              'GET /users/me timed out',
+            ),
+          );
       if (!mounted || _user?.id != accountId) return;
       await _activateAuthenticatedSession(profile, tokens);
       final String? selectedRole = await _syncOnboardingRoleFromProfile(

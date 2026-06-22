@@ -107,11 +107,16 @@ class _FamilyContactsTabState extends State<FamilyContactsTab> {
         _error = null;
       });
     }
+    final String? token = await _token();
+    if (token == null) {
+      if (mounted && !silent) {
+        setState(() => _loading = false);
+      }
+      return;
+    }
     try {
-      final AiseeCurrentGroup? group = await AiseeTokenProvider.instance
-          .withAccessToken<AiseeCurrentGroup?>(
-            _familyService.fetchCurrentGroup,
-          );
+      final AiseeCurrentGroup? group =
+          await _familyService.fetchCurrentGroup(token);
       if (group == null) {
         if (mounted && !silent) {
           setState(() => _loading = false);
