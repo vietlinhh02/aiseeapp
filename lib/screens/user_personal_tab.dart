@@ -7,8 +7,10 @@ import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../services/aisee_health_service.dart';
 import '../services/aisee_token_provider.dart';
+import '../services/aisee_tts_preferences.dart';
 import '../theme/style_tokens.dart';
 import '../widgets/aisee_language_picker_sheet.dart';
+import '../services/aisee_reminders_data_provider.dart';
 import 'reminders_screen.dart';
 import 'subscription_screen.dart';
 import 'user_sponsor_screen.dart';
@@ -157,6 +159,23 @@ class UserPersonalTabState extends State<UserPersonalTab> {
               );
             },
           ),
+          const SizedBox(height: 10),
+          ValueListenableBuilder<bool>(
+            valueListenable: AiseeTtsPreferences.instance,
+            builder: (BuildContext context, bool enabled, Widget? child) {
+              final AppLocalizations l10n = AppLocalizations.of(context);
+              return _ToggleCard(
+                iconAsset: 'assets/icons/nav/ic_activity.svg',
+                title: l10n.settingsVoiceAnnouncementsLabel,
+                subtitle: l10n.settingsVoiceAnnouncementsSubtitle,
+                value: enabled,
+                onChanged: (bool v) {
+                  HapticFeedback.lightImpact();
+                  AiseeTtsPreferences.instance.setEnabled(v);
+                },
+              );
+            },
+          ),
           const SizedBox(height: 32),
           _buildSignOutButton(),
         ],
@@ -185,6 +204,94 @@ class UserPersonalTabState extends State<UserPersonalTab> {
                 l.personalSignOutAction,
                 style: StyleTokens.socialLabel().copyWith(fontSize: 14),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToggleCard extends StatelessWidget {
+  const _ToggleCard({
+    required this.iconAsset,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String iconAsset;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      toggled: value,
+      button: true,
+      child: Material(
+        color: StyleTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => onChanged(!value),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: StyleTokens.background,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: SvgPicture.asset(
+                      iconAsset,
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        StyleTokens.buttonPrimary,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        style: aiseeTextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: StyleTokens.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: aiseeTextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: StyleTokens.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: value,
+                  onChanged: onChanged,
+                ),
+              ],
             ),
           ),
         ),

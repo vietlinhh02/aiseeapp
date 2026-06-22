@@ -304,10 +304,11 @@ class AiseeReminderService {
       'now=${tz.TZDateTime.now(tz.local)}',
     );
 
-    if (reminder.type == AiseeReminderType.medication) {
-      await _scheduleMedication(reminder);
-    } else if (reminder.type == AiseeReminderType.appointment) {
-      await _scheduleAppointment(reminder);
+    switch (reminder.type) {
+      case AiseeReminderType.medication:
+        await _scheduleMedication(reminder);
+      case AiseeReminderType.appointment:
+        await _scheduleAppointment(reminder);
     }
 
     final List<AiseeReminder> all = await loadAll();

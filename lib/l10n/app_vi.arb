@@ -299,6 +299,14 @@
   "navPersonalFamilyLabel": "Mục 3 trên 3: Cá nhân. Hồ sơ và cài đặt.",
   "navDoubleTapHint": "Chạm hai lần để chọn",
   "closeAction": "Đóng",
+  "viewMessage": "Xem",
+  "inAppMessageLabel": "Tin nhắn mới",
+  "settingsVoiceAnnouncementsLabel": "Đọc thông báo bằng giọng nói",
+  "settingsVoiceAnnouncementsSubtitle": "Tự động đọc giờ uống thuốc, lịch hẹn và tin nhắn",
+  "messageFrom": "Tin nhắn từ {name}",
+  "@messageFrom": {
+    "placeholders": { "name": { "type": "String" } }
+  },
   "incomingVoiceCall": "Cuộc gọi thoại đến",
   "incomingVideoCall": "Cuộc gọi video đến",
   "declineCall": "Từ chối",

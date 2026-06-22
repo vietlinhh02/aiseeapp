@@ -928,6 +928,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeAction => 'Close';
 
   @override
+  String get viewMessage => 'View';
+
+  @override
+  String get inAppMessageLabel => 'New message';
+
+  @override
+  String get settingsVoiceAnnouncementsLabel => 'Voice announcements';
+
+  @override
+  String get settingsVoiceAnnouncementsSubtitle =>
+      'Auto-read medication times, appointments and messages';
+
+  @override
+  String messageFrom(String name) {
+    return 'Message from $name';
+  }
+
+  @override
   String get incomingVoiceCall => 'Incoming voice call';
 
   @override

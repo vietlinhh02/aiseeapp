@@ -6,6 +6,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import '../config/aisee_locale_controller.dart';
 import '../generated/l10n/app_localizations.dart';
 import 'aisee_reminder_service.dart';
+import 'aisee_tts_preferences.dart';
 import '../models/aisee_reminder.dart';
 
 /// Checks reminders every 30 seconds while the app is in foreground.
@@ -18,6 +19,7 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
   Timer? _timer;
   bool _running = false;
   bool _ttsReady = false;
+  bool _ttsEnabled = true;
 
   /// Tracks announced reminders so we don't repeat within the same window.
   /// Key format: "{reminderId}_{timeSlotOrDatetime}_{dateKey}"
@@ -30,20 +32,32 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
   Future<void> start() async {
     if (_running) return;
     _running = true;
+    _ttsEnabled = AiseeTtsPreferences.instance.value;
 
     AiseeLocaleController.instance.addListener(_onLocaleChanged);
+    AiseeTtsPreferences.instance.addListener(_onTtsPrefChanged);
     WidgetsBinding.instance.addObserver(this);
     _startTimer();
-    debugPrint('[AiSee:Announcer] Started (TTS deferred)');
+    debugPrint(
+      '[AiSee:Announcer] Started (TTS deferred, enabled=$_ttsEnabled)',
+    );
   }
 
   void dispose() {
     _stopTimer();
     AiseeLocaleController.instance.removeListener(_onLocaleChanged);
+    AiseeTtsPreferences.instance.removeListener(_onTtsPrefChanged);
     WidgetsBinding.instance.removeObserver(this);
     _tts.stop();
     _running = false;
     debugPrint('[AiSee:Announcer] Disposed');
+  }
+
+  void _onTtsPrefChanged() {
+    _ttsEnabled = AiseeTtsPreferences.instance.value;
+    if (!_ttsEnabled) {
+      _tts.stop();
+    }
   }
 
   Future<void> _ensureTts() async {
@@ -86,12 +100,14 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _startTimer();
-      debugPrint('[AiSee:Announcer] Resumed — timer restarted');
-    } else if (state == AppLifecycleState.paused) {
-      _stopTimer();
-      debugPrint('[AiSee:Announcer] Paused — timer stopped');
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _startTimer();
+        debugPrint('[AiSee:Announcer] Resumed — timer restarted');
+      case AppLifecycleState.paused:
+        _stopTimer();
+        debugPrint('[AiSee:Announcer] Paused — timer stopped');
+      case _:
     }
   }
 
@@ -103,10 +119,11 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
       final String dateKey = '${now.year}-${now.month}-${now.day}';
 
       for (final AiseeReminder r in reminders) {
-        if (r.type == AiseeReminderType.medication) {
-          _checkMedication(r, now, dateKey);
-        } else if (r.type == AiseeReminderType.appointment) {
-          _checkAppointment(r, now, dateKey);
+        switch (r.type) {
+          case AiseeReminderType.medication:
+            _checkMedication(r, now, dateKey);
+          case AiseeReminderType.appointment:
+            _checkAppointment(r, now, dateKey);
         }
       }
     } catch (e) {
@@ -171,9 +188,27 @@ class AiseeReminderAnnouncer with WidgetsBindingObserver {
   }
 
   Future<void> _speak(String text) async {
+    if (!_ttsEnabled) return;
     await _ensureTts();
     debugPrint('[AiSee:Announcer] Speaking: $text');
+    await _tts.stop();
     await _tts.speak(text);
+  }
+
+  /// Đọc 1 reminder cụ thể — dùng khi user tap notification background
+  /// và mở app, announcer phát TTS trước/sau khi navigate.
+  Future<void> speakReminder(AiseeReminder reminder) async {
+    if (!_ttsEnabled) return;
+    final AppLocalizations l = lookupAppLocalizations(
+      AiseeLocaleController.instance.value,
+    );
+    final String text = switch (reminder.type) {
+      AiseeReminderType.medication =>
+        l.announcerMedication(reminder.title, reminder.times?.first ?? ''),
+      AiseeReminderType.appointment =>
+        l.announcerAppointment(reminder.title),
+    };
+    await _speak(text);
   }
 
   /// Clear announced cache (e.g. at midnight or manual reset).

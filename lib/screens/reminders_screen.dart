@@ -1,32 +1,17 @@
 import 'dart:async';
 
-
 import 'package:flutter/material.dart';
-
-import 'package:flutter/services.dart';
-
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'package:aiseeapp/generated/l10n/app_localizations.dart';
+import 'package:aiseeapp/services/aisee_analytics_service.dart';
+import 'package:aiseeapp/services/aisee_reminders_data_provider.dart';
 import 'package:aiseeapp/theme/aisee_typography.dart';
-
+import 'package:aiseeapp/theme/style_tokens.dart';
+import 'package:aiseeapp/widgets/app_loading_indicator.dart';
+import 'package:aiseeapp/widgets/reminders_detail_sheet.dart';
 
 import '../models/aisee_api_models.dart';
-
-import '../services/aisee_analytics_service.dart';
-
-import '../services/aisee_health_service.dart';
-
-import '../services/aisee_reminder_service.dart';
-
-import '../services/aisee_token_provider.dart';
-
-import '../theme/style_tokens.dart';
-
-import '../generated/l10n/app_localizations.dart';
-import '../widgets/app_loading_indicator.dart';
-
-
-enum ReminderFilter { all, medication, appointment, health }
 
 class RemindersScreen extends StatefulWidget {
   const RemindersScreen({
@@ -43,6 +28,9 @@ class RemindersScreen extends StatefulWidget {
 }
 
 class _RemindersScreenState extends State<RemindersScreen> {
+  final AiseeRemindersDataProvider _dataProvider =
+      AiseeRemindersDataProvider();
+
   List<Map<String, dynamic>> _medications = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _appointments = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _healthLogs = <Map<String, dynamic>>[];
@@ -63,20 +51,19 @@ class _RemindersScreenState extends State<RemindersScreen> {
       _loading = true;
       _error = null;
     });
-    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
+    final String? accessToken = await _dataProvider.accessToken();
     if (accessToken == null || !mounted) return;
 
-    final AiseeHealthService svc = AiseeHealthService();
     try {
       final ReminderFilter f = widget.initialFilter;
       if (f == ReminderFilter.all || f == ReminderFilter.medication) {
-        _medications = await svc.fetchMedications(accessToken);
+        _medications = await _dataProvider.fetchMedications(accessToken);
       }
       if (f == ReminderFilter.all || f == ReminderFilter.appointment) {
-        _appointments = await svc.fetchAppointments(accessToken);
+        _appointments = await _dataProvider.fetchAppointments(accessToken);
       }
       if (f == ReminderFilter.all || f == ReminderFilter.health) {
-        _healthLogs = await svc.fetchHealthLogs(accessToken);
+        _healthLogs = await _dataProvider.fetchHealthLogs(accessToken);
       }
       if (!mounted) return;
       setState(() => _loading = false);
@@ -86,31 +73,55 @@ class _RemindersScreenState extends State<RemindersScreen> {
         _loading = false;
         _error = e is AiseeApiException ? e.message : l10n.remindersLoadFailed;
       });
-    } finally {
-      svc.close();
     }
   }
 
   Future<void> _deleteReminder(Map<String, dynamic> item) async {
-    // Cancel local notification if exists.
     final int? localId = item['local_id'] as int?;
     if (localId != null) {
-      await AiseeReminderService.instance.cancelReminder(localId);
+      await _dataProvider.cancelReminder(localId);
     }
     await _load();
   }
 
   String get _title {
-    switch (widget.initialFilter) {
-      case ReminderFilter.medication:
-        return l10n.remindersMedication;
-      case ReminderFilter.appointment:
-        return l10n.personalAppointmentsTitle;
-      case ReminderFilter.health:
-        return l10n.personalHealthLogTitle;
-      case ReminderFilter.all:
-        return 'Reminders';
-    }
+    return switch (widget.initialFilter) {
+      ReminderFilter.medication => l10n.remindersMedication,
+      ReminderFilter.appointment => l10n.personalAppointmentsTitle,
+      ReminderFilter.health => l10n.personalHealthLogTitle,
+      ReminderFilter.all => 'Reminders',
+    };
+  }
+
+  Future<void> _markMedication(
+    Map<String, dynamic> item, {
+    required bool taken,
+  }) async {
+    final String? accessToken = await _dataProvider.accessToken();
+    if (accessToken == null) return;
+    try {
+      final Map<String, dynamic> data = {
+        'reminder_id': item['id'],
+        'medication_name': AiseeRemindersDataProvider.itemTitle(item),
+      };
+      if (taken) {
+        await _dataProvider.markMedicationTaken(accessToken, data);
+        unawaited(
+          AiseeAnalyticsService.instance.track(
+            AiseeAnalyticsEvent.medicationTaken,
+            parameters: <String, Object?>{'source': 'reminders'},
+          ),
+        );
+      } else {
+        await _dataProvider.markMedicationSkipped(accessToken, data);
+        unawaited(
+          AiseeAnalyticsService.instance.track(
+            AiseeAnalyticsEvent.medicationSkipped,
+            parameters: <String, Object?>{'source': 'reminders'},
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   @override
@@ -325,8 +336,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Widget _buildItemCard(Map<String, dynamic> item, {required bool isMed}) {
-    final String title = _itemTitle(item);
-    final String subtitle = isMed ? _medSubtitle(item) : _apptSubtitle(item);
+    final String title = AiseeRemindersDataProvider.itemTitle(item);
+    final String subtitle = isMed
+        ? AiseeRemindersDataProvider.medSubtitle(item, l10n)
+        : AiseeRemindersDataProvider.apptSubtitle(item, l10n);
     final bool highlighted =
         item['id'] == widget.highlightedReminderId ||
         item['local_id'] == widget.highlightedReminderId;
@@ -434,7 +447,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
     final bool isSymptom = kind == 'symptom';
     final String desc = isSymptom
         ? (log['symptom'] as String? ?? '')
-        : _metricType(log['metric_type'] as String? ?? '');
+        : AiseeRemindersDataProvider.metricType(
+            log['metric_type'] as String? ?? '',
+            l10n,
+          );
     final String severity = log['severity'] as String? ?? '';
     final String value = log['value']?.toString() ?? '';
     final String unit = log['unit'] as String? ?? '';
@@ -580,300 +596,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
-  // ── Helpers ──
-
-  String _metricType(String type) {
-    switch (type) {
-      case 'blood_pressure':
-        return l10n.metricBloodPressure;
-      case 'heart_rate':
-        return l10n.metricHeartRate;
-      case 'temperature':
-        return l10n.metricTemperature;
-      case 'blood_sugar':
-        return l10n.metricBloodSugar;
-      case 'weight':
-        return l10n.metricWeight;
-      case 'height':
-        return l10n.metricHeight;
-      case 'spo2':
-        return 'SpO2';
-      default:
-        return type;
-    }
-  }
-
-  String _frequency(String? freq) {
-    switch (freq?.toLowerCase()) {
-      case 'daily':
-        return l10n.freqDaily;
-      case 'weekly':
-        return l10n.freqWeekly;
-      case 'monthly':
-        return l10n.freqMonthly;
-      case 'twice_daily':
-        return l10n.freqTwiceDaily;
-      default:
-        return freq ?? '';
-    }
-  }
-
-  String _itemTitle(Map<String, dynamic> item) {
-    return item['name'] as String? ?? item['title'] as String? ?? '';
-  }
-
-  String _medSubtitle(Map<String, dynamic> item) {
-    final List<String> times =
-        (item['times'] as List<dynamic>?)?.cast<String>() ?? <String>[];
-    final String dosage = item['dosage'] as String? ?? '';
-    final String freq = _frequency(item['frequency'] as String?);
-    final bool taken = item['taken'] == true;
-    final bool skipped = item['skipped'] == true;
-
-    final List<String> parts = <String>[];
-    if (dosage.isNotEmpty) parts.add(dosage);
-    if (times.isNotEmpty) parts.add(times.join(', '));
-    if (freq.isNotEmpty) parts.add(freq);
-    if (taken) {
-      parts.add(l10n.remindersTaken);
-    } else if (skipped) {
-      parts.add(l10n.remindersSkipped);
-    }
-    return parts.join(' · ');
-  }
-
-  String _apptSubtitle(Map<String, dynamic> item) {
-    final String? dt = item['datetime'] as String?;
-    final String? location = item['location'] as String?;
-    final List<String> parts = <String>[];
-
-    if (dt != null && dt.isNotEmpty) {
-      try {
-        final DateTime parsed = DateTime.parse(dt).toLocal();
-        parts.add(
-          '${parsed.day.toString().padLeft(2, '0')}/'
-          '${parsed.month.toString().padLeft(2, '0')}/'
-          '${parsed.year}'
-          '${l10n.reminderAtSeparator}${parsed.hour.toString().padLeft(2, '0')}:'
-          '${parsed.minute.toString().padLeft(2, '0')}',
-        );
-      } catch (_) {
-        parts.add(dt);
-      }
-    }
-    if (location != null && location.isNotEmpty) {
-      parts.add(location);
-    }
-    return parts.join(' · ');
-  }
-
-  // ── Detail bottom sheet ──
-
   void _showItemDetail(Map<String, dynamic> item, {required bool isMed}) {
-    final String title = _itemTitle(item);
-    final String subtitle = isMed ? _medSubtitle(item) : _apptSubtitle(item);
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      showDragHandle: false,
-      isScrollControlled: true,
-      builder: (BuildContext ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: StyleTokens.surfaceCard,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Center(
-                      child: Container(
-                        width: 38,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 18),
-                        decoration: BoxDecoration(
-                          color: StyleTokens.cardBorder,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEAF0FA),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: SvgPicture.asset(
-                              isMed
-                                  ? 'assets/icons/nav/ic_heart.svg'
-                                  : 'assets/icons/nav/ic_calendar.svg',
-                              width: 22,
-                              height: 22,
-                              colorFilter: const ColorFilter.mode(
-                                StyleTokens.buttonPrimary,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                title,
-                                style: aiseeTextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: StyleTokens.textPrimary,
-                                ),
-                              ),
-                              if (subtitle.isNotEmpty) ...<Widget>[
-                                const SizedBox(height: 5),
-                                Text(
-                                  subtitle,
-                                  style: aiseeTextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w400,
-                                    color: StyleTokens.textMuted,
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    if (isMed) ...<Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: _sheetAction(
-                              ctx,
-                              label: l10n.remindersTakenStatus,
-                              color: StyleTokens.buttonPrimary,
-                              textColor: StyleTokens.buttonOnPrimary,
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                _markMedication(item, taken: true);
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _sheetAction(
-                              ctx,
-                              label: l10n.remindersSkippedStatus,
-                              color: StyleTokens.background,
-                              textColor: StyleTokens.textSecondary,
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                _markMedication(item, taken: false);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    _sheetAction(
-                      ctx,
-                      label: l10n.remindersDeletePrompt,
-                      color: const Color(0xFFFFEBEB),
-                      textColor: StyleTokens.error,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _deleteReminder(item);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    RemindersDetailSheet.show(
+      context,
+      item: item,
+      isMed: isMed,
+      onTaken: () => _markMedication(item, taken: true),
+      onSkipped: () => _markMedication(item, taken: false),
+      onDelete: () => _deleteReminder(item),
     );
-  }
-
-  Widget _sheetAction(
-    BuildContext ctx, {
-    required String label,
-    required Color color,
-    required Color textColor,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: Material(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Center(
-              child: Text(
-                label,
-                style: aiseeTextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _markMedication(
-    Map<String, dynamic> item, {
-    required bool taken,
-  }) async {
-    HapticFeedback.lightImpact();
-    final String? accessToken = await AiseeTokenProvider.instance.accessToken();
-    if (accessToken == null) return;
-    final AiseeHealthService svc = AiseeHealthService();
-    try {
-      final Map<String, dynamic> data = {
-        'reminder_id': item['id'],
-        'medication_name': _itemTitle(item),
-      };
-      if (taken) {
-        await svc.markMedicationTaken(accessToken, data);
-        unawaited(
-          AiseeAnalyticsService.instance.track(
-            AiseeAnalyticsEvent.medicationTaken,
-            parameters: <String, Object?>{'source': 'reminders'},
-          ),
-        );
-      } else {
-        await svc.markMedicationSkipped(accessToken, data);
-        unawaited(
-          AiseeAnalyticsService.instance.track(
-            AiseeAnalyticsEvent.medicationSkipped,
-            parameters: <String, Object?>{'source': 'reminders'},
-          ),
-        );
-      }
-    } catch (_) {}
-    svc.close();
   }
 }

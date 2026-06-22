@@ -278,6 +278,14 @@
   "navPersonalFamilyLabel": "Tab 3 of 3: Personal. Profile and settings.",
   "navDoubleTapHint": "Double-tap to select",
   "closeAction": "Close",
+  "viewMessage": "View",
+  "inAppMessageLabel": "New message",
+  "settingsVoiceAnnouncementsLabel": "Voice announcements",
+  "settingsVoiceAnnouncementsSubtitle": "Auto-read medication times, appointments and messages",
+  "messageFrom": "Message from {name}",
+  "@messageFrom": {
+    "placeholders": { "name": { "type": "String" } }
+  },
   "incomingVoiceCall": "Incoming voice call",
   "incomingVideoCall": "Incoming video call",
   "declineCall": "Decline",

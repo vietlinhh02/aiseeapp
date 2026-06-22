@@ -24,14 +24,14 @@ class AiseeLocaleController extends ValueNotifier<Locale> {
   static Locale _defaultLocale() {
     final String code = PlatformDispatcher.instance.locale.languageCode
         .toLowerCase();
-    if (code.startsWith('en')) return const Locale('en');
-    return const Locale('vi');
+    if (code.startsWith('vi')) return const Locale('vi');
+    return const Locale('en');
   }
 
   static Locale _normalize(String code) {
     final String c = code.trim().toLowerCase();
-    if (c.startsWith('en')) return const Locale('en');
-    return const Locale('vi');
+    if (c.startsWith('vi')) return const Locale('vi');
+    return const Locale('en');
   }
 
   /// Load the persisted locale; safe to call multiple times.

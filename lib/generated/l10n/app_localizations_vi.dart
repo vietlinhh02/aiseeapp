@@ -927,6 +927,24 @@ class AppLocalizationsVi extends AppLocalizations {
   String get closeAction => 'Đóng';
 
   @override
+  String get viewMessage => 'Xem';
+
+  @override
+  String get inAppMessageLabel => 'Tin nhắn mới';
+
+  @override
+  String get settingsVoiceAnnouncementsLabel => 'Đọc thông báo bằng giọng nói';
+
+  @override
+  String get settingsVoiceAnnouncementsSubtitle =>
+      'Tự động đọc giờ uống thuốc, lịch hẹn và tin nhắn';
+
+  @override
+  String messageFrom(String name) {
+    return 'Tin nhắn từ $name';
+  }
+
+  @override
   String get incomingVoiceCall => 'Cuộc gọi thoại đến';
 
   @override

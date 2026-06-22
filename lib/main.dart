@@ -14,12 +14,15 @@ import 'generated/l10n/app_localizations.dart';
 import 'models/aisee_reminder.dart';
 import 'screens/reminders_screen.dart';
 import 'services/aisee_analytics_service.dart';
-import 'services/incoming_call_controller.dart';
-import 'services/in_app_message_controller.dart';
-import 'services/aisee_push_service.dart';
+import 'services/aisee_message_announcer.dart';
+import 'services/aisee_reminders_data_provider.dart';
 import 'services/aisee_reminder_announcer.dart';
 import 'services/aisee_reminder_service.dart';
+import 'services/aisee_tts_preferences.dart';
 import 'services/aisee_voice_foreground.dart';
+import 'services/in_app_message_controller.dart';
+import 'services/incoming_call_controller.dart';
+import 'services/aisee_push_service.dart';
 import 'config/aisee_navigator_key.dart';
 import 'theme/style_tokens.dart';
 import 'widgets/app_bootstrap.dart';
@@ -27,13 +30,30 @@ import 'widgets/in_app_message_overlay.dart';
 import 'widgets/incoming_call_overlay.dart';
 
 @pragma('vm:entry-point')
+bool _isIncomingCallType(Object? type) {
+  return type == 'incoming_call' || type == 'volunteer_match';
+}
+
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint('[AiSee:Push] Background message: ${message.data}');
-  final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
-  if (data['type'] == 'incoming_call' || data['type'] == 'volunteer_match') {
+  // FCM data values are always Strings; some payloads from server may still
+  // be dynamic (bool/int) — normalize so downstream code receives String.
+  final Map<String, dynamic> raw = message.data;
+  final Map<String, dynamic> data = <String, dynamic>{
+    for (final MapEntry<String, dynamic> entry in raw.entries)
+      entry.key: entry.value?.toString() ?? '',
+  };
+  debugPrint(
+    '[AiSee:Push] Background message: id=${message.messageId} '
+    'type=${data['type']} room=${data['room_name']} caller=${data['caller_name']}',
+  );
+  final String type = data['type'] ?? '';
+  if (_isIncomingCallType(type)) {
     await AiseePushService.showIncomingCallUi(data);
-  } else if (data['type'] == 'call_ended') {
+    return;
+  }
+  if (type == 'call_ended') {
     await AiseePushService.endIncomingCallUi(data);
   }
 }
@@ -77,9 +97,11 @@ Future<void> main() async {
       await Future.wait([
         dotenv.load(fileName: 'assets/app_config.env'),
         AiseeLocaleController.instance.load(),
+        AiseeTtsPreferences.instance.load(),
         AiseeReminderService.instance.init(),
       ]);
       unawaited(AiseeReminderAnnouncer.instance.start());
+      unawaited(AiseeMessageAnnouncer.instance.start());
       assert(() {
         final String? lk = dotenv.env['LIVEKIT_URL'];
         if (lk == null || lk.trim().isEmpty) {
@@ -211,7 +233,30 @@ class _AiseeAppState extends State<AiseeApp> with WidgetsBindingObserver {
         ),
       ),
     );
+    // Đọc TTS reminder khi user mở app từ background notification
+    // (giúp người khiếm thị nghe được ngay, không cần đọc màn hình).
+    unawaited(_announceOpenedReminder(payload));
     return true;
+  }
+
+  Future<void> _announceOpenedReminder(
+    AiseeReminderNotificationPayload payload,
+  ) async {
+    try {
+      final List<AiseeReminder> all =
+          await AiseeReminderService.instance.loadAll();
+      AiseeReminder? target;
+      for (final AiseeReminder r in all) {
+        if (r.id == payload.reminderId) {
+          target = r;
+          break;
+        }
+      }
+      if (target == null) return;
+      await AiseeReminderAnnouncer.instance.speakReminder(target);
+    } catch (e) {
+      debugPrint('[AiSee] announceOpenedReminder failed: $e');
+    }
   }
 
   ReminderFilter _reminderFilterForType(AiseeReminderType type) {

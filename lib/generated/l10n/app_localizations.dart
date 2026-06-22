@@ -1735,6 +1735,36 @@ abstract class AppLocalizations {
   /// **'Đóng'**
   String get closeAction;
 
+  /// No description provided for @viewMessage.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xem'**
+  String get viewMessage;
+
+  /// No description provided for @inAppMessageLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tin nhắn mới'**
+  String get inAppMessageLabel;
+
+  /// No description provided for @settingsVoiceAnnouncementsLabel.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đọc thông báo bằng giọng nói'**
+  String get settingsVoiceAnnouncementsLabel;
+
+  /// No description provided for @settingsVoiceAnnouncementsSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tự động đọc giờ uống thuốc, lịch hẹn và tin nhắn'**
+  String get settingsVoiceAnnouncementsSubtitle;
+
+  /// No description provided for @messageFrom.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tin nhắn từ {name}'**
+  String messageFrom(String name);
+
   /// No description provided for @incomingVoiceCall.
   ///
   /// In vi, this message translates to:
