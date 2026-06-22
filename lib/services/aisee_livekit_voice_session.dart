@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
@@ -506,8 +505,11 @@ class AiseeLiveKitVoiceSession {
     if (kIsWeb) return;
     try {
       await AiseeAudioRouteService.instance.enterAgentMode();
-      _log('Audio', 'Audio session configured via AudioRouteService '
-          '(headphone + BT, speaker)');
+      _log(
+        'Audio',
+        'Audio session configured via AudioRouteService '
+            '(headphone + BT, speaker)',
+      );
     } catch (e) {
       _log('Audio', 'Audio session config failed: $e');
     }
@@ -662,7 +664,7 @@ class AiseeLiveKitVoiceSession {
         ),
       );
       syncLocalCameraPreviewTrack();
-      // Start NSFW content guard with 200ms interval for minimal exposure.
+      // Start NSFW content guard while the local camera is active.
       if (_contentGuard == null) {
         final AiseeNsfwClassifier? classifier =
             await AiseeNsfwClassifier.instance;
@@ -866,39 +868,42 @@ class AiseeLiveKitVoiceSession {
       final int baseId = DateTime.now().millisecondsSinceEpoch % 100000;
       _log('RPC', 'schedule_reminder type=$typeStr name=$name');
 
-      if (typeStr == 'medication') {
-        final List<String> times =
-            (params['times'] as List<dynamic>?)?.cast<String>() ?? <String>[];
-        final String freq = _paramString(params, const ['frequency', 'freq']);
-        final AiseeReminder reminder = AiseeReminder(
-          id: baseId,
-          type: AiseeReminderType.medication,
-          title: name,
-          times: times,
-          frequency: freq.isEmpty ? 'daily' : freq,
-          createdAt: DateTime.now(),
-        );
-        await AiseeReminderService.instance.scheduleReminder(reminder);
-        unawaited(
-          AiseeAnalyticsService.instance.track(
-            AiseeAnalyticsEvent.medicationCreated,
-            parameters: <String, Object?>{'source': 'ai_tool'},
-          ),
-        );
-      } else if (typeStr == 'appointment') {
-        final String dt = _paramString(params, const [
-          'datetime',
-          'date_time',
-          'time',
-        ]);
-        final AiseeReminder reminder = AiseeReminder(
-          id: baseId,
-          type: AiseeReminderType.appointment,
-          title: name,
-          datetime: dt,
-          createdAt: DateTime.now(),
-        );
-        await AiseeReminderService.instance.scheduleReminder(reminder);
+      switch (typeStr) {
+        case 'medication':
+          final List<String> times =
+              (params['times'] as List<dynamic>?)?.cast<String>() ??
+              <String>[];
+          final String freq = _paramString(params, const ['frequency', 'freq']);
+          final AiseeReminder reminder = AiseeReminder(
+            id: baseId,
+            type: AiseeReminderType.medication,
+            title: name,
+            times: times,
+            frequency: freq.isEmpty ? 'daily' : freq,
+            createdAt: DateTime.now(),
+          );
+          await AiseeReminderService.instance.scheduleReminder(reminder);
+          unawaited(
+            AiseeAnalyticsService.instance.track(
+              AiseeAnalyticsEvent.medicationCreated,
+              parameters: <String, Object?>{'source': 'ai_tool'},
+            ),
+          );
+        case 'appointment':
+          final String dt = _paramString(params, const [
+            'datetime',
+            'date_time',
+            'time',
+          ]);
+          final AiseeReminder reminder = AiseeReminder(
+            id: baseId,
+            type: AiseeReminderType.appointment,
+            title: name,
+            datetime: dt,
+            createdAt: DateTime.now(),
+          );
+          await AiseeReminderService.instance.scheduleReminder(reminder);
+        case _:
       }
       return jsonEncode({'status': 'ok'});
     });

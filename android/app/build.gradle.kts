@@ -76,6 +76,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            }
+        }
+    }
+
+    packaging {
+        jniLibs {
+            pickFirsts.add("**/libc++_shared.so")
         }
     }
 }
@@ -83,6 +92,7 @@ android {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
+    implementation("androidx.activity:activity-ktx:1.9.3")
 }
 
 flutter {

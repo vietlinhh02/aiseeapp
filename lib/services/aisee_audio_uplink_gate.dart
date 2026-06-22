@@ -1,6 +1,6 @@
 import 'dart:collection';
 import 'dart:math' as math;
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 class AiseeAudioUplinkDecision {
   const AiseeAudioUplinkDecision({required this.frames, required this.bargeIn});
@@ -12,7 +12,7 @@ class AiseeAudioUplinkDecision {
 class AiseeAudioUplinkGate {
   AiseeAudioUplinkGate({
     this.enabled = true,
-    this.initialNoiseFloor = 0.006,
+    this.initialNoiseFloor = 0.15,
     this.minSpeechRms = 0.018,
     this.minContinueRms = 0.010,
     this.minBargeInRms = 0.060,
@@ -25,7 +25,7 @@ class AiseeAudioUplinkGate {
     this.gateWhenAssistantInactive = true,
     this.allowBargeIn = false,
     int bargeInConsecutiveFrames = 3,
-  }) : _noiseFloor = initialNoiseFloor.clamp(0.003, 0.040),
+  }) : _noiseFloor = initialNoiseFloor.clamp(0.003, 0.20),
        _bargeInConsecutiveFrames = bargeInConsecutiveFrames;
 
   AiseeAudioUplinkGate.echoOnly({
@@ -140,6 +140,14 @@ class AiseeAudioUplinkGate {
       );
     }
 
+    if (assistantOutputActive && !allowBargeIn) {
+      _adaptNoiseFloor(rms);
+      return const AiseeAudioUplinkDecision(
+        frames: <Uint8List>[],
+        bargeIn: false,
+      );
+    }
+
     final double speechThreshold = math.max(
       minSpeechRms,
       _noiseFloor * noiseMultiplier,
@@ -203,8 +211,10 @@ class AiseeAudioUplinkGate {
     if (rms <= 0) {
       return;
     }
-    final double capped = rms.clamp(0.003, 0.040);
-    _noiseFloor = (_noiseFloor * 0.98 + capped * 0.02).clamp(0.003, 0.040);
+    final double capped = rms.clamp(0.003, 0.20);
+    _noiseFloor = (_noiseFloor * 0.98 + capped * 0.02).clamp(0.003, 0.20);
+    debugPrint('[AiSee:NoiseFloor] rms=${rms.toStringAsFixed(4)} '
+        'floor=${_noiseFloor.toStringAsFixed(4)}');
   }
 
   static double _rms(Uint8List bytes) {

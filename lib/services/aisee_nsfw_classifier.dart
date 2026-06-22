@@ -12,7 +12,8 @@ typedef ClassifyInput = ({Float32List tfliteInput, Uint8List jpegForSend});
 /// TFLite-based NSFW classifier backed by a MobileNet model.
 ///
 /// Model output: 5 classes [Drawing, Hentai, Neutral, Porn, Sexy].
-/// NSFW score = sum of Hentai (1) + Porn (3) + Sexy (4).
+/// NSFW score weights explicit classes strongly and treats "Sexy" as weak
+/// evidence to avoid false positives on non-explicit camera frames.
 class AiseeNsfwClassifier implements NsfwClassifier {
   AiseeNsfwClassifier._(this._interpreter);
 
@@ -24,8 +25,11 @@ class AiseeNsfwClassifier implements NsfwClassifier {
   static const int _inputSize = 224;
   static const int _maxFrameWidth = 640;
   static const int _jpegQuality = 68;
-  static const List<int> _nsfwIndices = [1, 3, 4];
-  static const double defaultThreshold = 0.7;
+  static const int _hentaiIndex = 1;
+  static const int _pornIndex = 3;
+  static const int _sexyIndex = 4;
+  static const double _sexyWeight = 0.35;
+  static const double defaultThreshold = 0.88;
 
   static Future<AiseeNsfwClassifier?> get instance async {
     if (_instance != null) return _instance;
@@ -74,11 +78,21 @@ class AiseeNsfwClassifier implements NsfwClassifier {
     final output = List.filled(5, 0.0).reshape([1, 5]);
     _interpreter.run(inputTensor, output);
 
-    final scores = output[0] as List<double>;
-    final nsfwScore = _nsfwIndices.fold<double>(
-      0.0,
-      (sum, i) => sum + scores[i],
-    );
+    return scoreFromModelOutput(output[0] as List<double>);
+  }
+
+  static double scoreFromModelOutput(List<double> scores) {
+    if (scores.length != 5) {
+      throw ArgumentError.value(
+        scores.length,
+        'scores.length',
+        'NSFW model output must contain exactly 5 class scores.',
+      );
+    }
+    final double nsfwScore =
+        scores[_hentaiIndex] +
+        scores[_pornIndex] +
+        scores[_sexyIndex] * _sexyWeight;
     return nsfwScore.clamp(0.0, 1.0);
   }
 

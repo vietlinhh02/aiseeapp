@@ -1,5 +1,10 @@
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
+const MethodChannel _audioRouteChannel = MethodChannel(
+  'com.aisee.aiseeapp/audio_route',
+);
 
 /// Audio context modes for the app.
 enum AudioContext {
@@ -52,9 +57,33 @@ class AiseeAudioRouteService {
         ),
       );
       _currentContext = AudioContext.agentVoice;
+      // Force speakerphone qua AudioManager.setSpeakerphoneOn(true) — bypass
+      // các OEM (Samsung/Xiaomi/Huawei/Oppo) ignore defaultToSpeaker trên
+      // audio session, ép audio output ra loudspeaker thay vì earpiece.
+      await forceSpeakerphone(true);
       debugPrint('[AiSee:Audio] Entered Agent voice mode (speaker)');
     } catch (e) {
       debugPrint('[AiSee:Audio] Failed to enter Agent mode: $e');
+    }
+  }
+
+  /// Bật/tắt speakerphone qua native AudioManager. Một số OEM Android
+  /// (Samsung/Xiaomi/Huawei/Oppo) bỏ qua audio_session defaultToSpeaker
+  /// → audio phát qua earpiece. setSpeakerphoneOn(true) là cách đáng tin
+  /// cậy nhất để force loudspeaker trên mọi thiết bị.
+  Future<bool> forceSpeakerphone(bool enabled) async {
+    if (kIsWeb) return false;
+    try {
+      final bool? ok = await _audioRouteChannel.invokeMethod<bool>(
+        'forceSpeakerphone',
+        <String, Object?>{'enabled': enabled},
+      );
+      return ok ?? false;
+    } on MissingPluginException {
+      return false;
+    } catch (e) {
+      debugPrint('[AiSee:Audio] forceSpeakerphone($enabled) failed: $e');
+      return false;
     }
   }
 

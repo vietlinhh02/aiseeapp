@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -15,6 +14,7 @@ import '../services/aisee_audio_route_service.dart';
 import '../services/aisee_call_service.dart';
 import '../services/aisee_camera_selection_service.dart';
 import '../services/aisee_notification_feedback.dart';
+import '../services/aisee_pip_service.dart';
 import '../services/aisee_token_provider.dart';
 import '../theme/style_tokens.dart';
 import '../utils/app_toast.dart';
@@ -136,7 +136,7 @@ class _CallScreenState extends State<CallScreen> {
   void initState() {
     super.initState();
     CallScreen.openRouteCount++;
-    // Render UI first (show "Đang gọi..."), then connect.
+    AiseePipService.instance.init();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _connectToRoom();
     });
@@ -257,6 +257,7 @@ class _CallScreenState extends State<CallScreen> {
           true,
           cameraCaptureOptions: camOpts,
         );
+        await AiseePipService.instance.setVideoCallActive(true);
       }
 
       // Check if remote participant already connected
@@ -476,6 +477,7 @@ class _CallScreenState extends State<CallScreen> {
   void dispose() {
     AiseeNotificationFeedback.instance.stopOutgoingCallRingback();
     _answerTimeoutTimer?.cancel();
+    AiseePipService.instance.setVideoCallActive(false);
     CallScreen.openRouteCount = (CallScreen.openRouteCount - 1).clamp(
       0,
       1 << 30,

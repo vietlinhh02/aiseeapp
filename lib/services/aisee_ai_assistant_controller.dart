@@ -16,6 +16,7 @@ import 'aisee_audio_uplink_gate.dart';
 import 'aisee_pcm_audio_player.dart';
 import 'aisee_voice_audio_session.dart';
 import 'aisee_voice_foreground.dart';
+import 'aisee_wake_word_service.dart';
 
 typedef AiseeMusicPlaybackStartedCallback = Future<void> Function();
 typedef AiseeAssistantForegroundAction = Future<void> Function();
@@ -239,6 +240,16 @@ class AiseeAiAssistantController {
       return;
     }
     await _ensureSessionConnectedForWake();
+
+    final Uint8List? capturedAudio =
+        AiseeWakeWordService.instance.consumeCapturedAudio();
+    if (capturedAudio != null && capturedAudio.isNotEmpty) {
+      debugPrint(
+        '[AiSee:WakeFlow] Injecting ${capturedAudio.length} bytes '
+        'of post-wake audio (~${capturedAudio.length ~/ 32}ms)',
+      );
+      await _session.sendAudioFrame(capturedAudio);
+    }
 
     await configureAiseeVoiceAudioSession();
     await _startForeground();

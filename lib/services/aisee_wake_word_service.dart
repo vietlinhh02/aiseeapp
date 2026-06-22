@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -131,6 +132,10 @@ class AiseeWakeWordService {
   /// Wake đang tắt mic native vì LiveKit giữ phòng.
   bool _pausedForLiveKit = false;
 
+  /// Buffer PCM 16-bit mono 16kHz captured sau khi wake detection,
+  /// từ native engine. Dùng để inject vào Gemini khi session active.
+  Uint8List? _postWakeAudio;
+
   bool get isConfiguredAndStarted => _started;
   bool get isListening => _listening;
   bool get isFeatureEnabledByConfig {
@@ -139,6 +144,14 @@ class AiseeWakeWordService {
 
   /// Gọi khi phát hiện wake (giá trị `phrase` từ native, thường là tên model).
   void Function(String phrase)? onWakePhrase;
+
+  /// Lấy buffer audio capture sau wake và xóa nội bộ.
+  /// Gọi 1 lần mỗi wake cycle.
+  Uint8List? consumeCapturedAudio() {
+    final Uint8List? buffer = _postWakeAudio;
+    _postWakeAudio = null;
+    return buffer;
+  }
 
   Future<void> startIdleListening() async {
     if (!_started) {
@@ -268,6 +281,21 @@ class AiseeWakeWordService {
 
   void _onDetectionEvent(Map<String, dynamic> event) {
     final String phrase = (event['phrase'] as String?)?.trim() ?? '';
+    final String audioBase64 = (event['postWakeAudio'] as String?) ?? '';
+
+    if (audioBase64.isNotEmpty) {
+      try {
+        _postWakeAudio = base64Decode(audioBase64);
+        debugPrint(
+          '[AiSee:WakeWord] Captured ${_postWakeAudio!.length} bytes (${(_postWakeAudio!.length / 32.0).toStringAsFixed(0)}ms) of post-wake audio',
+        );
+      } catch (e) {
+        debugPrint('[AiSee:WakeWord] Failed to decode postWakeAudio: $e');
+        _postWakeAudio = null;
+      }
+    } else {
+      _postWakeAudio = null;
+    }
     _listening = false;
     debugPrint(
       '[AiSee:WakeWord] Wake detected: ${phrase.isEmpty ? 'wake' : phrase}',
@@ -331,16 +359,32 @@ class AiseeWakeWordService {
         .toList();
   }
 
+  Completer<bool>? _permissionRequest;
+
   Future<bool> _ensureMicrophonePermission() async {
     final bool? debugMicrophoneGranted = _debugMicrophoneGranted;
     if (debugMicrophoneGranted != null) {
       return debugMicrophoneGranted;
     }
-    PermissionStatus mic = await Permission.microphone.status;
-    if (!mic.isGranted) {
-      mic = await Permission.microphone.request();
+    final Completer<bool>? inFlight = _permissionRequest;
+    if (inFlight != null) {
+      return inFlight.future;
     }
-    return mic.isGranted;
+    final Completer<bool> completer = Completer<bool>();
+    _permissionRequest = completer;
+    try {
+      PermissionStatus mic = await Permission.microphone.status;
+      if (!mic.isGranted) {
+        mic = await Permission.microphone.request();
+      }
+      completer.complete(mic.isGranted);
+      return mic.isGranted;
+    } catch (e) {
+      completer.complete(false);
+      return false;
+    } finally {
+      _permissionRequest = null;
+    }
   }
 
   Future<void> _cleanupFailedStart() async {

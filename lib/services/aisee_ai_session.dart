@@ -575,10 +575,12 @@ class AiseeAiSession {
         ? AgentState.failed
         : AgentState.fromString(rawState);
     agentState.value = next;
-    if (next == AgentState.disconnected) {
-      connectionStatus.value = AiseeAiSessionConnectionStatus.disconnected;
-    } else if (next == AgentState.failed) {
-      connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
+    switch (next) {
+      case AgentState.disconnected:
+        connectionStatus.value = AiseeAiSessionConnectionStatus.disconnected;
+      case AgentState.failed:
+        connectionStatus.value = AiseeAiSessionConnectionStatus.failed;
+      case _:
     }
   }
 

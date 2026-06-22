@@ -3,6 +3,8 @@ import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart';
 
+import 'aisee_nsfw_classifier.dart';
+
 /// Raw frame data captured from a video track.
 typedef CapturedFrame = ({Uint8List pixels, int width, int height});
 
@@ -17,7 +19,7 @@ abstract interface class NsfwClassifier {
 class AiseeContentGuardService {
   AiseeContentGuardService({
     required this.classifier,
-    this.threshold = 0.7,
+    this.threshold = AiseeNsfwClassifier.defaultThreshold,
     this.checkInterval = const Duration(milliseconds: 1500),
   });
 

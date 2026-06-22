@@ -1,6 +1,7 @@
 package com.aisee.aiseeapp
 
 import android.content.Context
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -13,7 +14,9 @@ import kotlin.math.abs
 class MainActivity : FlutterFragmentActivity() {
     private val platformChannel = "com.aisee.aiseeapp/platform"
     private val wakeWordChannel = "com.aisee.aiseeapp/livekit_wake_word"
+    private val audioRouteChannel = "com.aisee.aiseeapp/audio_route"
     private var wakeWordEngine: LiveKitWakeWordEngine? = null
+    private var audioManager: AudioManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +61,22 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             } catch (e: Exception) {
                 result.error("WAKE_WORD_ERROR", e.message, null)
+            }
+        }
+
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            audioRouteChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "forceSpeakerphone" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    val ok = audioManager?.setSpeakerphoneOn(enabled) ?: false
+                    Log.i("MainActivity", "forceSpeakerphone enabled=$enabled ok=$ok")
+                    result.success(ok)
+                }
+                else -> result.notImplemented()
             }
         }
 

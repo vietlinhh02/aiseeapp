@@ -81,6 +81,39 @@ class AiseeNnNoiselessNoiseSuppressor implements AiseeRealtimeNoiseSuppressor {
     }
 
     final int sourceSamples = bytes.length ~/ 2;
+    const int filterLen = 5;
+    const int halfWindow = filterLen ~/ 2;
+
+    if (sourceSamples < filterLen) {
+      return _downsampleSimple(bytes, factor: factor);
+    }
+
+    final int outputSamples =
+        (sourceSamples - filterLen) ~/ factor + 1;
+    if (outputSamples <= 0) {
+      return Uint8List(0);
+    }
+
+    final Uint8List output = Uint8List(outputSamples * 2);
+    final ByteData inputData = ByteData.sublistView(bytes);
+    final ByteData outputData = ByteData.sublistView(output);
+
+    for (int i = 0; i < outputSamples; i++) {
+      final int center = i * factor + halfWindow;
+      int sum = 0;
+      for (int j = -halfWindow; j <= halfWindow; j++) {
+        sum += inputData.getInt16(
+          (center + j) * 2,
+          Endian.little,
+        );
+      }
+      outputData.setInt16(i * 2, sum ~/ filterLen, Endian.little);
+    }
+    return output;
+  }
+
+  static Uint8List _downsampleSimple(Uint8List bytes, {required int factor}) {
+    final int sourceSamples = bytes.length ~/ 2;
     final int outputSamples = sourceSamples ~/ factor;
     final Uint8List output = Uint8List(outputSamples * 2);
     final ByteData inputData = ByteData.sublistView(bytes);
