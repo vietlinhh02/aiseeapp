@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../config/app_env.dart';
 import '../models/aisee_supporter_models.dart';
 import '../theme/style_tokens.dart';
 
@@ -30,7 +31,11 @@ String _fmtInt(int value) {
 }
 
 class FamilySupportCommunityScreen extends StatelessWidget {
-  const FamilySupportCommunityScreen({super.key, required this.data, this.userId});
+  const FamilySupportCommunityScreen({
+    super.key,
+    required this.data,
+    this.userId,
+  });
 
   final SupporterOverviewResponse data;
   final String? userId;
@@ -67,10 +72,11 @@ class FamilySupportCommunityScreen extends StatelessWidget {
           _SectionHeader(title: vi ? 'Hoạt động gần đây' : 'Recent activity'),
           const SizedBox(height: 10),
           _ActivityList(
-            activities: (data.community.activities ??
-                    const <CommunitySupporterActivity>[])
-                .take(5)
-                .toList(),
+            activities:
+                (data.community.activities ??
+                        const <CommunitySupporterActivity>[])
+                    .take(5)
+                    .toList(),
           ),
           const SizedBox(height: 16),
           _InviteFriendsCard(userId: userId),
@@ -375,10 +381,7 @@ class _ActivityTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          _ActivityAvatar(
-            seed: activity.anonSeed,
-            visual: visual,
-          ),
+          _ActivityAvatar(seed: activity.anonSeed, visual: visual),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -421,7 +424,8 @@ class _ActivityTile extends StatelessWidget {
   ) {
     final bool vi = Localizations.localeOf(context).languageCode == 'vi';
     return switch (activity.type) {
-      'watch_ad' => vi ? 'Người hỗ trợ xem quảng cáo' : 'A supporter watched an ad',
+      'watch_ad' =>
+        vi ? 'Người hỗ trợ xem quảng cáo' : 'A supporter watched an ad',
       'redeem' => vi ? 'Người hỗ trợ đổi lượt' : 'A supporter redeemed credits',
       _ => vi ? 'Người hỗ trợ vừa hoạt động' : 'A supporter was active',
     };
@@ -671,9 +675,8 @@ class _InviteFriendsCardState extends State<_InviteFriendsCard> {
   @override
   Widget build(BuildContext context) {
     final bool vi = Localizations.localeOf(context).languageCode == 'vi';
-    final String refLink = widget.userId != null && widget.userId!.isNotEmpty
-        ? 'https://aisee.app/invite?ref=${widget.userId}'
-        : 'https://aisee.app';
+    final Uri downloadUri = AppEnv.appDownloadUri(ref: widget.userId);
+    final String downloadLink = downloadUri.toString();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -717,8 +720,8 @@ class _InviteFriendsCardState extends State<_InviteFriendsCard> {
                     const SizedBox(height: 3),
                     Text(
                       vi
-                          ? 'Cùng nhau tạo tác động, nhận 200 xu mỗi người'
-                          : 'Make an impact together, earn 200 coins each',
+                          ? 'Gửi link tải AiSee cho người muốn cùng hỗ trợ'
+                          : 'Share AiSee with people who want to help',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: aiseeTextStyle(
@@ -754,20 +757,17 @@ class _InviteFriendsCardState extends State<_InviteFriendsCard> {
                             ? PhosphorIcons.qrCode(PhosphorIconsStyle.duotone)
                             : PhosphorIcons.qrCode(PhosphorIconsStyle.regular),
                         size: 15,
-                        color: _showQr
-                            ? Colors.white
-                            : _communityPrimary,
+                        color: _showQr ? Colors.white : _communityPrimary,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        _showQr ? (vi ? 'Ẩn QR' : 'Hide QR')
+                        _showQr
+                            ? (vi ? 'Ẩn QR' : 'Hide QR')
                             : (vi ? 'Mã QR' : 'QR code'),
                         style: aiseeTextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: _showQr
-                              ? Colors.white
-                              : _communityPrimary,
+                          color: _showQr ? Colors.white : _communityPrimary,
                         ),
                       ),
                     ],
@@ -801,7 +801,7 @@ class _InviteFriendsCardState extends State<_InviteFriendsCard> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: QrImageView(
-                        data: refLink,
+                        data: downloadLink,
                         version: QrVersions.auto,
                         size: 160,
                         backgroundColor: Colors.white,
@@ -835,8 +835,8 @@ class _InviteFriendsCardState extends State<_InviteFriendsCard> {
                         borderRadius: BorderRadius.circular(12),
                         onTap: () {
                           final String text = vi
-                              ? 'Tham gia AiSee cùng tôi để hỗ trợ người thân! $refLink'
-                              : 'Join me on AiSee to support our loved ones! $refLink';
+                              ? 'Tải AiSee để cùng hỗ trợ người thân: $downloadLink'
+                              : 'Download AiSee to support loved ones: $downloadLink';
                           SharePlus.instance.share(ShareParams(text: text));
                         },
                         child: Padding(
@@ -869,8 +869,9 @@ class _InviteFriendsCardState extends State<_InviteFriendsCard> {
                 ],
               ),
             ),
-            crossFadeState:
-                _showQr ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _showQr
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 300),
           ),
         ],

@@ -76,6 +76,22 @@ abstract final class AppEnv {
     return u.endsWith('/') ? u.substring(0, u.length - 1) : u;
   }
 
+  /// Link tải app công khai để dùng cho QR/share sheet.
+  static Uri appDownloadUri({String? ref}) {
+    final Uri base = Uri.parse(careWebBaseUrl);
+    final String? trimmedRef = ref?.trim();
+    final Map<String, String> queryParameters = <String, String>{
+      if (trimmedRef != null && trimmedRef.isNotEmpty) 'ref': trimmedRef,
+    };
+    return Uri(
+      scheme: base.scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: '/tai-apk',
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
+    );
+  }
+
   /// `section`: `timeline` | `weekly` | `incident` | `export` — web đọc query và hiển thị đúng màn.
   static Uri familyCareWebUri(String caredUserId, String section) {
     final Uri base = Uri.parse(careWebBaseUrl);
