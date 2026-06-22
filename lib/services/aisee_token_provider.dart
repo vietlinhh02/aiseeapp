@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../models/aisee_api_models.dart';
 import '../utils/jwt_expiry.dart';
 import 'aisee_auth_service.dart';
@@ -47,19 +49,41 @@ class AiseeTokenProvider {
 
     final Future<AiseeAuthTokens?> refresh = _refreshAndStore(refreshToken);
     _refreshInFlight = refresh;
-    refresh.whenComplete(() => _refreshInFlight = null);
+    unawaited(
+      refresh
+          .whenComplete(() {
+            if (_refreshInFlight == refresh) {
+              _refreshInFlight = null;
+            }
+          })
+          .catchError((Object _) => null),
+    );
     return refresh;
   }
 
   Future<AiseeAuthTokens?> _refreshAndStore(String refreshToken) async {
-    final AiseeAuthTokens rotated = await _authService.refreshTokens(
-      refreshToken,
-    );
-    await AiseeSessionStore.instance.write(rotated);
-    return rotated;
+    try {
+      final AiseeAuthTokens rotated = await _authService.refreshTokens(
+        refreshToken,
+      );
+      await AiseeSessionStore.instance.write(rotated);
+      return rotated;
+    } catch (_) {
+      // Another flow may have already rotated this refresh token.
+      // If the stored token changed, another flow succeeded; use it.
+      final AiseeAuthTokens? latest = await AiseeSessionStore.instance.read();
+      if (latest != null && latest.refreshToken != refreshToken) {
+        return latest;
+      }
+      rethrow;
+    }
   }
 
   bool _isInvalidToken(AiseeApiException e) {
-    return e.code == 'invalid_token' || e.message.contains('401');
+    final String message = e.message.toLowerCase();
+    return e.code == 'invalid_token' ||
+        e.code == 'unauthorized' ||
+        message.contains('401') ||
+        message.contains('unauthorized');
   }
 }

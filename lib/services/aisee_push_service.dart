@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -113,10 +115,50 @@ class AiseePushService {
     }
     _initialized = true;
 
+    // Android 13+ requires runtime POST_NOTIFICATIONS — ask CallKit directly
+    // so its custom channels (incoming call / missed call) are usable in
+    // both foreground and background/killed states.
+    //
+    // Lưu ý: KHÔNG await các request quyền này — popup hệ thống sẽ pause
+    // Activity và "kẹt" màn "Đang xác thực với máy chủ" của auth flow.
+    // Chạy fire-and-forget để user thấy Home Screen trước, popup hiện trên
+    // Home. FCM token vẫn upload ngay (không phụ thuộc quyền granted).
+    if (!kIsWeb && Platform.isAndroid) {
+      unawaited(
+        FlutterCallkitIncoming.requestNotificationPermission(
+          <String, dynamic>{
+            'rationaleMessagePermission':
+                'Cấp quyền thông báo để AiSee có thể báo cuộc gọi và tin nhắn.',
+            'postNotificationMessageRequired':
+                'Vui lòng bật thông báo trong Cài đặt để nhận cuộc gọi và tin nhắn.',
+          },
+        ).catchError((Object e) {
+          _log('requestNotificationPermission skipped: $e');
+        }),
+      );
+      // Android 14+ requires the user to grant USE_FULL_SCREEN_INTENT for the
+      // full-screen incoming CallKit UI. Without it, calls are silently dropped
+      // when the app is in background or the device is locked.
+      unawaited(
+        FlutterCallkitIncoming.requestFullIntentPermission().catchError(
+          (Object e) {
+            _log('requestFullIntentPermission skipped: $e');
+          },
+        ),
+      );
+    }
+
     final FirebaseMessaging messaging = FirebaseMessaging.instance;
-    final NotificationSettings settings = await messaging
-        .getNotificationSettings();
-    _log('Permission: ${settings.authorizationStatus}');
+    unawaited(
+      messaging
+          .requestPermission(alert: true, badge: true, sound: true)
+          .then((NotificationSettings settings) {
+            _log('FCM permission: ${settings.authorizationStatus}');
+          })
+          .catchError((Object e) {
+            _log('FCM requestPermission skipped: $e');
+          }),
+    );
 
     await _uploadFcmToken(accessToken);
 
@@ -167,8 +209,12 @@ class AiseePushService {
   }
 
   void _handleMessage(RemoteMessage message) {
-    _log('Message received: ${message.data}');
-    final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+    final Map<String, dynamic> raw = Map<String, dynamic>.from(message.data);
+    final Map<String, dynamic> data = _normalizeStringMap(raw);
+    _log(
+      'Message received: id=${message.messageId} type=${data['type']} '
+      'room=${data['room_name']} caller=${data['caller_name']}',
+    );
     final String type = _stringField(data, const ['type']);
 
     if (type == 'incoming_call' || type == 'volunteer_match') {
@@ -265,16 +311,69 @@ class AiseePushService {
     return '';
   }
 
+  /// Normalize FCM / WebSocket payload values to String. Required for
+  /// `flutter_callkit_incoming` which expects String fields in `extra`, and
+  /// for fields used to build the native UI (id, nameCaller, handle).
+  static Map<String, dynamic> _normalizeStringMap(Map<String, dynamic> input) {
+    return <String, dynamic>{
+      for (final MapEntry<String, dynamic> entry in input.entries)
+        entry.key: entry.value == null
+            ? ''
+            : (entry.value is String
+                ? entry.value as String
+                : entry.value.toString()),
+    };
+  }
+
+  /// Build URL avatar cho CallKit notification.
+  /// - Ưu tiên `callerAvatarUrl` thật từ server (nếu có).
+  /// - Fallback: generate từ chữ cái đầu tên người gọi qua ui-avatars.com,
+  ///   nền xanh brand (#1A3263) + chữ trắng, để noti không hiện icon mặc
+  ///   định trông như số / chữ cái rỗng.
+  static String _buildCallerAvatarUrl(AiseeIncomingCall call) {
+    final String? real = call.callerAvatarUrl;
+    if (real != null && real.trim().isNotEmpty) {
+      return real;
+    }
+    final String name = call.callerName.trim();
+    final String initial = name.isEmpty
+        ? '?'
+        : name.characters.first.toUpperCase();
+    return 'https://ui-avatars.com/api/'
+        '?name=${Uri.encodeComponent(initial)}'
+        '&size=128'
+        '&background=1A3263'
+        '&color=FFFFFF'
+        '&bold=true'
+        '&format=png';
+  }
+
   /// FCM (foreground), FCM background isolate, hoặc WebSocket — payload phẳng; FCM hay trả toàn String.
   static Future<void> showIncomingCallUi(Map<String, dynamic> data) async {
+    final Map<String, dynamic> normalized = _normalizeStringMap(data);
     final AiseeIncomingCall call = AiseeIncomingCall.fromPayload(
-      Map<String, dynamic>.from(data),
+      normalized,
       source: AiseeIncomingCallSource.fcm,
     );
-    _log('Incoming native UI: name=${call.callerName} room=${call.roomName}');
+    _log(
+      'Incoming native UI: name=${call.callerName} room=${call.roomName} '
+      'callerId=${call.callerId} callType=${call.callType} '
+      'tokenLen=${call.token.length}',
+    );
+    if (call.roomName.isEmpty || call.token.isEmpty) {
+      _log(
+        'showIncomingCallUi: missing room/token — skip native UI '
+        '(will rely on in-app overlay if app is foreground).',
+      );
+      return;
+    }
 
-    final String languageCode =
-        AiseeLocaleController.instance.value.languageCode;
+    String languageCode;
+    try {
+      languageCode = AiseeLocaleController.instance.value.languageCode;
+    } catch (_) {
+      languageCode = 'vi';
+    }
     final String textAccept = languageCode == 'en' ? 'Answer' : 'Nghe';
     final String textDecline = languageCode == 'en' ? 'Decline' : 'Từ chối';
 
@@ -283,6 +382,7 @@ class AiseePushService {
       nameCaller: call.callerName,
       appName: 'AiSee',
       handle: call.callerName,
+      avatar: _buildCallerAvatarUrl(call),
       type: call.isVideo ? 1 : 0,
       duration: 45000,
       textAccept: textAccept,
@@ -319,7 +419,13 @@ class AiseePushService {
       ),
     );
 
-    await FlutterCallkitIncoming.showCallkitIncoming(params);
+    try {
+      await FlutterCallkitIncoming.showCallkitIncoming(params);
+      _log('showCallkitIncoming dispatched: id=${call.callId}');
+    } catch (e, stack) {
+      _log('showCallkitIncoming failed: $e\n$stack');
+      rethrow;
+    }
   }
 
   Future<void> _onCallKitEvent(CallEvent? event) async {

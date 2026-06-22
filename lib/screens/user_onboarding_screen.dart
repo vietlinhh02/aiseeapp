@@ -127,27 +127,9 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
 
   int _stepsLength(AppLocalizations l) => _buildSteps(l).length;
 
-  bool _currentStepRequiresBatteryGrant(List<_OnboardingStep> steps) =>
-      steps[_pageIndex].isBatteryOptimization && !_batteryGranted;
-
-  int _batteryStepIndex(List<_OnboardingStep> steps) =>
-      steps.indexWhere((_OnboardingStep step) => step.isBatteryOptimization);
-
-  int _skipTargetIndex(List<_OnboardingStep> steps) {
-    final int batteryIndex = _batteryStepIndex(steps);
-    if (batteryIndex != -1 && !_batteryGranted && _pageIndex < batteryIndex) {
-      return batteryIndex;
-    }
-    return steps.length - 1;
-  }
+  int _skipTargetIndex(List<_OnboardingStep> steps) => steps.length - 1;
 
   Future<void> _goNext() async {
-    final List<_OnboardingStep> steps = _buildSteps(
-      AppLocalizations.of(context),
-    );
-    if (_currentStepRequiresBatteryGrant(steps)) {
-      return;
-    }
     if (_isLastPage) {
       final String? role = _selectedRole;
       if (role == null) {
@@ -168,9 +150,9 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
     final List<_OnboardingStep> steps = _buildSteps(l);
     final _OnboardingStep currentStep = steps[_pageIndex];
     final bool isLast = _pageIndex == steps.length - 1;
-    final bool batteryRequired = _currentStepRequiresBatteryGrant(steps);
-    final bool canContinue =
-        (!isLast && !batteryRequired) || (isLast && _selectedRole != null);
+    final bool canContinue = currentStep.isBatteryOptimization
+        ? _batteryGranted
+        : !isLast || (isLast && _selectedRole != null);
     final bool canSkip = !isLast && !currentStep.isBatteryOptimization;
 
     return Scaffold(
@@ -180,9 +162,7 @@ class _AppOnboardingScreenState extends State<AppOnboardingScreen> {
         children: <Widget>[
           PageView.builder(
             controller: _pageController,
-            physics: batteryRequired
-                ? const NeverScrollableScrollPhysics()
-                : null,
+            physics: null,
             itemCount: steps.length,
             clipBehavior: Clip.hardEdge,
             onPageChanged: (int index) {
