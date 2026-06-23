@@ -28,9 +28,14 @@ class AiseeReminder {
   final DateTime createdAt;
 
   /// Each time slot gets its own notification ID: base id + index.
+  /// Appointment uses 2 IDs: `id + 100` (1h before) và `id` (30m before),
+  /// khớp với logic `_scheduleAppointment`.
   List<int> get notificationIds {
     if (type == AiseeReminderType.medication && times != null) {
       return List<int>.generate(times!.length, (int i) => id + i);
+    }
+    if (type == AiseeReminderType.appointment) {
+      return <int>[id, id + 100];
     }
     return <int>[id];
   }

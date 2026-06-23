@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../config/aisee_navigator_key.dart';
 import '../config/aisee_locale_controller.dart';
@@ -31,6 +33,12 @@ class AiseePushService {
   AiseeCallInfo? _pendingCallInfo;
   final AiseeIncomingCallController _incomingCalls =
       AiseeIncomingCallController.instance;
+
+  /// Dùng để hiện local notification khi FCM message đến ở foreground
+  /// (medication_reminder / appointment_reminder). Dùng chung channel
+  /// 'aisee_reminders' với AiseeReminderService để user chỉ cần tắt 1 chỗ.
+  final FlutterLocalNotificationsPlugin _localNotif =
+      FlutterLocalNotificationsPlugin();
 
   /// Called before navigating to call screen — pause AI mic.
   Future<void> Function()? onBeforeIncomingCallAnswered;
@@ -223,6 +231,74 @@ class AiseePushService {
     }
     if (type == 'call_ended') {
       unawaited(handleCallEndedPayload(data));
+      return;
+    }
+    // Bug fix #3: FCM `medication_reminder` / `appointment_reminder`
+    // từ backend (xem internal/medication/service.go:392 và
+    // internal/appointment/service.go:232) có payload `notification`
+    // block. Khi app background/killed, Android tự hiện noti; nhưng khi
+    // foreground, OS không tự hiển thị — phải tự gọi local plugin.
+    if (type == 'medication_reminder' || type == 'appointment_reminder') {
+      unawaited(_showLocalFromFcm(message));
+    }
+  }
+
+  /// Hiện local notification từ FCM foreground message.
+  /// Dùng chung channel 'aisee_reminders' với AiseeReminderService.
+  Future<void> _showLocalFromFcm(RemoteMessage message) async {
+    try {
+      // Ưu tiên title/body từ `notification` block (do backend set sẵn),
+      // fallback về `data` nếu payload phẳng (chỉ có data, không có
+      // notification block).
+      //
+      // Dùng `RemoteNotification` (từ firebase_messaging) chứ không phải
+      // `Notification` (từ flutter_local_notifications) — 2 class này
+      // trùng tên nên cần qualify rõ.
+      final RemoteNotification? n = message.notification;
+      final String title = (n?.title ??
+              _stringField(
+                _normalizeStringMap(message.data),
+                const <String>['title'],
+              ))
+          .trim();
+      final String body = (n?.body ??
+              _stringField(
+                _normalizeStringMap(message.data),
+                const <String>['body'],
+              ))
+          .trim();
+      if (title.isEmpty && body.isEmpty) {
+        _log('FCM reminder message có title/body rỗng, bỏ qua');
+        return;
+      }
+      // Dùng messageId làm notif id (string hashCode) — tránh đụng với
+      // id của scheduled local notification.
+      final int notifId = (message.messageId ?? '').hashCode & 0x7FFFFFFF;
+      await _localNotif.show(
+        id: notifId,
+        title: title.isEmpty ? 'Nhắc nhở' : title,
+        body: body,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'aisee_reminders',
+            'Nhắc nhở AiSee',
+            channelDescription: 'Nhắc nhở uống thuốc và lịch hẹn',
+            importance: Importance.high,
+            priority: Priority.high,
+            playSound: true,
+            enableVibration: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: jsonEncode(message.data),
+      );
+      _log('FCM foreground reminder shown: id=$notifId title="$title"');
+    } catch (e) {
+      _log('FCM foreground reminder show failed: $e');
     }
   }
 

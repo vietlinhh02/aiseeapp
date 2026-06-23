@@ -7,7 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:volume_controller/volume_controller.dart';
 
 import '../models/aisee_incoming_call.dart';
+import '../models/aisee_reminder.dart';
 import '../services/aisee_location_service.dart';
+import '../services/aisee_reminder_service.dart';
 import 'aisee_ai_session.dart';
 import 'aisee_assistant_incoming_call_bridge.dart';
 import 'aisee_audio_route_service.dart';
@@ -103,6 +105,11 @@ class AiseeDefaultAssistantDeviceCommandHandler
       DeviceCommandNames.controlAudio => _handleControlAudio(request.params),
       DeviceCommandNames.getLocation => _handleGetLocation(),
       DeviceCommandNames.openMaps => _handleOpenMaps(request.params),
+      // Bug fix #5: thêm case scheduleReminder để khi AI gọi qua WS
+      // `device_command` (không phải LiveKit RPC) cũng hoạt động được.
+      DeviceCommandNames.scheduleReminder => _handleScheduleReminder(
+        request.params,
+      ),
       _ => throw AiseeAssistantDeviceCommandException(
         message: 'Unsupported command: ${request.name}',
         rpcCode: 2002,
@@ -449,6 +456,70 @@ class AiseeDefaultAssistantDeviceCommandHandler
   Future<void> _configureMusicAudioSession() async {
     if (kIsWeb) return;
     await AiseeAudioRouteService.instance.enterMusicMode();
+  }
+
+  Future<Map<String, Object?>> _handleScheduleReminder(
+    Map<String, dynamic> params,
+  ) async {
+    // Bug fix #5: route `schedule_reminder` (WS device_command) tới
+    // AiseeReminderService tương tự như LiveKit RPC. Param schema khớp
+    // với Python agent (xem contracts.py: type/name + times cho
+    // medication, datetime cho appointment).
+    final String typeStr = _paramString(params, const <String>[
+      'type',
+      'reminder_type',
+    ]);
+    final String name = _paramString(params, const <String>['name', 'title']);
+    if (name.isEmpty) {
+      throw const AiseeAssistantDeviceCommandException(
+        message: 'schedule_reminder: missing name/title',
+        rpcCode: 2010,
+      );
+    }
+    final int baseId = await AiseeReminderService.instance.nextReminderId();
+    final AiseeReminder reminder;
+    switch (typeStr) {
+      case 'medication':
+        final List<String> times =
+            (params['times'] as List<dynamic>?)?.cast<String>() ??
+                <String>[];
+        final String freq = _paramString(params, const <String>[
+          'frequency',
+          'freq',
+        ]);
+        reminder = AiseeReminder(
+          id: baseId,
+          type: AiseeReminderType.medication,
+          title: name,
+          times: times,
+          frequency: freq.isEmpty ? 'daily' : freq,
+          createdAt: DateTime.now(),
+        );
+      case 'appointment':
+        final String dt = _paramString(params, const <String>[
+          'datetime',
+          'date_time',
+          'time',
+        ]);
+        reminder = AiseeReminder(
+          id: baseId,
+          type: AiseeReminderType.appointment,
+          title: name,
+          datetime: dt,
+          createdAt: DateTime.now(),
+        );
+      default:
+        throw AiseeAssistantDeviceCommandException(
+          message: 'schedule_reminder: unsupported type "$typeStr"',
+          rpcCode: 2011,
+        );
+    }
+    await AiseeReminderService.instance.scheduleReminder(reminder);
+    return <String, Object?>{
+      'status': 'ok',
+      'reminder_id': baseId,
+      'type': reminder.type.name,
+    };
   }
 
   String _paramString(Map<String, dynamic> params, List<String> keys) {

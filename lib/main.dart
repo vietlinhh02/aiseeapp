@@ -100,6 +100,8 @@ Future<void> main() async {
         AiseeTtsPreferences.instance.load(),
         AiseeReminderService.instance.init(),
       ]);
+      // Phục hồi notification local đã lưu (sau force-stop / reboot / update).
+      unawaited(AiseeReminderService.instance.rescheduleAll());
       unawaited(AiseeReminderAnnouncer.instance.start());
       unawaited(AiseeMessageAnnouncer.instance.start());
       assert(() {

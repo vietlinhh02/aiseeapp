@@ -865,7 +865,9 @@ class AiseeLiveKitVoiceSession {
         'reminder_type',
       ]);
       final String name = _paramString(params, const ['name', 'title']);
-      final int baseId = DateTime.now().millisecondsSinceEpoch % 100000;
+      // Bug fix #2: dùng helper sinh ID unique từ microseconds + check
+      // trùng với storage, thay cho `% 100000` (cứ ~100s là trùng).
+      final int baseId = await AiseeReminderService.instance.nextReminderId();
       _log('RPC', 'schedule_reminder type=$typeStr name=$name');
 
       switch (typeStr) {
@@ -1029,7 +1031,9 @@ class AiseeLiveKitVoiceSession {
       if (name.isEmpty) {
         throw RpcError(code: 2030, message: 'Missing medication name');
       }
-      final int baseId = DateTime.now().millisecondsSinceEpoch % 100000;
+      // Bug fix #2: helper sinh ID unique, tránh collision (xem comment ở
+      // schedule_reminder phía trên).
+      final int baseId = await AiseeReminderService.instance.nextReminderId();
       final AiseeReminder reminder = AiseeReminder(
         id: baseId,
         type: AiseeReminderType.medication,
@@ -1176,7 +1180,8 @@ class AiseeLiveKitVoiceSession {
       if (name.isEmpty) {
         throw RpcError(code: 2030, message: 'Missing appointment name');
       }
-      final int baseId = DateTime.now().millisecondsSinceEpoch % 100000;
+      // Bug fix #2: helper sinh ID unique, tránh collision.
+      final int baseId = await AiseeReminderService.instance.nextReminderId();
       final AiseeReminder reminder = AiseeReminder(
         id: baseId,
         type: AiseeReminderType.appointment,
